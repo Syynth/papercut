@@ -597,3 +597,11 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** Every image entry in the project stores a content hash of the file as last seen — set on import, refreshed whenever the file is read or replaced. When the project opens and an entry's file is missing, the folder is searched for a file with the same hash; a match updates the entry's path to it and the library reports the relink, rather than marking the image missing. Only an entry whose file is missing and unmatched is missing.
 - **WHY:** Artists rename and move files. A pointer that only knows a path breaks on both; a hash follows the bytes, so a rename or a move is silent and a real loss is still reported.
+
+## An image that was edited and moved is lost, and recovered by hand
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui / project format
+- **SCOPE:** minor/local (follows "An image's entry keeps the last seen hash")
+- **WHAT:** When an entry's file is missing and no file in the folder matches its hash — the image was edited and moved, or deleted — the entry is missing, and the library offers a recover flow on the row: Relink…, which opens a picker of candidates (files in the folder that nothing lists, ranked by matching dimensions and similar name) with a Browse… escape to any file. Relinking keeps the entry's name, grid, terrain set and every reference, and refreshes the hash.
+- **WHY:** The hash catches the common case for free; the rare case still needs a human, and the app's job is to make that one click by suggesting the likely file.
