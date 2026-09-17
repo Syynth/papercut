@@ -8,7 +8,7 @@
  */
 
 import { Modal } from '@mantine/core'
-import type { ReactNode } from 'react'
+import type { ReactNode, Ref } from 'react'
 
 import { Icon, type IconName } from './icons'
 
@@ -147,4 +147,29 @@ export function SheetPreview({ src, width, height, scale = 2, alt }: { src: stri
       <img src={src} alt={alt} width={width * scale} height={height * scale} style={{ imageRendering: 'pixelated' }} />
     </div>
   )
+}
+
+/**
+ * The terrain editor's frame (decision of 2026-09-14, after Tiled's): the
+ * terrain list down the side, the tools above the sheet, the sheet in a box
+ * that scrolls. `stageRef` is the box, for whoever needs its width to fit
+ * the sheet to it.
+ */
+export function Tagger({ side, tools, stage, stageRef }: { side: ReactNode; tools: ReactNode; stage: ReactNode; stageRef?: Ref<HTMLDivElement> }) {
+  return (
+    <div className="ui-tagger">
+      <div className="ui-tagger-side">{side}</div>
+      <div className="ui-tagger-main">
+        <div className="ui-tagger-tools">{tools}</div>
+        <div className="ui-tagger-stage" ref={stageRef}>
+          {stage}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/** A line of small print under the tools: what the pointer is over, and what a click does. */
+export function TaggerHint({ children }: { children: ReactNode }) {
+  return <div className="ui-tagger-hint">{children}</div>
 }

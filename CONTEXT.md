@@ -159,7 +159,11 @@ terrain at each of its four corners, or nothing. That is the whole model of
 what a tile is: a tile is authored as the transition it shows, half grass
 and half path, and tagged so. The **template** fills a 4×4 block's tags from
 position for a pair of terrains, which is how art drawn to the template is
-wired in one placement; art that was not is tagged one corner at a time.
+wired in one placement; art that was not is tagged one corner at a time, in
+the Terrains section of Project settings, which works the way Tiled's
+terrain editor does (decision of 2026-09-14): pick a terrain, click or drag
+over tile corners on the sheet image, and every tagged corner shows as a
+translucent quadrant in its terrain's colour.
 
 A terrain whose partner is nothing has an **edge set**: the tiles drawn at
 the edge of the ground or the top of a cliff, and the pieces a composited

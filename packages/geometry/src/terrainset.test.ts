@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { RgbaImage } from '@papercut/document'
 
 import { TerrainAtlas, terrainKey, type CornerKeys } from './atlas'
-import { TerrainSetError, addTerrain, createTerrainSet, edgeCoverage, edgeTile, exactTile, pairAuthored, parseTerrainSet, serializeTerrainSet, stampTemplate, tagCorner, templateTags } from './terrainset'
+import { TerrainSetError, addTerrain, cornerAt, createTerrainSet, edgeCoverage, edgeTile, exactTile, pairAuthored, parseTerrainSet, removeTerrain, serializeTerrainSet, stampTemplate, tagCorner, templateTags } from './terrainset'
 
 const T = 4
 
@@ -81,6 +81,33 @@ describe('terrain sets', () => {
     expect(() => parseTerrainSet({ version: 2 })).toThrow(TerrainSetError)
     expect(() => parseTerrainSet({ version: 1, sheet: 'x.png', tile: 4, columns: 2, rows: 2, terrains: [], tiles: { 9: [null, null, null, null] } })).toThrow(/not on a 2×2 sheet/)
     expect(() => parseTerrainSet({ version: 1, sheet: 'x.png', tile: 4, columns: 2, rows: 2, terrains: [], tiles: { 0: ['grass', null, null, null] } })).toThrow(/does not have/)
+  })
+
+  it('finds the corner under a point on the sheet, and nothing off it', () => {
+    const set = groundSet()
+    // Tile 9 is column 1, row 1: its pixels run 4..8 both ways, its centre at 6,6.
+    expect(cornerAt(set, 4, 4)).toEqual({ index: 9, corner: 0 })
+    expect(cornerAt(set, 7.9, 4)).toEqual({ index: 9, corner: 1 })
+    expect(cornerAt(set, 4, 6)).toEqual({ index: 9, corner: 2 })
+    expect(cornerAt(set, 6, 6)).toEqual({ index: 9, corner: 3 })
+    expect(cornerAt(set, 5.99, 5.99)).toEqual({ index: 9, corner: 0 })
+    expect(cornerAt(set, -1, 4)).toBeNull()
+    expect(cornerAt(set, 32, 4)).toBeNull()
+    expect(cornerAt(set, 4, 36)).toBeNull()
+    expect(cornerAt(set, Number.NaN, 4)).toBeNull()
+  })
+
+  it('removes a terrain with every corner it tagged, and refuses one it never had', () => {
+    let set = groundSet()
+    set = tagCorner(set, 64, 0, 'dirt')
+    set = tagCorner(set, 64, 1, 'grass')
+    set = removeTerrain(set, 'dirt')
+    expect(set.terrains.map((t) => t.id)).toEqual(['grass', 'path'])
+    expect(set.tiles.get(64)).toEqual([null, 'grass', null, null])
+    // Dirt's edge set was sixteen tiles tagged dirt or nothing: every one that carried dirt is gone; the block's all-nothing tile never did, and stays.
+    expect([...set.tiles.keys()].filter((i) => i % 8 >= 4 && i >= 32)).toEqual([36])
+    expect(edgeCoverage(set, 'grass')).toBe(16)
+    expect(() => removeTerrain(set, 'dirt')).toThrow(TerrainSetError)
   })
 
   it('refuses a template block that leaves the sheet', () => {

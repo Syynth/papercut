@@ -144,6 +144,36 @@ export function tagCorner(set: TerrainSet, index: number, corner: number, tag: T
   return { ...set, tiles }
 }
 
+/** Take a terrain out of the set: its definition, and every corner tagged with it, which becomes nothing. A tile that carried it and is left tagged nothing everywhere is forgotten; a tile the template tagged nothing everywhere on purpose stays. */
+export function removeTerrain(set: TerrainSet, id: string): TerrainSet {
+  if (!set.terrains.some((t) => t.id === id)) throw new TerrainSetError(`Terrain ${id} is not in the set.`)
+  const tiles = new Map<number, CornerTags>()
+  for (const [index, tags] of set.tiles) {
+    if (!tags.includes(id)) {
+      tiles.set(index, tags)
+      continue
+    }
+    const next = tags.map((t) => (t === id ? null : t)) as unknown as CornerTags
+    if (next.some((t) => t !== null)) tiles.set(index, next)
+  }
+  return { ...set, terrains: set.terrains.filter((t) => t.id !== id), tiles }
+}
+
+/**
+ * The corner under a point on the sheet, in sheet pixels: the tile the point
+ * is in and which of its quadrants holds it (0 NW, 1 NE, 2 SW, 3 SE), or
+ * `null` off the sheet. What a tagging tool asks on every click and drag.
+ */
+export function cornerAt(set: TerrainSet, x: number, y: number): { index: number; corner: number } | null {
+  if (!(x >= 0 && y >= 0)) return null
+  const column = Math.floor(x / set.tile)
+  const row = Math.floor(y / set.tile)
+  if (column >= set.columns || row >= set.rows) return null
+  const half = set.tile / 2
+  const corner = (x - column * set.tile < half ? 0 : 1) + (y - row * set.tile < half ? 0 : 2)
+  return { index: row * set.columns + column, corner }
+}
+
 const tagKey = (tags: CornerTags): string => tags.map((t) => t ?? '').join('|')
 
 const indexCache = new WeakMap<ReadonlyMap<number, CornerTags>, Map<string, number>>()
