@@ -34,3 +34,9 @@
   library, now a project setting). The decisions it settled are in `docs/decision-log.md`
   under that date. Published copy:
   https://claude.ai/code/artifact/ce6e13d2-54a1-44c4-a23d-b83a4123c009
+- [`terrain-tagger/`](terrain-tagger/README.md) — the 2026-09-17 pass over the Terrains
+  section after the first build did too much: Tiled's pieces and nothing else — the sheet
+  filling the window, a short terrain list, a brush, undo — plus two close-ups of a tagged
+  corner and a stroke, and the list of what was cut. Decisions of 2026-09-14 (Tiled-style
+  editor) and 2026-09-17 (undo) in `docs/decision-log.md`. Published copy:
+  https://claude.ai/artifact/Q43q95uxyewMnPbtR1grhM
