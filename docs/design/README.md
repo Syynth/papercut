@@ -40,3 +40,10 @@
   corner and a stroke, and the list of what was cut. Decisions of 2026-09-14 (Tiled-style
   editor) and 2026-09-17 (undo) in `docs/decision-log.md`. Published copy:
   https://claude.ai/artifact/Q43q95uxyewMnPbtR1grhM
+- [`tilesets/`](tilesets/README.md) — the 2026-09-17 image library: the Sheets section
+  becomes Images, planned for every image kind with tilesets worked through now; each
+  tileset carries a grid (tile, margin, spacing) and draws at a whole-number scale of the
+  density; one import dialog offers the sizes that fit over a live grid; the terrain
+  editor's sheet picker is the first rich typeahead. Decisions of 2026-09-17 in
+  `docs/decision-log.md`. Published copy:
+  https://claude.ai/artifact/XLJUUeheTo28GYFnAzS465

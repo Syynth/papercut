@@ -1,0 +1,56 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font: 13px/1.4 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; background: #15171c; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    .k { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, monospace; }
+    .note { font-size: 11.5px; line-height: 1.5; color: #7b8294; }
+    .rail-item { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border-radius: 4px; font-size: 12.5px; color: #aab0c0; }
+    .rail-item.active { background: #242833; color: #e9a23b; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid #353b4a; background: #242833; color: #e8eaf0; font-size: 12px; white-space: nowrap; }
+    .btn.primary { background: #e9a23b; color: #1a1305; border-color: #e9a23b; font-weight: 600; }
+    .btn.quiet { border-color: transparent; background: none; color: #aab0c0; }
+    .btn.danger { color: #e5636f; }
+    .tabs { display: flex; gap: 2px; border-bottom: 1px solid #353b4a; padding: 0 28px; }
+    .tab { padding: 10px 10px 8px; font-size: 12.5px; color: #7b8294; border-bottom: 2px solid transparent; margin-bottom: -1px; display: flex; gap: 6px; align-items: center; }
+    .tab.on { color: #e8eaf0; border-bottom-color: #e9a23b; }
+    .soon { font: 500 9.5px/1 'IBM Plex Mono', Menlo, monospace; letter-spacing: .06em; border: 1px solid #353b4a; border-radius: 3px; padding: 2px 4px; color: #7b8294; }
+    .th { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; padding: 0 10px 6px; }
+    .td { font-size: 12px; color: #aab0c0; padding: 6px 10px; border-top: 1px solid #2c3140; display: flex; align-items: center; gap: 8px; min-height: 34px; }
+    .td.first { color: #e8eaf0; }
+    .td.sel { background: #2c3140; }
+    .ok { color: #7bc47f; } .warn { color: #e5636f; } .acc { color: #e9a23b; }
+    .thumb { width: 24px; height: 24px; border-radius: 3px; flex: none; image-rendering: pixelated; background: #0f1115; border: 1px solid #353b4a; box-sizing: border-box; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field .lbl { font-size: 11px; color: #7b8294; }
+    .input { height: 28px; border: 1px solid #353b4a; border-radius: 4px; background: #15171c; display: flex; align-items: center; padding: 0 10px; font-size: 12px; color: #e8eaf0; gap: 8px; }
+    .input.ro { color: #aab0c0; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid #353b4a; background: #1b1e25; font-size: 12px; color: #aab0c0; }
+    .chip.on { border-color: #e9a23b; color: #e9a23b; background: rgba(233,162,59,.12); }
+    .chip.no { color: #7b8294; text-decoration: line-through; }
+    .sec { display: flex; flex-direction: column; gap: 10px; }
+    .sec-title { font-size: 13px; font-weight: 600; color: #e8eaf0; }
+    .px { image-rendering: pixelated; }
+    .grid-h, .grid-v { position: absolute; background: rgba(255,255,255,.28); }
+    .step h3 { margin: 0; font-size: 13px; font-weight: 600; }
+    .step p { margin: 0; font-size: 12px; line-height: 1.55; color: #aab0c0; }
+  </style>
+</helmet>
+<div style="width: 560px; height: 300px; padding: 24px; box-sizing: border-box; display: grid; gap: 14px; align-content: start;">
+  <div class="k">Planned kinds, placeholder tabs until their work</div>
+  <div class="step"><h3>Sprites <span class="soon">soon</span></h3><p>Character and object sheets: a frame grid of their own, facings, anchors and feet. The 45 character sheets already in sprites/ are listed here with their size and nothing else until the sprite work.</p></div>
+  <div class="step"><h3>Textures <span class="soon">soon</span></h3><p>Images that are not cut into tiles: skies, water, decals, the look of a material's side that is not a terrain. Listed with size and use.</p></div>
+  <div class="step"><h3>Animations <span class="soon">soon</span></h3><p>Frame sequences over a sprite or a texture: names, frame lists, rates. Depends on Sprites.</p></div>
+  <div class="note">One library, one row shape — thumbnail, name, size, settings, used by, status — so a kind arriving later is a tab, not a redesign.</div>
+</div>
+</x-dc>
+</body>
+</html>
