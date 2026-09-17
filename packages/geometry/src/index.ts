@@ -30,8 +30,8 @@ export {
   terrainSetFrom,
 } from './terrainset'
 export type { CornerTags, Tag, TerrainDef, TerrainSet } from './terrainset'
-export { cutGrid, fitsOf, gridCells } from './grid'
-export type { GridCells } from './grid'
+export { cutGrid, fitsOf, gridCells, remapTags } from './grid'
+export type { GridCells, Remapped } from './grid'
 export { TerrainAtlas, terrainKey } from './atlas'
 export { createTerrainLook } from './look'
 export type { TerrainLook } from './look'

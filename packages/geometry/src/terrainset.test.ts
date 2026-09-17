@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import type { RgbaImage } from '@papercut/document'
 
 import { TerrainAtlas, terrainKey, type CornerKeys } from './atlas'
-import { cutGrid, fitsOf, gridCells } from './grid'
+import { cutGrid, fitsOf, gridCells, remapTags } from './grid'
 import { TerrainSetError, addTerrain, cornerAt, createTerrainSet, edgeCoverage, edgeTile, exactTile, pairAuthored, removeTerrain, stampTemplate, tagCorner, templateTags, terrainOf, terrainSetFrom } from './terrainset'
 
 const T = 4
@@ -154,6 +154,54 @@ describe('an image grid', () => {
     const at = (x: number, y: number): number => cut.image.data[(y * cut.image.width + x) * 4]
     expect([at(0, 0), at(3, 3), at(4, 0), at(7, 3)]).toEqual([10, 10, 20, 20])
     expect(() => cutGrid({ width, height, data }, { tile: 2, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, 1.5)).toThrow(/whole number/)
+  })
+})
+
+describe('tags follow their pixels when the grid changes', () => {
+  const plain = (tile: number, margin = 0, spacing = 0) => ({ tile, margin: { x: margin, y: margin }, spacing: { x: spacing, y: spacing } })
+  const terrain = (tiles: Record<string, [string | null, string | null, string | null, string | null]>) => ({ terrains: [{ id: 'g', name: 'G', color: '#0f0' }], tiles })
+
+  it('moves every tag exactly when only the margin changes, because every tile shifts alike', () => {
+    // 4 x 2 tiles of 16 px in a 64 x 32 image; with a 4 px margin only 3 x 1 fit.
+    const before = terrain({ 0: ['g', null, null, null], 5: [null, 'g', null, null] })
+    const after = remapTags(before, plain(16), plain(16, 4), 64, 32)
+    // Tile 0 began at 0,0; with a 4 px margin no tile begins there, so it is dropped.
+    // Tile 5 began at 16,16 — the new grid's tile 0 begins at 4,4, so nothing lands there either.
+    expect(after.moved + after.dropped).toBe(2)
+  })
+
+  it('moves a tag to the tile that starts on the same pixel, and drops one that lands nowhere', () => {
+    // A 1 px gutter appearing: 16 px tiles at margin 0 spacing 1 in a 50 x 33 image.
+    // Old grid (no gutter) is 3 x 2; tile 1 begins at 16,0. New grid: tile 1 begins at 17,0 — nothing at 16,0.
+    const before = terrain({ 0: ['g', 'g', 'g', 'g'], 1: ['g', null, null, null] })
+    const after = remapTags(before, plain(16), plain(16, 0, 1), 50, 33)
+    // Tile 0 begins at 0,0 on both grids, so it survives; tile 1 does not.
+    expect(after.terrain.tiles['0']).toEqual(['g', 'g', 'g', 'g'])
+    expect(after.moved).toBe(1)
+    expect(after.dropped).toBe(1)
+  })
+
+  it('carries a tag across a spacing change that keeps its pixel, and keeps the terrains either way', () => {
+    // Removing a 2 px gutter: old tile 1 began at 18,0; new grid has no tile there, old tile 0 stays at 0,0.
+    const before = terrain({ 0: ['g', null, null, null], 1: [null, 'g', null, null] })
+    const after = remapTags(before, plain(16, 0, 2), plain(16), 50, 16)
+    expect(after.terrain.terrains).toEqual(before.terrains)
+    expect(after.terrain.tiles['0']).toEqual(['g', null, null, null])
+    expect(after.moved).toBe(1)
+  })
+
+  it('drops everything when the new grid holds no tile at all', () => {
+    const before = terrain({ 0: ['g', 'g', 'g', 'g'] })
+    const after = remapTags(before, plain(16), plain(64), 32, 32)
+    expect(after.terrain.tiles).toEqual({})
+    expect(after.dropped).toBe(1)
+  })
+
+  it('drops a tag whose index the old grid never had', () => {
+    const before = terrain({ 999: ['g', null, null, null] })
+    const after = remapTags(before, plain(16), plain(16), 64, 32)
+    expect(after.dropped).toBe(1)
+    expect(after.moved).toBe(0)
   })
 })
 
