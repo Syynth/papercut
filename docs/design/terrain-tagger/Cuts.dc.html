@@ -1,0 +1,39 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font: 13px/1.4 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; background: #15171c; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    .k { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, monospace; }
+    .note { font-size: 11.5px; line-height: 1.5; color: #7b8294; }
+    .rail-item { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border-radius: 4px; font-size: 12.5px; color: #aab0c0; }
+    .rail-item.active { background: #242833; color: #e9a23b; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 9px; border-radius: 5px; border: 1px solid #353b4a; background: #2c3140; color: #e8eaf0; font-size: 12px; white-space: nowrap; }
+    .btn.quiet { border-color: transparent; background: none; color: #aab0c0; }
+    .btn.icon { width: 26px; padding: 0; justify-content: center; }
+    .btn.off { opacity: .4; }
+    .kbd { display: inline-block; font: 500 10px/1 'IBM Plex Mono', Menlo, monospace; border: 1px solid #414859; border-radius: 3px; padding: 2px 4px; color: #aab0c0; }
+    .item { display: grid; grid-template-columns: 14px minmax(0, 1fr) auto; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border-radius: 4px; color: #aab0c0; font-size: 12.5px; }
+    .item.on { background: rgba(233, 162, 59, .16); color: #e9a23b; }
+    .sw { width: 12px; height: 12px; border-radius: 3px; }
+    .sw.none { border: 1px dashed #7b8294; box-sizing: border-box; }
+    .tile { position: absolute; box-sizing: border-box; border-right: 1px solid rgba(255,255,255,.12); border-bottom: 1px solid rgba(255,255,255,.12); }
+    .q { position: absolute; box-sizing: border-box; border: 1px solid; }
+    .cut { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 10px; align-items: start; }
+    .cut .mark { font: 600 12px/1.6 'IBM Plex Mono', Menlo, monospace; color: #e5636f; }
+    .cut .mark.keep { color: #7bc47f; }
+    .cut b { color: #e8eaf0; font-weight: 500; font-size: 12.5px; }
+    .cut p { margin: 2px 0 0; color: #aab0c0; font-size: 12px; line-height: 1.5; }
+  </style>
+</helmet>
+<div style="width: 1000px; min-height: 400px; padding: 28px 32px; box-sizing: border-box; display: grid; gap: 18px; align-content: start;"><div><div class="k">Against Tiled</div><div style="font-size: 15px; font-weight: 600; margin-top: 4px;">What was cut, what stays</div><div class="note" style="margin-top: 4px; max-width: 70ch;">The first build put the tagger inside a 440 px box with a table's worth of readouts around it. Tiled's editor is the sheet, a list, a brush and undo; the extra pieces do not earn their place.</div></div><div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px 28px;"><div class="cut"><span class="mark">−</span><div><b>The 440 px box.</b><p>The section fills the window while it is open. A sheet at 100 % is the point; a quarter-scale thumbnail is not a tagger.</p></div></div><div class="cut"><span class="mark">−</span><div><b>Fit / 1× / 2× / 4× segmented control.</b><p>Zoom is − / + and ⌘ wheel, with the percentage as the readout. One idea, where Tiled keeps it.</p></div></div><div class="cut"><span class="mark">−</span><div><b>Counts in the list.</b><p>Corner counts and edge-set coverage go. The list is swatch and name. Coverage is read where it is decided: on the material, in Materials.</p></div></div><div class="cut"><span class="mark">−</span><div><b>Name, Colour, Id, Edge set fields.</b><p>Double-click a terrain to rename it; click its swatch to recolour. The id is derived and never shown here.</p></div></div><div class="cut"><span class="mark">−</span><div><b>The explanatory paragraph and the hint line.</b><p>One footer line over the sheet says what the brush is and what the buttons do. The rest is in the docs.</p></div></div><div class="cut"><span class="mark">−</span><div><b>The Transitions block.</b><p>The “to author” list is the status bar's and the Materials section's. It never belonged under the sheet.</p></div></div><div class="cut"><span class="mark keep">+</span><div><b>Undo and redo.</b><p>⌘Z / ⌘⇧Z and two buttons; a stroke, an add, a removal, a rename or a recolour is one step. Decided 2026-09-17.</p></div></div><div class="cut"><span class="mark keep">+</span><div><b>Remove on the selected terrain.</b><p>The ✕ on the active row. Disabled, with a tooltip, while a material still uses it.</p></div></div><div class="cut"><span class="mark keep">+</span><div><b>Nothing, as the first entry.</b><p>It is a real tag: the corner shows nothing. Right-click paints it too.</p></div></div></div></div>
+</x-dc>
+</body>
+</html>

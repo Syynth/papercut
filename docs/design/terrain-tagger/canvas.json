@@ -1,0 +1,54 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1180,
+      "h": 720,
+      "title": "Terrain sets, with room"
+    },
+    {
+      "file": "Corner.dc.html",
+      "x": 0,
+      "y": 860,
+      "w": 1000,
+      "h": 330,
+      "title": "What a corner looks like"
+    },
+    {
+      "file": "Cuts.dc.html",
+      "x": 1260,
+      "y": 0,
+      "w": 1000,
+      "h": 420,
+      "title": "What was cut, what stays"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "note-main",
+      "x": 1260,
+      "y": 580,
+      "w": 320,
+      "text": "DECIDED 2026-09-14: the Terrains section works like Tiled's terrain editor — pick a terrain, tag corners on the sheet image, coloured overlays, list beside the image.\n\nThe modal grows to the window for this section only; the rail stays so it is still Project settings."
+    },
+    {
+      "id": "note-corner",
+      "x": 1080,
+      "y": 860,
+      "w": 300,
+      "text": "Fill + hairline reads on busy art where a plain tint did not. The hover outline is the only white on the sheet."
+    },
+    {
+      "id": "note-cuts",
+      "x": 1260,
+      "y": 460,
+      "w": 320,
+      "text": "DECIDED 2026-09-17: tagging is undoable, with the editor's own history while it is open. The other settings stay non-undoable."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

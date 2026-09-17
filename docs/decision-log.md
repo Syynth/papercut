@@ -533,3 +533,11 @@ Each entry:
 - **SCOPE:** moderate (the design of the sidecar authoring UI, #146)
 - **WHAT:** Painting on the map stays as it is: pick a material and paint. The setup screen in Project settings (the Terrains section) works the way Tiled's terrain editor does: the artist picks an image (a sheet), a terrain list sits beside the image, and terrains are assigned by clicking or dragging over tile corners in the image; every tagged corner shows as a translucent wedge in the terrain's colour so the whole set reads at a glance. That tagging is what decides how textures are painted onto the terrain. Sets stay corner-only; Tiled's edge and mixed set types are not adopted.
 - **WHY:** Both familiarity and reach. The people who will tag sheets already know Tiled's editor and should not have to learn a second idiom for the same job. Tagging corners directly on the image also works for any sheet layout, hand-drawn or third-party, where the template-placing approach in the terrain-tools mockup only fits tiles laid out on its fixed 4 × 4 block.
+
+## Tagging in the Terrains editor is undoable
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-tools / settings
+- **SCOPE:** moderate
+- **WHAT:** The Terrains editor keeps its own undo history while it is open: ⌘Z / ⌘⇧Z, with Undo and Redo buttons in its tools row, step through strokes, terrain adds, removals, renames and recolours, each as one entry, separate from the map's undo. The history clears when the settings modal closes. The other Project settings stay as they were: not undoable.
+- **WHY:** Tagging is authoring by hand, stroke after stroke, and a slip should cost one keypress, the way it does in Tiled and on the map itself. A rename in a settings field is not that, so the rest of the settings keep their brink-style no-undo.
