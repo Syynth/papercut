@@ -127,7 +127,7 @@ Terrains section of Project settings, after Tiled's terrain editor (decision
 of 2026-09-14): the sheet as an image with its terrain list beside it, a
 terrain picked and corners tagged by clicking or dragging over the tiles,
 each tagged corner drawn as a translucent quadrant in its terrain's colour.
-A stroke is one write of the sidecar.
+A stroke is one write of the sidecar, and one step in the editor's own undo history (decision of 2026-09-17), which lives only while the section is open.
 
 The project's materials point into terrain sets (ruling of 2026-09-14: the
 library is the project's, in `papercut.json`, never a map's; a map stores

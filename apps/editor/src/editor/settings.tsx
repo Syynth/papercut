@@ -82,6 +82,7 @@ export function ProjectSettings({ session, platform }: { session: Session; platf
       opened={section !== null}
       onClose={close}
       title={current?.title ?? ''}
+      wide={section === 'terrains'}
       aside={<span>{section ? aside[section] : ''}</span>}
       rail={
         <>
