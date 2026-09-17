@@ -3,6 +3,12 @@
  * sections on the frame's ground, one section at a time on a raised pane,
  * and tables where a section lists things.
  *
+ * ONE SIZE, whatever is open (ruling of 2026-09-17): the window inset by a
+ * fixed margin. Sections differ enormously — a four-field form, a tagger over
+ * a 592 × 960 sheet — and sizing the modal to each made it jump under the
+ * pointer on every switch. A form section instead caps its own content at a
+ * readable width inside the big pane; an editor section fills it.
+ *
  * Presentation only. The app decides which sections exist and what each
  * holds; the rail's active item and the pane's title come in as props.
  */
@@ -12,9 +18,9 @@ import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react'
 
 import { Icon, type IconName } from './icons'
 
-export function SettingsDialog({ opened, onClose, rail, title, aside, wide = false, children }: { opened: boolean; onClose: () => void; rail: ReactNode; title: string; aside?: ReactNode; /** The section needs the window: the modal grows to it and the content loses its padding, for an editor rather than a form. */ wide?: boolean; children: ReactNode }) {
+export function SettingsDialog({ opened, onClose, rail, title, aside, wide = false, children }: { opened: boolean; onClose: () => void; rail: ReactNode; title: string; aside?: ReactNode; /** The section is an EDITOR rather than a form: its pane loses the padding and the width cap and fills the window. The modal itself is one size either way. */ wide?: boolean; children: ReactNode }) {
   return (
-    <Modal opened={opened} onClose={onClose} size={wide ? 'calc(100vw - 48px)' : 920} centered withCloseButton={false} padding={0} classNames={{ content: `ui-settings ${wide ? 'is-wide' : ''}`, body: 'ui-settings-body' }} overlayProps={{ className: 'ui-dialog-scrim' }}>
+    <Modal opened={opened} onClose={onClose} size="calc(100vw - 96px)" centered withCloseButton={false} padding={0} classNames={{ content: `ui-settings ${wide ? 'is-wide' : ''}`, body: 'ui-settings-body' }} overlayProps={{ className: 'ui-dialog-scrim' }}>
       <div className="ui-settings-rail">{rail}</div>
       <div className="ui-settings-pane">
         <div className="ui-settings-head">

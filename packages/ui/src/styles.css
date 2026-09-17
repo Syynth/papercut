@@ -1497,7 +1497,9 @@ body {
   border-radius: 6px;
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.45);
   color: var(--ui-ink);
-  height: min(720px, calc(100vh - 80px));
+  /* One size whatever section is open, so switching never resizes it (ruling of 2026-09-17). */
+  height: calc(100vh - 96px);
+  max-height: calc(100vh - 96px);
   overflow: hidden;
 }
 
@@ -1633,6 +1635,11 @@ body {
   gap: 24px;
   overflow-y: auto;
   min-height: 0;
+}
+/* A form does not want the whole window: its fields stay readable against the rail. */
+.ui-settings:not(.is-wide) .ui-settings-content > * {
+  max-width: 860px;
+  width: 100%;
 }
 
 .ui-settings-block {
@@ -1822,9 +1829,6 @@ body {
 
 /* --- terrain tagger (Tiled-style, decisions of 2026-09-14 and 2026-09-17) -- */
 
-.ui-settings.is-wide {
-  height: calc(100vh - 48px);
-}
 .ui-settings.is-wide .ui-settings-content {
   padding: 0;
   gap: 0;
