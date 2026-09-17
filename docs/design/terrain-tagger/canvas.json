@@ -12,9 +12,9 @@
       "file": "Corner.dc.html",
       "x": 0,
       "y": 860,
-      "w": 1000,
-      "h": 330,
-      "title": "What a corner looks like"
+      "w": 1240,
+      "h": 640,
+      "title": "How a tag becomes a tile on the map"
     },
     {
       "file": "Cuts.dc.html",
@@ -35,10 +35,10 @@
     },
     {
       "id": "note-corner",
-      "x": 1080,
+      "x": 1300,
       "y": 860,
-      "w": 300,
-      "text": "Fill + hairline reads on busy art where a plain tint did not. The hover outline is the only white on the sheet."
+      "w": 320,
+      "text": "The block and the cells are real pixels from an MZ Outside_A2 sheet as scripts/import-mz.mjs converts it, with the tags its sidecar carries. The images are local references and are not committed.\n\nThe dual grid in one picture: tiles live on corners, quadrants on cells."
     },
     {
       "id": "note-cuts",
