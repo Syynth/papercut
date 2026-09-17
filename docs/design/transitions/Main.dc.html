@@ -1,0 +1,127 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font: 13px/1.5 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; background: #15171c; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    .k { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, monospace; }
+    .note { font-size: 11.5px; line-height: 1.55; color: #7b8294; }
+    h2 { font-size: 15px; font-weight: 600; margin: 0; }
+    h3 { font-size: 13px; font-weight: 600; margin: 0; }
+    p { margin: 0; font-size: 12.5px; line-height: 1.6; color: #aab0c0; }
+    .px { image-rendering: pixelated; display: block; }
+    .card { border: 1px solid #353b4a; border-radius: 8px; background: #1b1e25; padding: 14px; display: grid; gap: 10px; align-content: start; }
+    .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 5px; }
+    .tag { display: inline-block; font: 500 10px/1 'IBM Plex Mono', Menlo, monospace; border: 1px solid #414859; border-radius: 3px; padding: 3px 5px; color: #aab0c0; }
+    .tag.on { border-color: #e9a23b; color: #e9a23b; background: rgba(233,162,59,.1); }
+    .tag.no { color: #e5636f; border-color: #e5636f; }
+    .tag.ok { color: #7bc47f; border-color: #7bc47f; }
+    .row { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 10px; align-items: start; }
+    .row .n { font: 600 12px/1.5 'IBM Plex Mono', Menlo, monospace; color: #e9a23b; }
+    code { font-family: 'IBM Plex Mono', Menlo, monospace; color: #e8eaf0; font-size: 12px; }
+    pre { margin: 0; font: 11.5px/1.6 'IBM Plex Mono', Menlo, monospace; color: #aab0c0; background: #0f1115; border: 1px solid #353b4a; border-radius: 6px; padding: 12px; overflow: hidden; }
+    pre .c { color: #7b8294; } pre .s { color: #e9a23b; } pre .g { color: #7bc47f; }
+    table { border-collapse: collapse; font-size: 12px; width: 100%; }
+    th { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; text-align: left; padding: 0 14px 6px 0; }
+    td { padding: 6px 14px 6px 0; color: #aab0c0; border-top: 1px solid #2c3140; vertical-align: top; }
+    td.first { color: #e8eaf0; }
+    .item { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; gap: 10px; align-items: center; height: 34px; padding: 0 8px; border-radius: 4px; color: #aab0c0; font-size: 12.5px; }
+    .item.on { background: rgba(233,162,59,.14); color: #e9a23b; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 5px; border: 1px solid #353b4a; background: #2c3140; color: #e8eaf0; font-size: 12px; }
+    .btn.on { background: #e9a23b; color: #1a1305; border-color: #e9a23b; font-weight: 600; }
+  </style>
+</helmet>
+<div style="width: 1180px; padding: 30px 34px; box-sizing: border-box; display: grid; gap: 22px; align-content: start;">
+  <div>
+    <div class="k">The reframe</div>
+    <h2 style="margin-top: 6px;">A transition between materials is the thing that exists</h2>
+    <p style="max-width: 86ch; margin-top: 8px;">Today a tile says which TERRAINS it shows, a terrain belongs to one sheet, and the atlas takes an authored tile only when every terrain at the corner lives in the same sheet — so two materials drawn on different sheets can never meet, whatever anybody draws. Turn it round. What the project holds is a <b style="color:#e8eaf0;">transition</b>: the materials that meet, the orientation it is for, and where its block of art sits. <b style="color:#e8eaf0;">Terrain stops being a noun</b>; a material is the only thing the artist names.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;">
+    <div class="card">
+      <div class="k">Today — two vocabularies, one sheet at a time</div>
+      <pre><span class="c">// a terrain set, per sheet</span>
+image mapkit.png
+  terrains  grass, sand, stone
+  tiles     38 &#8594; [grass grass grass grass]
+            &#8230; 345 more
+
+<span class="c">// a material points into one of them,</span>
+<span class="c">// and carries a second ref for its sides</span>
+material Grass  top: mapkit/grass
+material Wood   top: walls/wood-top
+                side: walls/wood</pre>
+      <p class="note">The sheet is a boundary and the top/side split is a field on the material. A corner is answered by searching one sheet.</p>
+    </div>
+    <div class="card">
+      <div class="k">Proposed — one vocabulary, art anywhere</div>
+      <pre><span class="c">// materials, each with where it belongs</span>
+material Grass  <span class="s">floor</span>
+material Sand   <span class="s">floor</span>
+material Wood   <span class="s">wall</span>
+
+<span class="c">// transitions: who meets, facing what, where</span>
+<span class="s">transition</span> [Grass, nothing]     floor  at <span class="g">1024</span>
+<span class="s">transition</span> [Grass, Sand]        floor  at <span class="g">1120</span>
+<span class="s">transition</span> [Grass, Wood]        floor  at <span class="g">5300</span>  <span class="c">&#8592; other sheet</span>
+<span class="s">transition</span> [Grass, Wood]        <span class="s">wall</span>   at <span class="g">5360</span>  <span class="c">&#8592; overload</span>
+<span class="s">transition</span> [Grass, Sand, Wood]  floor  at <span class="g">2400</span></pre>
+      <p class="note">No sheet boundary, and the same two materials may have one block for the floor and another for the wall.</p>
+    </div>
+  </div>
+
+  <div>
+    <h3>What it settles</h3>
+    <div style="display: grid; gap: 10px; margin-top: 10px; max-width: 94ch;">
+      <div class="row"><span class="n">1</span><p><b style="color:#e8eaf0;">Art stops being trapped in its sheet.</b> The atlas refuses an authored tile today unless every terrain at the corner shares one sheet (<code>sheets.size === 1</code>, <code>atlas.ts</code>). A transition names where its own block is, so a kit's grass can meet another sheet's stone.</p></div>
+      <div class="row"><span class="n">2</span><p><b style="color:#e8eaf0;">Sparse art stops being a hole in a grid.</b> There is no sheet-shaped layout to fill, so art covering a few combinations is a few transitions rather than a mostly empty sheet.</p></div>
+      <div class="row"><span class="n">3</span><p><b style="color:#e8eaf0;">One vocabulary.</b> Material is what a voxel is made of and what a transition is between. Terrain survives only inside a block, as how its tiles are read, and never reaches the artist.</p></div>
+      <div class="row"><span class="n">4</span><p><b style="color:#e8eaf0;">Walls and floors meet properly.</b> A material carries the orientation it belongs to, and a transition carries the orientation it is for, so where a wooden wall meets grass is a block somebody drew rather than something the side field has to imply.</p></div>
+      <div class="row"><span class="n">5</span><p><b style="color:#e8eaf0;">Four-way corners become authorable.</b> They composite today because nothing holds them. A four-material block is 24 tiles and closes the model.</p></div>
+    </div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 18px;">
+    <div class="card">
+      <div class="k">A material</div>
+      <table>
+        <tr><th>field</th><th>what</th></tr>
+        <tr><td class="first mono">id, name</td><td>what it is called</td></tr>
+        <tr><td class="first mono">color</td><td>the swatch, and the fill where no block covers a corner</td></tr>
+        <tr><td class="first mono">orientation</td><td><span class="tag">floor</span> <span class="tag">wall</span> <span class="tag">any</span> — where it belongs, and what disambiguates an overloaded transition</td></tr>
+      </table>
+      <p class="note">This replaces today's <code>role</code> and both terrain refs. A material no longer names art at all; the transitions do.</p>
+    </div>
+    <div class="card">
+      <div class="k">A transition</div>
+      <table>
+        <tr><th>field</th><th>what</th></tr>
+        <tr><td class="first mono">materials</td><td>two, three or four, by id. <code>nothing</code> may be one, which makes it an edge set.</td></tr>
+        <tr><td class="first mono">orientation</td><td><span class="tag">floor</span> <span class="tag">wall</span> <span class="tag">any</span> — which faces it draws. Two transitions may share materials and differ here.</td></tr>
+        <tr><td class="first mono">at</td><td>a GID: the top-left tile of its block, addressed across the whole project</td></tr>
+      </table>
+      <p class="note">The block's shape is derived from how many materials there are, never stored. Papercut parses the block at <code>at</code> and every tile in it is known without a tag being written.</p>
+    </div>
+  </div>
+
+  <div class="card" style="border-color:#414859;">
+    <div class="k">Resolving a corner</div>
+    <div style="display:grid; gap:8px;">
+      <div class="row"><span class="n">1</span><p>Take the materials at the four positions and the face's orientation.</p></div>
+      <div class="row"><span class="n">2</span><p>Look for a transition over exactly that set of materials whose orientation matches; then one marked <span class="tag">any</span>.</p></div>
+      <div class="row"><span class="n">3</span><p>Its block says which of its tiles shows this arrangement. Draw it.</p></div>
+      <div class="row"><span class="n">4</span><p>No transition? Composite from the edge sets in priority order, exactly as now, and count it as still to author.</p></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

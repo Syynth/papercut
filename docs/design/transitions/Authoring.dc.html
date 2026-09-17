@@ -1,0 +1,95 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font: 13px/1.5 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; background: #15171c; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    .k { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, monospace; }
+    .note { font-size: 11.5px; line-height: 1.55; color: #7b8294; }
+    h2 { font-size: 15px; font-weight: 600; margin: 0; }
+    h3 { font-size: 13px; font-weight: 600; margin: 0; }
+    p { margin: 0; font-size: 12.5px; line-height: 1.6; color: #aab0c0; }
+    .px { image-rendering: pixelated; display: block; }
+    .card { border: 1px solid #353b4a; border-radius: 8px; background: #1b1e25; padding: 14px; display: grid; gap: 10px; align-content: start; }
+    .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 5px; }
+    .tag { display: inline-block; font: 500 10px/1 'IBM Plex Mono', Menlo, monospace; border: 1px solid #414859; border-radius: 3px; padding: 3px 5px; color: #aab0c0; }
+    .tag.on { border-color: #e9a23b; color: #e9a23b; background: rgba(233,162,59,.1); }
+    .tag.no { color: #e5636f; border-color: #e5636f; }
+    .tag.ok { color: #7bc47f; border-color: #7bc47f; }
+    .row { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 10px; align-items: start; }
+    .row .n { font: 600 12px/1.5 'IBM Plex Mono', Menlo, monospace; color: #e9a23b; }
+    code { font-family: 'IBM Plex Mono', Menlo, monospace; color: #e8eaf0; font-size: 12px; }
+    pre { margin: 0; font: 11.5px/1.6 'IBM Plex Mono', Menlo, monospace; color: #aab0c0; background: #0f1115; border: 1px solid #353b4a; border-radius: 6px; padding: 12px; overflow: hidden; }
+    pre .c { color: #7b8294; } pre .s { color: #e9a23b; } pre .g { color: #7bc47f; }
+    table { border-collapse: collapse; font-size: 12px; width: 100%; }
+    th { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; text-align: left; padding: 0 14px 6px 0; }
+    td { padding: 6px 14px 6px 0; color: #aab0c0; border-top: 1px solid #2c3140; vertical-align: top; }
+    td.first { color: #e8eaf0; }
+    .item { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; gap: 10px; align-items: center; height: 34px; padding: 0 8px; border-radius: 4px; color: #aab0c0; font-size: 12.5px; }
+    .item.on { background: rgba(233,162,59,.14); color: #e9a23b; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 5px; border: 1px solid #353b4a; background: #2c3140; color: #e8eaf0; font-size: 12px; }
+    .btn.on { background: #e9a23b; color: #1a1305; border-color: #e9a23b; font-weight: 600; }
+  </style>
+</helmet>
+<div style="width: 1240px; padding: 28px 32px; box-sizing: border-box; display: grid; gap: 20px; align-content: start;">
+  <div>
+    <div class="k">Authoring</div>
+    <h2 style="margin-top: 6px;">Project settings &rsaquo; Transitions</h2>
+    <p style="max-width: 88ch; margin-top: 8px;">The section replaces Terrain sets. A transition is made by naming the materials that meet, saying which faces it draws, and pointing at where its block sits. Papercut reads the block from there; nothing is tagged by hand.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 420px minmax(0, 1fr); gap: 18px; align-items: start;">
+    <div class="card" style="padding: 8px;">
+      <div class="k" style="padding: 6px 8px 2px;">Transitions &middot; 7</div>
+      <div class="item"><span style="white-space:nowrap;"><span class="sw" style="background:#6aa84f;"></span><span class="sw" style="background:#2c3140;"></span></span><span>Grass + nothing <span class="note">&middot; floor</span></span><span style="display:flex;gap:6px;align-items:center;"><span class="tag ok">complete</span><span class="note mono">1024</span></span></div><div class="item"><span style="white-space:nowrap;"><span class="sw" style="background:#d9c27e;"></span><span class="sw" style="background:#2c3140;"></span></span><span>Sand + nothing <span class="note">&middot; floor</span></span><span style="display:flex;gap:6px;align-items:center;"><span class="tag ok">complete</span><span class="note mono">1039</span></span></div><div class="item"><span style="white-space:nowrap;"><span class="sw" style="background:#8b6b45;"></span><span class="sw" style="background:#2c3140;"></span></span><span>Wood + nothing <span class="note">&middot; wall</span></span><span style="display:flex;gap:6px;align-items:center;"><span class="tag ok">complete</span><span class="note mono">5280</span></span></div><div class="item on"><span style="white-space:nowrap;"><span class="sw" style="background:#6aa84f;"></span><span class="sw" style="background:#d9c27e;"></span></span><span>Grass + Sand <span class="note">&middot; floor</span></span><span style="display:flex;gap:6px;align-items:center;"><span class="tag ok">complete</span><span class="note mono">1120</span></span></div><div class="item"><span style="white-space:nowrap;"><span class="sw" style="background:#6aa84f;"></span><span class="sw" style="background:#8b6b45;"></span></span><span>Grass + Wood <span class="note">&middot; floor</span></span><span style="display:flex;gap:6px;align-items:center;"><span class="tag">8 / 14 drawn</span><span class="note mono">5300</span></span></div><div class="item"><span style="white-space:nowrap;"><span class="sw" style="background:#6aa84f;"></span><span class="sw" style="background:#8b6b45;"></span></span><span>Grass + Wood <span class="note">&middot; wall</span></span><span style="display:flex;gap:6px;align-items:center;"><span class="tag ok">complete</span><span class="note mono">5360</span></span></div><div class="item"><span style="white-space:nowrap;"><span class="sw" style="background:#6aa84f;"></span><span class="sw" style="background:#d9c27e;"></span><span class="sw" style="background:#8b6b45;"></span></span><span>Grass + Sand + Wood <span class="note">&middot; floor</span></span><span style="display:flex;gap:6px;align-items:center;"><span class="tag no">not drawn</span><span class="note mono">&mdash;</span></span></div>
+      <div style="padding: 8px; border-top: 1px solid #353b4a; margin-top: 4px; display:flex; gap:6px;">
+        <span class="btn on">+ New transition</span>
+        <span class="btn">Draw a template&hellip;</span>
+      </div>
+    </div>
+
+    <div style="display: grid; gap: 18px;">
+      <div class="card">
+        <div class="k">The chosen one</div>
+        <div style="display:flex; align-items:center; gap:10px;"><span><span class="sw" style="background:#6aa84f;"></span><span class="sw" style="background:#d9c27e;"></span></span><h3 style="display:inline;">Grass + Sand</h3><span class="tag">floor</span></div>
+        <table>
+          <tr><td class="first" style="width:110px;">Materials</td><td><span class="tag"><span class="sw" style="background:#6aa84f;"></span>Grass</span> <span class="tag"><span class="sw" style="background:#d9c27e;"></span>Sand</span> <span class="btn" style="height:22px;padding:0 8px;">+ add</span> <span class="note">&mdash; up to four; a corner has no room for more</span></td></tr>
+          <tr><td class="first">Orientation</td><td><span class="tag on">floor</span> <span class="tag">wall</span> <span class="tag">any</span> <span class="note">&mdash; both of these are floor materials, so wall would never be asked for</span></td></tr>
+          <tr><td class="first">Block</td><td><span class="mono">5 &times; 3, 14 tiles</span> <span class="note">&mdash; from two materials; not a choice</span></td></tr>
+          <tr><td class="first">At</td><td><span class="mono">gid 1120</span> <span class="note">&mdash; mapkit.png, tile 96 &middot; column 5, row 3</span> <span class="btn" style="height:22px;padding:0 8px;">Pick on a sheet&hellip;</span></td></tr>
+          <tr><td class="first">Covers</td><td><span class="tag ok">14 of 14</span> <span class="note">&mdash; every corner where these two meet has art</span></td></tr>
+        </table>
+      </div>
+
+      <div class="card">
+        <div class="k">Pointing at a block</div>
+        <div style="display:grid; grid-template-columns: 240px minmax(0,1fr); gap:16px; align-items:start;">
+          <div style="position:relative;">
+            <img class="px" src="block-2.png" width="200" height="120" style="border:1px solid #353b4a; border-radius:4px;">
+            <div style="position:absolute; left:-4px; top:-4px; width:208px; height:128px; border:2px solid #e9a23b; border-radius:6px; pointer-events:none;"></div>
+          </div>
+          <div style="display:grid; gap:8px;">
+            <p>Click a tile on any sheet and papercut takes it as the block's top-left. The outline shows what it would claim, and the shape is known already from the material count, so a wrong click is visible before it is saved.</p>
+            <p class="note">Nothing about the block is stored but its corner: the tiles are read out of the image every time the project opens, so repainting the art needs no retagging at all.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" style="border-color:#414859;">
+        <div class="k">Overloads</div>
+        <p>Two transitions may name the same materials and differ in orientation &mdash; the row above has <span class="tag">floor</span> and <span class="tag">wall</span> blocks for Grass + Wood. Where grass runs up to a wooden wall, the top faces take the first and the sides take the second.</p>
+        <p class="note">A transition marked <span class="tag">any</span> answers whatever no more specific one does, which is what a kit with one look for both would use.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

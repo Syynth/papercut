@@ -1,0 +1,76 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1180,
+      "h": 900,
+      "title": "The model"
+    },
+    {
+      "file": "Blocks.dc.html",
+      "x": 1280,
+      "y": 0,
+      "w": 1180,
+      "h": 900,
+      "title": "The blocks"
+    },
+    {
+      "file": "Authoring.dc.html",
+      "x": 0,
+      "y": 1000,
+      "w": 1240,
+      "h": 760,
+      "title": "Project settings › Transitions"
+    },
+    {
+      "file": "Format.dc.html",
+      "x": 1360,
+      "y": 1000,
+      "w": 1120,
+      "h": 760,
+      "title": "The format"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "note-why",
+      "x": 2560,
+      "y": 0,
+      "w": 320,
+      "text": "The hard limit this exists to remove: atlas.ts takes an authored tile only when `sheets.size === 1`. Two materials drawn on different sheets can never meet today, whatever anyone draws."
+    },
+    {
+      "id": "note-closes",
+      "x": 2560,
+      "y": 260,
+      "w": 320,
+      "text": "The model terminates. A corner has four positions, so four materials is the most that can meet at one, and a four-material block is exactly 4! = 24 tiles. There is no fifth case to design."
+    },
+    {
+      "id": "note-orientation",
+      "x": 2560,
+      "y": 520,
+      "w": 320,
+      "text": "Orientation does two jobs: it says where a material belongs (what `role` does today) and it disambiguates two transitions over the same materials — one for the floor, one for the wall."
+    },
+    {
+      "id": "note-naming",
+      "x": 1280,
+      "y": 960,
+      "w": 320,
+      "text": "Terrain stops being a noun the artist meets. It survives only inside a block, as how its tiles are read. Material is the one word for what a voxel is made of and what a transition is between."
+    },
+    {
+      "id": "note-open",
+      "x": 2560,
+      "y": 1000,
+      "w": 320,
+      "text": "OPEN: what happens to a project's existing per-sheet tags, and whether a run of tags that happens to cover a block should be recognised automatically or left for the artist to point at."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}
