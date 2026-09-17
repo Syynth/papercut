@@ -613,3 +613,11 @@ Each entry:
 - **SCOPE:** architectural (amends the terrain spec §2; sidecars were the spec's choice, never ruled on)
 - **WHAT:** A terrain set lives in the project file, as part of its image's entry: the image's terrains and its tile tags sit beside its name, grid and hash in `papercut.json`. There are no `<sheet>.terrain.json` sidecars; tagging writes the project file, and a set exists as soon as its image is listed, empty until tagged. Maps stay external files in `maps/`, referencing the project's materials by id — LDtk's shape with external levels on. The materials, the images and the terrain sets are the project; the maps are what is made with it.
 - **WHY:** One file holds everything about an image — what it is called, how it is cut, what its tiles are — so there is nothing to keep in agreement across files and nothing to go missing separately. A tagged sheet travelling between projects is rare enough to be an export later, not a reason for a second file per image.
+
+## The project's shape: binary assets on disk, map files on their own, everything else in the project file
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** project format
+- **SCOPE:** architectural (the rule behind "Terrain sets live in the project file", same day, and everything after it)
+- **WHAT:** All future work follows one shape. Binary assets — images, and whatever else is bytes — live on disk in the project folder, referenced by path. Map files live on disk independently, one file per map. Everything else — every definition and every piece of metadata: images' names and grids and hashes, terrain sets, materials, the camera rig, resolution, and whatever comes next — lives in the project file, `papercut.json`. No sidecars, no per-thing files.
+- **WHY:** One file to read to know what a project is, one file to diff, and nothing beside an asset that can go missing separately from it. Maps are the exception because they are the work, large and many, and edited one at a time.
