@@ -6,7 +6,7 @@
       "y": 0,
       "w": 1180,
       "h": 780,
-      "title": "Images › Tilesets"
+      "title": "Images › Tilesets, as a list and the chosen one"
     },
     {
       "file": "Import.dc.html",
@@ -39,7 +39,7 @@
       "x": 1260,
       "y": 620,
       "w": 340,
-      "text": "DECIDED 2026-09-17: the Sheets section becomes Images, an image library planned for every image kind, tilesets worked through now. Each tileset carries a grid — tile, margin, spacing — with columns and rows derived and anything past the last whole tile ignored.\n\nScale is derived: density ÷ tile, whole numbers only. 16 px in a 48 px project draws at 3×; 20 px is refused with the reason, on the row."
+      "text": "DECIDED 2026-09-17: the Sheets section becomes Images, an image library planned for every image kind, tilesets worked through now. Each tileset carries a grid — tile, margin, spacing — with columns and rows derived and anything past the last whole tile ignored.\n\nThe layout is the terrain editor's (pass of 2026-09-17): the images down the left, the chosen one big in the middle with its grid drawn on it, the properties beside it as a form. Status is a dot on the row and a reason on the field."
     },
     {
       "id": "note-import",
