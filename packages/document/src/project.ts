@@ -72,6 +72,22 @@ export interface Grid {
   spacing: Axes
 }
 
+/**
+ * How an image is laid out, when it was laid out to a convention papercut
+ * knows (ruling of 2026-09-17). The tags are derived from this; the entry's
+ * `terrain.tiles` are overrides applied on top.
+ */
+export interface ImageLayout {
+  /** A convention in `@papercut/geometry`'s registry: `corner-blocks`. */
+  convention: string
+  /** Where its first block starts, in tiles from the image's top-left. */
+  origin: Axes
+  /** The terrains it lays out, in the convention's order; a block is named by their indexes. */
+  terrains: string[]
+  /** Blocks the artist has not drawn, by the convention's key for them, so they tag nothing and are listed as still to author. */
+  unauthored: string[]
+}
+
 /** An image the project draws from, and everything the project knows about it. */
 export interface ImageEntry {
   /** Relative to the project folder: `sheets/ground.png`. The file name is the image's identity. */
@@ -82,6 +98,8 @@ export interface ImageEntry {
   /** The file's content hash as last seen — `sha256:<hex>` — or `null` before it has been read; how a moved file is found again. */
   hash: string | null
   grid: Grid
+  /** The convention it was laid out to, or `null` for an image tagged by hand. */
+  layout: ImageLayout | null
   terrain: ImageTerrain
 }
 
@@ -121,7 +139,7 @@ export function emptyTerrain(): ImageTerrain {
 
 /** The placeholder image's entry: the image the default materials point into, tagged as `terrain` says. */
 export function placeholderImage(tile: number, terrain: ImageTerrain = emptyTerrain()): ImageEntry {
-  return { path: `${SHEETS_DIR}/${PLACEHOLDER_SHEET}`, name: 'Ground', kind: 'tileset', hash: null, grid: plainGrid(tile), terrain }
+  return { path: `${SHEETS_DIR}/${PLACEHOLDER_SHEET}`, name: 'Ground', kind: 'tileset', hash: null, grid: plainGrid(tile), layout: null, terrain }
 }
 
 /** A project with the placeholder image and the default materials, and no maps yet. */
@@ -173,6 +191,18 @@ function normaliseAxes(raw: unknown, what: string, where: string): Axes {
   return { x: a.x, y: a.y }
 }
 
+/** A layout names a convention and the terrains it lays out; anything else is refused rather than half-read. */
+export function normaliseLayout(raw: unknown, where: string): ImageLayout | null {
+  if (raw === undefined || raw === null) return null
+  const l = raw as Partial<ImageLayout>
+  if (typeof l.convention !== 'string' || l.convention.length === 0) throw new LoadError(`Image ${where} has a layout that names no convention.`)
+  if (!Array.isArray(l.terrains) || !l.terrains.every((t) => typeof t === 'string' && t.length > 0)) throw new LoadError(`Image ${where}'s layout does not list its terrains.`)
+  if (new Set(l.terrains).size !== l.terrains.length) throw new LoadError(`Image ${where}'s layout lists a terrain twice.`)
+  const unauthored = l.unauthored === undefined ? [] : l.unauthored
+  if (!Array.isArray(unauthored) || !unauthored.every((b) => typeof b === 'string')) throw new LoadError(`Image ${where}'s layout does not name its unauthored blocks.`)
+  return { convention: l.convention, origin: normaliseAxes(l.origin, 'origin', where), terrains: [...l.terrains], unauthored: [...unauthored] }
+}
+
 /** A grid's tile is a positive whole number of pixels; margin and spacing default to none. */
 export function normaliseGrid(raw: unknown, where: string): Grid {
   const g = (raw ?? {}) as Partial<Grid>
@@ -222,6 +252,7 @@ export function normaliseImage(raw: unknown, index: number): ImageEntry {
     kind: KINDS.includes(i.kind as ImageKind) ? (i.kind as ImageKind) : 'tileset',
     hash: typeof i.hash === 'string' && i.hash.length > 0 ? i.hash : null,
     grid: normaliseGrid(i.grid, where),
+    layout: normaliseLayout(i.layout, where),
     terrain: normaliseTerrain(i.terrain, where),
   }
 }

@@ -15,10 +15,10 @@
  * hand the viewport the images. Nothing in an actor touches a file.
  */
 
-import { AIR, MAPS_DIR, PROJECT_FILE, createMap, serialize, serializeProject, sheetName, type Grid, type ImageEntry, type ImageKind, type MapDoc, type Patch, type ReadonlyMapDoc, type RgbaImage } from '@papercut/document'
+import { AIR, MAPS_DIR, PROJECT_FILE, createMap, plainGrid, serialize, serializeProject, sheetName, type Grid, type ImageEntry, type ImageKind, type MapDoc, type Patch, type ReadonlyMapDoc, type RgbaImage } from '@papercut/document'
 import type { Host } from '@papercut/editor-host'
 import { createSampleMap, generatePlaceholderTerrainSet } from '@papercut/fixtures'
-import { remapTags, terrainOf, type LoadedSet, type TerrainSet } from '@papercut/geometry'
+import { conventionOf, remapTags, renderTemplate, terrainOf, type LoadedSet, type TerrainSet } from '@papercut/geometry'
 import { MemoryFs, addImage, addMap, createProjectFolder, forget, hashBytes, joinPath, listImage, openProject, parseRecents, readMap, remember, writeMap, writeProject, type ImageCodec, type OpenedProject, type ProjectFs, type RecentProject } from '@papercut/project'
 import { exportGltf } from '@papercut/runtime/export'
 import { desktopShell, type MenuCommand, type ShellDialogs, type ShellMenu } from '@papercut/shell-api'
@@ -445,6 +445,45 @@ export async function importImage(host: Host, session: Session, spec: ImportSpec
   const next = await addImage(session.fs, folder, project, { file: spec.file, bytes: spec.bytes, grid: spec.grid, ...(spec.name === undefined ? {} : { name: spec.name }), ...(spec.kind === undefined ? {} : { kind: spec.kind }) })
   host.dispatch('project.images.set', { images: next.images })
   await reloadImages(host, session, folder)
+}
+
+export interface TemplateSpec {
+  /** The file it is written as, in `sheets/`. */
+  file: string
+  name: string
+  convention: string
+  /** The terrains it lays out, in the convention's order. */
+  terrains: ReadonlyArray<{ id: string; name: string; color: string }>
+}
+
+/**
+ * Write a template image for a convention and list it, its layout and all (ruling of 2026-09-17).
+ *
+ * The image is drawn at the project's density with every block of the convention in place, so the
+ * sheet an artist opens already says what belongs in each cell — and, because its entry carries the
+ * layout rather than hundreds of tags, every corner it covers is answered before a pixel is drawn.
+ */
+export async function newTemplateImage(host: Host, session: Session, spec: TemplateSpec): Promise<{ columns: number; rows: number }> {
+  const { folder } = location(host)
+  const project = host.children.project.getSnapshot().context.project
+  const convention = conventionOf(spec.convention)
+  if (!convention) throw new Error(`No layout convention called ${spec.convention}.`)
+  if (project.images.some((i) => sheetName(i.path) === spec.file)) throw new Error(`An image called ${spec.file} is already listed.`)
+  const tile = project.resolution.texelDensity
+  const template = renderTemplate(spec.convention, spec.terrains.map((t) => ({ id: t.id, color: t.color })), { tile })
+  session.lastWriteAt = Date.now()
+  const next = await addImage(session.fs, folder, project, {
+    file: spec.file,
+    bytes: await session.codec.encode(template.image),
+    grid: plainGrid(tile),
+    name: spec.name,
+    kind: 'tileset',
+    layout: { convention: spec.convention, origin: { x: 0, y: 0 }, terrains: spec.terrains.map((t) => t.id), unauthored: [] },
+    terrain: { terrains: spec.terrains.map((t) => ({ ...t })), tiles: {} },
+  })
+  host.dispatch('project.images.set', { images: next.images })
+  await reloadImages(host, session, folder)
+  return { columns: template.columns, rows: template.rows }
 }
 
 /** List a file already in `sheets/` — one the library found unlisted — with its grid, without copying it. */

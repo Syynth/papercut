@@ -809,7 +809,7 @@ describe('a project file is checked before it is believed', () => {
   it('round-trips, and starts with the placeholder image, the default materials and no maps', () => {
     const project = createProject('Harbour Town', 32, { terrains: [{ id: 'grass', name: 'Grass', color: '#4f8a46' }], tiles: { 3: ['grass', 'grass', null, null] } })
     expect(project.resolution).toEqual({ texelDensity: 32, filtering: 'nearest' })
-    expect(project.images).toEqual([{ path: 'sheets/ground.png', name: 'Ground', kind: 'tileset', hash: null, grid: { tile: 32, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, terrain: { terrains: [{ id: 'grass', name: 'Grass', color: '#4f8a46' }], tiles: { 3: ['grass', 'grass', null, null] } } }])
+    expect(project.images).toEqual([{ path: 'sheets/ground.png', name: 'Ground', kind: 'tileset', hash: null, grid: { tile: 32, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, layout: null, terrain: { terrains: [{ id: 'grass', name: 'Grass', color: '#4f8a46' }], tiles: { 3: ['grass', 'grass', null, null] } } }])
     expect(project.maps).toEqual([])
     expect(parseProject(serializeProject(project))).toEqual(project)
     expect(sheetName('sheets/ground.png')).toBe('ground.png')
@@ -843,7 +843,7 @@ describe('a project file is checked before it is believed', () => {
     expect(sparse.maps).toEqual([])
     expect(() => parseProject(JSON.stringify({ formatVersion: 2, images: [{ path: 'sheets/a.png' }] }))).toThrow(/no tile size/)
     const terse = parseProject(JSON.stringify({ formatVersion: 2, images: [{ path: 'sheets/mz/Outside_A2.png', grid: { tile: 48, margin: 2, spacing: { x: 1, y: 0 } } }] }))
-    expect(terse.images[0]).toEqual({ path: 'sheets/mz/Outside_A2.png', name: 'Outside_A2', kind: 'tileset', hash: null, grid: { tile: 48, margin: { x: 2, y: 2 }, spacing: { x: 1, y: 0 } }, terrain: { terrains: [], tiles: {} } })
+    expect(terse.images[0]).toEqual({ path: 'sheets/mz/Outside_A2.png', name: 'Outside_A2', kind: 'tileset', hash: null, grid: { tile: 48, margin: { x: 2, y: 2 }, spacing: { x: 1, y: 0 } }, layout: null, terrain: { terrains: [], tiles: {} } })
   })
 
   it('checks a terrain set as the image carries it: unique ids, four tags a tile, tags that name a terrain the image has', () => {
