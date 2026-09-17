@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font: 13px/1.4 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; background: #15171c; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    .k { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, monospace; }
+    .note { font-size: 11.5px; line-height: 1.5; color: #7b8294; }
+    .rail-item { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px; border-radius: 4px; font-size: 12.5px; color: #aab0c0; }
+    .rail-item.active { background: #242833; color: #e9a23b; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 6px; border: 1px solid #353b4a; background: #242833; color: #e8eaf0; font-size: 12px; white-space: nowrap; }
+    .btn.primary { background: #e9a23b; color: #1a1305; border-color: #e9a23b; font-weight: 600; }
+    .btn.quiet { border-color: transparent; background: none; color: #aab0c0; }
+    .btn.danger { color: #e5636f; }
+    .tabs { display: flex; gap: 2px; border-bottom: 1px solid #353b4a; padding: 0 28px; }
+    .tab { padding: 10px 10px 8px; font-size: 12.5px; color: #7b8294; border-bottom: 2px solid transparent; margin-bottom: -1px; display: flex; gap: 6px; align-items: center; }
+    .tab.on { color: #e8eaf0; border-bottom-color: #e9a23b; }
+    .soon { font: 500 9.5px/1 'IBM Plex Mono', Menlo, monospace; letter-spacing: .06em; border: 1px solid #353b4a; border-radius: 3px; padding: 2px 4px; color: #7b8294; }
+    .th { font-size: 10.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; padding: 0 10px 6px; }
+    .td { font-size: 12px; color: #aab0c0; padding: 6px 10px; border-top: 1px solid #2c3140; display: flex; align-items: center; gap: 8px; min-height: 34px; }
+    .td.first { color: #e8eaf0; }
+    .td.sel { background: #2c3140; }
+    .ok { color: #7bc47f; } .warn { color: #e5636f; } .acc { color: #e9a23b; }
+    .thumb { width: 24px; height: 24px; border-radius: 3px; flex: none; image-rendering: pixelated; background: #0f1115; border: 1px solid #353b4a; box-sizing: border-box; }
+    .field { display: flex; flex-direction: column; gap: 5px; }
+    .field .lbl { font-size: 11px; color: #7b8294; }
+    .input { height: 28px; border: 1px solid #353b4a; border-radius: 4px; background: #15171c; display: flex; align-items: center; padding: 0 10px; font-size: 12px; color: #e8eaf0; gap: 8px; }
+    .input.ro { color: #aab0c0; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 13px; border: 1px solid #353b4a; background: #1b1e25; font-size: 12px; color: #aab0c0; }
+    .chip.on { border-color: #e9a23b; color: #e9a23b; background: rgba(233,162,59,.12); }
+    .chip.no { color: #7b8294; text-decoration: line-through; }
+    .sec { display: flex; flex-direction: column; gap: 10px; }
+    .sec-title { font-size: 13px; font-weight: 600; color: #e8eaf0; }
+    .px { image-rendering: pixelated; }
+    .grid-h, .grid-v { position: absolute; background: rgba(255,255,255,.28); }
+    .step h3 { margin: 0; font-size: 13px; font-weight: 600; }
+    .step p { margin: 0; font-size: 12px; line-height: 1.55; color: #aab0c0; }
+  </style>
+</helmet>
+<div style="width: 1180px; height: 780px; background: rgba(10, 11, 15, .6); display: flex; align-items: center; justify-content: center;">
+  <div style="width: 1100px; height: 740px; background: #242833; border: 1px solid #353b4a; border-radius: 6px; box-shadow: 0 16px 48px rgba(0,0,0,.45); display: grid; grid-template-columns: 196px minmax(0, 1fr); overflow: hidden;">
+    <div style="background: #1b1e25; border-right: 1px solid #353b4a; padding: 10px 8px; display: flex; flex-direction: column; gap: 8px;">
+      <div style="display: flex; padding: 2px; border-radius: 6px; background: #15171c; border: 1px solid #353b4a;">
+        <div style="flex: 1; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; background: #e9a23b; color: #1a1305; font-size: 12px; font-weight: 600;">Project</div>
+        <div style="flex: 1; height: 22px; display: flex; align-items: center; justify-content: center; border-radius: 4px; color: #aab0c0; font-size: 12px;">App</div>
+      </div>
+      <div class="note" style="padding: 0 4px;">Written to papercut.json — shared with everyone who opens Harbour Town.</div>
+      <div style="height: 26px; border: 1px solid #353b4a; border-radius: 4px; background: #15171c; display: flex; align-items: center; gap: 6px; padding: 0 8px; color: #7b8294; font-size: 12px;">⌕ Search settings</div>
+      <div style="display: flex; flex-direction: column; gap: 2px; margin-top: 4px;">
+        <div class="rail-item">General</div><div class="rail-item">Resolution</div>
+        <div class="rail-item active">Images</div>
+        <div class="rail-item">Terrain sets</div><div class="rail-item">Materials</div><div class="rail-item">Camera rig</div>
+      </div>
+      <div style="height: 1px; background: #353b4a; margin: 6px 4px;"></div>
+      <div class="k" style="padding: 0 8px;">App</div>
+      <div style="display: flex; flex-direction: column; gap: 2px;"><div class="rail-item" style="color: #7b8294;">Editor</div><div class="rail-item" style="color: #7b8294;">Keymap</div></div>
+    </div>
+    <div style="display: flex; flex-direction: column; min-width: 0;">
+      <div style="height: 34px; padding: 0 12px 0 16px; border-bottom: 1px solid #353b4a; display: flex; align-items: center; justify-content: space-between; flex: none;">
+        <div style="font-size: 13px; font-weight: 600;">Images</div>
+        <div style="display: flex; align-items: center; gap: 8px;"><span class="note">6 tilesets · 1 missing · 1 unlisted</span><span style="color:#7b8294;">✕</span></div>
+      </div>
+      <div class="tabs">
+        <div class="tab on">Tilesets</div>
+        <div class="tab">Sprites <span class="soon">soon</span></div>
+        <div class="tab">Textures <span class="soon">soon</span></div>
+        <div class="tab">Animations <span class="soon">soon</span></div>
+      </div>
+      <div style="padding: 18px 28px 24px; display: flex; flex-direction: column; gap: 20px; overflow: hidden;">
+        <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+          <div class="note">Every image the terrain draws from, with the grid it was authored on. Files live in <span class="mono">sheets/</span>; importing copies one in. Tiles are drawn at the project's 48 px, so a 16 px kit draws at 3×.</div>
+          <div class="btn primary">+ Import image…</div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1.5fr .8fr .8fr 1.4fr 1.3fr; border: 1px solid #353b4a; border-radius: 6px; background: #1b1e25; overflow: hidden; padding-top: 8px;">
+          <div class="th">Image</div><div class="th">Size</div><div class="th">Grid</div><div class="th">Used by</div><div class="th">Status</div>
+          <div class="td first" style=""><img class="thumb px" src="mz-thumb.png"><span class="mono">Outside_A2.png</span></div><div class="td mono" style="">1536 × 768</div><div class="td mono" style="">48 px · 1×</div><div class="td" style="">Outside_A2.terrain.json · 9 materials</div><div class="td"><span class="ok">✓ Loaded</span></div><div class="td first" style=""><img class="thumb px" src="mz-a4-thumb.png"><span class="mono">Outside_A4.png</span></div><div class="td mono" style="">1536 × 768</div><div class="td mono" style="">48 px · 1×</div><div class="td" style="">Outside_A4.terrain.json · 11 materials</div><div class="td"><span class="ok">✓ Loaded</span></div><div class="td first" style=""><img class="thumb px" src="mz-in-thumb.png"><span class="mono">Inside_A2.png</span></div><div class="td mono" style="">1536 × 768</div><div class="td mono" style="">48 px · 1×</div><div class="td" style="">Inside_A2.terrain.json</div><div class="td"><span class="ok">✓ Loaded</span></div><div class="td first sel" style=""><img class="thumb px" src="kit-thumb.png"><span class="mono">mapkit.png</span></div><div class="td mono sel" style="">592 × 960</div><div class="td mono sel" style="">16 px · 3×</div><div class="td sel" style="">no terrain set yet</div><div class="td sel"><span class="ok">✓ Loaded · drawn at 3×</span></div><div class="td first" style=""><span class="thumb"></span><span class="mono">decor.png</span></div><div class="td mono" style="">640 × 400</div><div class="td mono" style="">20 px</div><div class="td" style="">—</div><div class="td"><span class="warn">20 does not divide 48</span> <span class="acc" style="margin-left:4px;">Grid…</span></div><div class="td first" style="color:#7b8294;"><span class="thumb"></span><span class="mono">water.png</span></div><div class="td mono" style="color:#7b8294;">—</div><div class="td mono" style="color:#7b8294;">48 px</div><div class="td" style="color:#7b8294;">Water tool</div><div class="td"><span class="warn">Missing</span> <span class="acc" style="margin-left:4px;">Relink…</span></div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: space-between; padding: 8px 12px; border: 1px dashed #414859; border-radius: 6px;">
+          <div style="display: flex; align-items: center; gap: 10px;"><span class="k">In sheets/, not listed</span><span class="mono" style="font-size: 12px;">roofs.png</span><span class="note">768 × 384</span></div>
+          <div class="btn">Add…</div>
+        </div>
+        <div class="sec">
+          <div style="display: flex; align-items: center; justify-content: space-between;">
+            <div class="sec-title mono" style="font-weight: 500;">mapkit.png</div>
+            <div style="display: flex; gap: 6px;"><div class="btn">Grid…</div><div class="btn">Replace image…</div><div class="btn quiet">Reveal in Finder</div><div class="btn quiet danger">Remove</div></div>
+          </div>
+          <div style="display: grid; grid-template-columns: max-content 1fr; gap: 20px; align-items: start;">
+            <div style="position: relative; width: 296px; height: 240px; overflow: hidden; border: 1px solid #353b4a; border-radius: 3px; background: #0f1115;"><img class="px" src="kit-preview.png" width="296" height="240" style="position:absolute;left:0;top:0;"><div class="grid-v" style="left:0px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:16px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:32px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:48px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:64px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:80px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:96px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:112px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:128px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:144px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:160px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:176px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:192px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:208px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:224px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:240px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:256px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:272px;top:0;width:1px;height:240px;"></div><div class="grid-v" style="left:288px;top:0;width:1px;height:240px;"></div><div class="grid-h" style="top:0px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:16px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:32px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:48px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:64px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:80px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:96px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:112px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:128px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:144px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:160px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:176px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:192px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:208px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:224px;left:0;height:1px;width:296px;"></div><div class="grid-h" style="top:240px;left:0;height:1px;width:296px;"></div></div>
+            <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px 16px;">
+              <div class="field"><div class="lbl">Tile size</div><div class="input mono">16 px</div></div>
+              <div class="field"><div class="lbl">Margin</div><div class="input mono">0 px</div></div>
+              <div class="field"><div class="lbl">Spacing</div><div class="input mono">0 px</div></div>
+              <div class="field"><div class="lbl">Scale</div><div class="input mono ro">3× — project is 48 px</div></div>
+              <div class="field"><div class="lbl">Grid</div><div class="input mono ro">37 × 60 tiles · nothing ignored</div></div>
+              <div class="field"><div class="lbl">Terrain set</div><div class="input mono ro" style="justify-content: space-between;">none yet <span class="acc" style="font-family: 'IBM Plex Sans', sans-serif;">Tag terrains ›</span></div></div>
+              <div class="note" style="grid-column: 1 / -1;">The grid is what every tag and every material coordinate is measured in. Changing it after tagging moves the tags; Grid… says so and asks.</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

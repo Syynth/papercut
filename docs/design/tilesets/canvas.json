@@ -1,0 +1,62 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1180,
+      "h": 780,
+      "title": "Images › Tilesets"
+    },
+    {
+      "file": "Import.dc.html",
+      "x": 1260,
+      "y": 0,
+      "w": 820,
+      "h": 560,
+      "title": "Import image"
+    },
+    {
+      "file": "Picker.dc.html",
+      "x": 0,
+      "y": 920,
+      "w": 560,
+      "h": 380,
+      "title": "The tileset picker"
+    },
+    {
+      "file": "Kinds.dc.html",
+      "x": 640,
+      "y": 920,
+      "w": 560,
+      "h": 300,
+      "title": "Planned kinds"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "note-main",
+      "x": 1260,
+      "y": 620,
+      "w": 340,
+      "text": "DECIDED 2026-09-17: the Sheets section becomes Images, an image library planned for every image kind, tilesets worked through now. Each tileset carries a grid — tile, margin, spacing — with columns and rows derived and anything past the last whole tile ignored.\n\nScale is derived: density ÷ tile, whole numbers only. 16 px in a 48 px project draws at 3×; 20 px is refused with the reason, on the row."
+    },
+    {
+      "id": "note-import",
+      "x": 1260,
+      "y": 820,
+      "w": 340,
+      "text": "A PNG does not say its tile size. The dialog offers the sizes that divide the image, preselects the density when it fits and otherwise its largest divisor that does, and draws the grid live so a wrong guess is visible before anything is written. Unlisted files in sheets/ come through the same dialog."
+    },
+    {
+      "id": "note-picker",
+      "x": 1260,
+      "y": 1000,
+      "w": 340,
+      "text": "DECIDED 2026-09-17: asset pickers are rich typeaheads. The terrain editor's sheet picker is the first one built."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}
