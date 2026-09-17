@@ -11,7 +11,7 @@
  * reads.
  */
 
-import type { Grid, RgbaImage } from '@papercut/document'
+import type { Grid, ImageTerrain, RgbaImage } from '@papercut/document'
 
 export interface GridCells {
   columns: number
@@ -76,4 +76,63 @@ export function cutGrid(image: RgbaImage, grid: Grid, scale: number): { image: R
     }
   }
   return { image: { width, height, data }, columns, rows }
+}
+
+export interface Remapped {
+  terrain: ImageTerrain
+  /** Tags that landed on a tile of the new grid. */
+  moved: number
+  /** Tags whose pixels the new grid does not start a tile on, or no longer covers. */
+  dropped: number
+}
+
+/** The pixel a tile's top-left corner sits at, on a grid. */
+function originOf(index: number, columns: number, grid: Grid): { x: number; y: number } {
+  const c = index % columns
+  const r = Math.floor(index / columns)
+  return { x: grid.margin.x + c * (grid.tile + grid.spacing.x), y: grid.margin.y + r * (grid.tile + grid.spacing.y) }
+}
+
+/**
+ * Move an image's tags from one grid to another so they follow their PIXELS, not their indexes.
+ *
+ * A tag belongs to the tile it was put on, and a tile is a rectangle of the image; changing the
+ * grid must not silently re-point a tag at somebody else's art. Each tag is taken to the pixel its
+ * tile started at and put on whichever tile of the new grid starts there. A tag whose pixel no
+ * longer starts a tile — the tile size changed under it, or the margin moved it off the sheet — is
+ * dropped and counted, because there is no honest place to put it.
+ *
+ * Changing only the margin or the spacing shifts every tile by the same amount, so that case is
+ * exact and loses nothing, which is the one artists actually do.
+ */
+export function remapTags(terrain: ImageTerrain, from: Grid, to: Grid, width: number, height: number): Remapped {
+  const before = gridCells(width, height, from)
+  const after = gridCells(width, height, to)
+  if (before.columns === 0 || after.columns === 0) return { terrain: { ...terrain, tiles: {} }, moved: 0, dropped: Object.keys(terrain.tiles).length }
+  // Where each tile of the new grid begins, so a pixel can be looked up rather than searched for.
+  const byOrigin = new Map<string, number>()
+  for (let r = 0; r < after.rows; r++) for (let c = 0; c < after.columns; c++) {
+    const index = r * after.columns + c
+    const { x, y } = originOf(index, after.columns, to)
+    byOrigin.set(`${x},${y}`, index)
+  }
+  const tiles: ImageTerrain['tiles'] = {}
+  let moved = 0
+  let dropped = 0
+  for (const [key, tags] of Object.entries(terrain.tiles)) {
+    const index = Number(key)
+    if (index >= before.columns * before.rows) {
+      dropped += 1
+      continue
+    }
+    const { x, y } = originOf(index, before.columns, from)
+    const landed = byOrigin.get(`${x},${y}`)
+    if (landed === undefined) {
+      dropped += 1
+      continue
+    }
+    tiles[String(landed)] = [...tags]
+    moved += 1
+  }
+  return { terrain: { terrains: terrain.terrains.map((t) => ({ ...t })), tiles }, moved, dropped }
 }

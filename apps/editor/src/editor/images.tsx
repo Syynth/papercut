@@ -335,7 +335,14 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
     setTimeout(nextPending, 0)
   }
 
-  const change = (entry: Entry, changes: Partial<Pick<ImageEntry, 'name' | 'kind' | 'grid'>>): void => void setImageProps(host, session, sheetName(entry.path), changes).catch((error: unknown) => notify(messageOf(error)))
+  const change = (entry: Entry, changes: Partial<Pick<ImageEntry, 'name' | 'kind' | 'grid'>>): void => {
+    setImageProps(host, session, sheetName(entry.path), changes)
+      .then((moved) => {
+        // The tags came with the grid; only a loss is worth saying out loud.
+        if (moved && moved.dropped > 0) notify(`Grid changed — ${moved.moved} ${moved.moved === 1 ? 'tag' : 'tags'} moved with it, ${moved.dropped} had no tile on the new grid and ${moved.dropped === 1 ? 'was' : 'were'} dropped.`)
+      })
+      .catch((error: unknown) => notify(messageOf(error)))
+  }
   const tagged = chosen ? Object.keys(chosen.terrain.tiles).length : 0
 
   const tabs = (
@@ -416,7 +423,6 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
           return c.ignored.x === 0 && c.ignored.y === 0 ? 'none' : `${c.ignored.x} × ${c.ignored.y} px`
         })() : '—'}</Derived>
       </div>
-      {tagged > 0 ? <div className="ui-library-warn">This image has {tagged} tagged {tagged === 1 ? 'tile' : 'tiles'}. Changing the grid moves them: a tag stays on its tile index, not on its pixels.</div> : null}
       <div className="ui-k">Terrain set</div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
         <span style={{ color: 'var(--ui-ink-2)' }}>{chosen.terrain.terrains.length === 0 ? 'none yet' : `${chosen.terrain.terrains.length} ${chosen.terrain.terrains.length === 1 ? 'terrain' : 'terrains'} · ${tagged} tagged`}</span>

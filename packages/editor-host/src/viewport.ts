@@ -74,7 +74,10 @@ export interface ViewportState {
  */
 export interface LoadedTerrain {
   readonly set: { readonly sheet: string; readonly tile: number; readonly columns: number; readonly rows: number }
+  /** The tiles edge to edge at the project's density: what the atlas reads. */
   readonly image: RgbaImage
+  /** The file's pixels as they are, before its grid was cut and scaled; absent for a generated set. */
+  readonly source?: RgbaImage
 }
 
 const INITIAL: ViewportState = {

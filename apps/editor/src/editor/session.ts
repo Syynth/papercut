@@ -18,7 +18,7 @@
 import { AIR, MAPS_DIR, PROJECT_FILE, createMap, serialize, serializeProject, sheetName, type Grid, type ImageEntry, type ImageKind, type MapDoc, type Patch, type ReadonlyMapDoc, type RgbaImage } from '@papercut/document'
 import type { Host } from '@papercut/editor-host'
 import { createSampleMap, generatePlaceholderTerrainSet } from '@papercut/fixtures'
-import { terrainOf, type LoadedSet, type TerrainSet } from '@papercut/geometry'
+import { remapTags, terrainOf, type LoadedSet, type TerrainSet } from '@papercut/geometry'
 import { MemoryFs, addImage, addMap, createProjectFolder, forget, hashBytes, joinPath, listImage, openProject, parseRecents, readMap, remember, writeMap, writeProject, type ImageCodec, type OpenedProject, type ProjectFs, type RecentProject } from '@papercut/project'
 import { exportGltf } from '@papercut/runtime/export'
 import { desktopShell, type MenuCommand, type ShellDialogs, type ShellMenu } from '@papercut/shell-api'
@@ -457,13 +457,34 @@ export async function listUnlistedImage(host: Host, session: Session, path: stri
   await reloadImages(host, session, folder)
 }
 
-/** Change what the project says about an image: its name, its kind, its grid. A grid change reloads, since the tiles are cut by it. */
-export async function setImageProps(host: Host, session: Session, file: string, changes: Partial<Pick<ImageEntry, 'name' | 'kind' | 'grid'>>): Promise<void> {
+/**
+ * Change what the project says about an image: its name, its kind, its grid.
+ *
+ * A grid change takes the TAGS with it: a tag belongs to the pixels of the tile it was put on, not
+ * to an index, so every tag is moved to whichever tile of the new grid starts on the same pixel
+ * (`remapTags`). Changing a margin or a spacing — the change an artist actually makes, on noticing
+ * a gutter — shifts every tile alike and so loses nothing. A tag the new grid has no tile for is
+ * dropped, and the count comes back so the caller can say so. The images reload either way, since
+ * the tiles are cut by the grid.
+ */
+export async function setImageProps(host: Host, session: Session, file: string, changes: Partial<Pick<ImageEntry, 'name' | 'kind' | 'grid'>>): Promise<{ moved: number; dropped: number } | null> {
   const { folder } = location(host)
   const entry = entryOf(host, file)
-  const images = host.children.project.getSnapshot().context.project.images.map((i) => (sheetName(i.path) === file ? { ...entry, ...changes } : (i)))
+  let moved: { moved: number; dropped: number } | null = null
+  let next: ImageEntry = { ...entry, ...changes }
+  if (changes.grid !== undefined && Object.keys(entry.terrain.tiles).length > 0) {
+    const loaded = host.children.viewport.getSnapshot().context.loadedTerrain.find((s) => s.set.sheet === file)
+    const source = loaded?.source ?? loaded?.image
+    if (source) {
+      const remapped = remapTags(entry.terrain, entry.grid, changes.grid, source.width, source.height)
+      next = { ...next, terrain: remapped.terrain }
+      moved = { moved: remapped.moved, dropped: remapped.dropped }
+    }
+  }
+  const images = host.children.project.getSnapshot().context.project.images.map((i) => (sheetName(i.path) === file ? next : i))
   await writeImages(host, session, images)
   if (changes.grid !== undefined) await reloadImages(host, session, folder)
+  return moved
 }
 
 /** Write an image's terrain set into its entry, and swap the set in over its pixels: what every stroke of the tagger does. */
