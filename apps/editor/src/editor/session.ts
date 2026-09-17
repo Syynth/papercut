@@ -15,7 +15,7 @@
  * hand the viewport the images. Nothing in an actor touches a file.
  */
 
-import { AIR, SHEETS_DIR, createMap, serialize, serializeProject, sheetName, type Grid, type ImageEntry, type ImageKind, type MapDoc, type Patch, type ReadonlyMapDoc, type RgbaImage } from '@papercut/document'
+import { AIR, MAPS_DIR, PROJECT_FILE, createMap, serialize, serializeProject, sheetName, type Grid, type ImageEntry, type ImageKind, type MapDoc, type Patch, type ReadonlyMapDoc, type RgbaImage } from '@papercut/document'
 import type { Host } from '@papercut/editor-host'
 import { createSampleMap, generatePlaceholderTerrainSet } from '@papercut/fixtures'
 import { terrainOf, type LoadedSet, type TerrainSet } from '@papercut/geometry'
@@ -671,24 +671,69 @@ const OWN_WRITE_WINDOW_MS = 1500
 const WATCH_SETTLE_MS = 400
 
 /**
- * Watch the open project's `sheets/` for an artist saving a sheet or its sidecar from outside, and reload them when
- * it settles. Only where the filesystem can watch (the shell's); the memory tree has nothing outside it.
+ * Take the project file as it now is on disk into the open project, WITHOUT touching where it is or which map is
+ * open: the settings are replaced one list at a time rather than through `project.load`, which would forget the
+ * open map. The document itself is never touched — a map is its own file, edited on its own.
  */
-export function watchProjectSheets(host: Host, session: Session): () => void {
+async function reloadProject(host: Host, session: Session, folder: string): Promise<void> {
+  const opened = await openProject(session.fs, folder, session.codec)
+  const current = host.children.project.getSnapshot().context.project
+  const next = opened.project
+  const changed = (a: unknown, b: unknown): boolean => JSON.stringify(a) !== JSON.stringify(b)
+  if (changed(current.name, next.name) || changed(current.resolution, next.resolution) || changed(current.camera, next.camera)) {
+    host.dispatch('project.set', { name: next.name, resolution: next.resolution, camera: next.camera })
+  }
+  if (changed(current.materials, next.materials)) host.dispatch('project.materials.set', { materials: next.materials })
+  if (changed(current.images, next.images)) host.dispatch('project.images.set', { images: next.images })
+  if (changed(current.maps, next.maps)) {
+    host.dispatch('project.maps.set', { maps: next.maps })
+    await refreshSummaries(host, session)
+  }
+  publish(host, session, opened)
+}
+
+/**
+ * Watch the open project's folder for a change made outside the app — an artist saving a sheet, a script rewriting
+ * `papercut.json`, a file arriving in `sheets/` — and take it as it settles. The session's own writes are ignored
+ * for a moment after each one, so this never chases its own tail.
+ *
+ * The project file is re-read into the open project; anything else under the folder reloads the images. The open
+ * MAP is left alone either way: it is the document, held in memory with its undo history, and taking a file over it
+ * would throw away work that is not on disk yet.
+ *
+ * Only where the filesystem can watch (the shell's); the memory tree has nothing outside it.
+ */
+export function watchProjectFolder(host: Host, session: Session): () => void {
   const watch = session.fs.watch?.bind(session.fs)
   if (!watch) return () => undefined
   let stop: (() => void) | null = null
   let watching: string | null = null
   let generation = 0
   let settle: ReturnType<typeof setTimeout> | undefined
+  let wantsProject = false
   const start = (folder: string): void => {
     watching = folder
     const mine = ++generation
-    watch(joinPath(folder, SHEETS_DIR), () => {
-      if (Date.now() - session.lastWriteAt < OWN_WRITE_WINDOW_MS) return
-      clearTimeout(settle)
-      settle = setTimeout(() => void reloadImages(host, session, folder).catch(() => undefined), WATCH_SETTLE_MS)
-    })
+    watch(
+      folder,
+      (event) => {
+        if (Date.now() - session.lastWriteAt < OWN_WRITE_WINDOW_MS) return
+        // A map file changing under us is the one thing left alone: the open one is the document.
+        const path = event.path ?? ''
+        if (path.includes(`/${MAPS_DIR}/`) || path.endsWith('.map.json')) return
+        wantsProject ||= path === '' || path.endsWith(PROJECT_FILE)
+        clearTimeout(settle)
+        settle = setTimeout(() => {
+          const project = wantsProject
+          wantsProject = false
+          const work = project ? reloadProject(host, session, folder) : reloadImages(host, session, folder)
+          void work
+            .then(() => host.dispatch('view.set', { notice: project ? 'Project reloaded — it changed on disk' : 'Images reloaded — the folder changed' }))
+            .catch(() => undefined)
+        }, WATCH_SETTLE_MS)
+      },
+      { recursive: true },
+    )
       .then((end) => {
         if (generation === mine) stop = end
         else end()
@@ -697,6 +742,7 @@ export function watchProjectSheets(host: Host, session: Session): () => void {
   }
   const end = (): void => {
     clearTimeout(settle)
+    wantsProject = false
     generation += 1
     stop?.()
     stop = null
