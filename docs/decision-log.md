@@ -541,3 +541,19 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** The Terrains editor keeps its own undo history while it is open: ⌘Z / ⌘⇧Z, with Undo and Redo buttons in its tools row, step through strokes, terrain adds, removals, renames and recolours, each as one entry, separate from the map's undo. The history clears when the settings modal closes. The other Project settings stay as they were: not undoable.
 - **WHY:** Tagging is authoring by hand, stroke after stroke, and a slip should cost one keypress, the way it does in Tiled and on the map itself. A rename in a settings field is not that, so the rest of the settings keep their brink-style no-undo.
+
+## Asset pickers are rich typeaheads
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui
+- **SCOPE:** moderate (a shared control, used everywhere assets are picked)
+- **WHAT:** Every control that picks an asset of the game — a sheet, a terrain, a material, a sprite, a map — is a rich typeahead, not a plain dropdown: type to filter as you go, rows carry a thumbnail or swatch and a second line of detail (size, tile size, where it lives, what uses it), keyboard up/down/enter, and the current value shown as such a row. Plain selects stay for short fixed lists (a filtering mode, a projection).
+- **WHY:** A real game has hundreds of images, terrains and sprites; a dropdown of names does not scale and gives no way to tell two similar assets apart.
+
+## A sheet's tile size may divide the density; tilesets are managed in Sheets
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** project format / settings
+- **SCOPE:** architectural (amends "The resolution profile is a project setting", 2026-09-14)
+- **WHAT:** A sheet's tile size may be the project's texel density or an integer divisor of it; such a sheet is scaled up by nearest neighbour into the atlas (16 px in a 48 px project draws at 3×). Any other size is refused with the reason. Sheets are managed in one place, the Sheets section of Project settings: it is where a tileset is viewed, imported and annotated — its tile size and the rest of its settings are applied there, and images found in `sheets/` but not listed are noticed there and offered for listing. The terrain editor picks from that section's list, showing only the sheets compatible with the project's density.
+- **WHY:** A game mixes kits authored at different pixel sizes, and an integer upscale of pixel art loses nothing, so the density rule only needs to forbid what would resample. One place for a tileset's settings means the terrain editor never has to explain why a sheet is missing; it simply lists what fits.
