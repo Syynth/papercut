@@ -6,7 +6,7 @@
       "y": 0,
       "w": 1180,
       "h": 780,
-      "title": "Images › Tilesets, as a list and the chosen one"
+      "title": "Images › All, as a list and the chosen one"
     },
     {
       "file": "Import.dc.html",
@@ -61,6 +61,13 @@
       "y": 1180,
       "w": 340,
       "text": "DECIDED 2026-09-17: the web look stays; every control is what its value is. Tile size is a typed number with validation and the fits as a hint. Margin and spacing are linked X Y pairs with a split toggle (Spacing shown split). Scale, Tiles, Ignored are read-only text. Name is text with Rename. The import dialog is shown failing on 24 so the reason and the fits are visible."
+    },
+    {
+      "id": "note-names",
+      "x": 1260,
+      "y": 1400,
+      "w": 340,
+      "text": "DECIDED 2026-09-17: every image has a name, separate from its file — shown first everywhere, the file on the second line — and the library's first tab is All, every image the project knows with its kind on the row."
     }
   ],
   "launch": {

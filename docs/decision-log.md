@@ -573,3 +573,27 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** Property forms keep the app's labelled-field look, but every control is what its value is. A derived value is read-only text, never a field. An identity that renaming would propagate — an image's name — is text with a Rename action. A pair is a linked X Y control with a split toggle, linked by default, stored per axis always. A value with a small computed set of valid choices is a number field with validation that names the reason and offers the choices that fit beside it (tile size: "16 fits · 8 fits too"), so a size that does not fit can be typed and seen to fail rather than being unofferable. Explanations are tooltips or captions, never sentences inside inputs. A problem is its own warning row, shown only when it applies.
 - **WHY:** A field that cannot be typed into meaningfully, or that holds a sentence, tells the artist the wrong thing about what they can do. The engines' property grids get this right — Unity's Inspector, Unreal's Details, GameMaker's tile set editor — and the look can stay ours while the contract is theirs. A typed tile size with validation beats a select because the failure is informative: the artist learns why 24 does not fit and what would.
+
+## Every image has a name, separate from its file; the library's first tab is All
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** project format / editor-ui
+- **SCOPE:** moderate
+- **WHAT:** Every image in the library has a name, separate from its file. The name is a field on the project's entry for the image, defaults to the file's stem, is edited in place, and is what the app shows for the image everywhere — the library list, the terrain editor's picker, the materials that draw from it — with the file name as the second line. The file name stays the identity that tags, materials and sidecars refer to, so naming never rewrites a reference or touches the file; renaming the file itself is a separate action. The library's first tab is All: every image the project knows, listed or found in the folder, with its kind on the row; the kind tabs filter it.
+- **WHY:** Files are named for the artist's pipeline (Outside_A2) and the editor should say what the thing is (Town ground). Keeping identity on the file keeps every reference stable and makes the name free to change.
+
+## Dropping an image on the library imports it
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui
+- **SCOPE:** minor/local
+- **WHAT:** Dropping an image file onto the image library copies it into the project's folder and creates its entry, the same as Import image… does; the grid dialog follows for a tileset. No mockup needed.
+- **WHY:** Getting art into the project should be one gesture, the one every desktop app has.
+
+## An image's entry keeps the last seen hash of its file, and a moved file is found by it
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** project format
+- **SCOPE:** moderate
+- **WHAT:** Every image entry in the project stores a content hash of the file as last seen — set on import, refreshed whenever the file is read or replaced. When the project opens and an entry's file is missing, the folder is searched for a file with the same hash; a match updates the entry's path to it and the library reports the relink, rather than marking the image missing. Only an entry whose file is missing and unmatched is missing.
+- **WHY:** Artists rename and move files. A pointer that only knows a path breaks on both; a hash follows the bytes, so a rename or a move is silent and a real loss is still reported.

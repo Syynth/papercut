@@ -9,7 +9,7 @@ the rich typeahead every asset picker will be.
 
 | File | Screen |
 |------|--------|
-| `Main.dc.html` | Project settings › Images › Tilesets: images down the left, the chosen one big with its grid drawn, the properties as a form beside it; unlisted files at the list's foot |
+| `Main.dc.html` | Project settings › Images › All: every image with its kind, names first, down the left, the chosen one big with its grid drawn, the properties as a form beside it; unlisted files at the list's foot |
 | `Import.dc.html` | Import image: sizes that fit, margin and spacing, the live grid, what it comes to |
 | `Picker.dc.html` | The tileset picker in the terrain editor, as a rich typeahead |
 | `Kinds.dc.html` | Sprites, Textures, Animations as placeholder tabs |
