@@ -163,7 +163,7 @@ wired in one placement; art that was not is tagged one corner at a time, in
 the Terrains section of Project settings, which works the way Tiled's
 terrain editor does (decision of 2026-09-14): pick a terrain, click or drag
 over tile corners on the sheet image, and every tagged corner shows as a
-translucent quadrant in its terrain's colour.
+translucent quadrant in its terrain's colour. The section takes the window while it is open, and tagging there is undoable in the editor's own history (decision of 2026-09-17), unlike the other Project settings.
 
 A terrain whose partner is nothing has an **edge set**: the tiles drawn at
 the edge of the ground or the top of a cliff, and the pieces a composited

@@ -8,13 +8,13 @@
  */
 
 import { Modal } from '@mantine/core'
-import type { ReactNode, Ref } from 'react'
+import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react'
 
 import { Icon, type IconName } from './icons'
 
-export function SettingsDialog({ opened, onClose, rail, title, aside, children }: { opened: boolean; onClose: () => void; rail: ReactNode; title: string; aside?: ReactNode; children: ReactNode }) {
+export function SettingsDialog({ opened, onClose, rail, title, aside, wide = false, children }: { opened: boolean; onClose: () => void; rail: ReactNode; title: string; aside?: ReactNode; /** The section needs the window: the modal grows to it and the content loses its padding, for an editor rather than a form. */ wide?: boolean; children: ReactNode }) {
   return (
-    <Modal opened={opened} onClose={onClose} size={920} centered withCloseButton={false} padding={0} classNames={{ content: 'ui-settings', body: 'ui-settings-body' }} overlayProps={{ className: 'ui-dialog-scrim' }}>
+    <Modal opened={opened} onClose={onClose} size={wide ? 'calc(100vw - 48px)' : 920} centered withCloseButton={false} padding={0} classNames={{ content: `ui-settings ${wide ? 'is-wide' : ''}`, body: 'ui-settings-body' }} overlayProps={{ className: 'ui-dialog-scrim' }}>
       <div className="ui-settings-rail">{rail}</div>
       <div className="ui-settings-pane">
         <div className="ui-settings-head">
@@ -150,26 +150,74 @@ export function SheetPreview({ src, width, height, scale = 2, alt }: { src: stri
 }
 
 /**
- * The terrain editor's frame (decision of 2026-09-14, after Tiled's): the
- * terrain list down the side, the tools above the sheet, the sheet in a box
- * that scrolls. `stageRef` is the box, for whoever needs its width to fit
- * the sheet to it.
+ * The terrain editor's frame (decision of 2026-09-14, after Tiled's; the
+ * pass of 2026-09-17): the tools across the top, the terrain list down the
+ * side, the sheet filling the rest, one line of small print over it.
+ * `stageRef` is the sheet's box, for whoever fits or zooms the sheet to it.
  */
-export function Tagger({ side, tools, stage, stageRef }: { side: ReactNode; tools: ReactNode; stage: ReactNode; stageRef?: Ref<HTMLDivElement> }) {
+export function Tagger({ tools, side, stage, foot, stageRef }: { tools: ReactNode; side: ReactNode; stage: ReactNode; foot?: ReactNode; stageRef?: Ref<HTMLDivElement> }) {
   return (
     <div className="ui-tagger">
+      <div className="ui-tagger-tools">{tools}</div>
       <div className="ui-tagger-side">{side}</div>
-      <div className="ui-tagger-main">
-        <div className="ui-tagger-tools">{tools}</div>
-        <div className="ui-tagger-stage" ref={stageRef}>
-          {stage}
-        </div>
+      <div className="ui-tagger-stage" ref={stageRef}>
+        {stage}
+        {foot ? <div className="ui-tagger-foot">{foot}</div> : null}
       </div>
     </div>
   )
 }
 
-/** A line of small print under the tools: what the pointer is over, and what a click does. */
-export function TaggerHint({ children }: { children: ReactNode }) {
-  return <div className="ui-tagger-hint">{children}</div>
+/**
+ * A terrain in the tagger's list: its swatch, its name, and on the chosen
+ * one a remove mark. Double-click the name to rename it in place; click the
+ * swatch to recolour it. `swatch` is `null` for the entry that tags nothing.
+ */
+export function TaggerItem({ name, swatch, active, onClick, onRename, onRecolour, onRemove, removeTitle }: { name: string; swatch: string | null; active: boolean; onClick: () => void; onRename?: (name: string) => void; onRecolour?: (hex: string) => void; onRemove?: (() => void) | null; removeTitle?: string }) {
+  const [editing, setEditing] = useState<string | null>(null)
+  const input = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (editing !== null) input.current?.select()
+  }, [editing])
+  const commit = (): void => {
+    const next = editing?.trim() ?? ''
+    setEditing(null)
+    if (next && next !== name) onRename?.(next)
+  }
+  return (
+    <div className={`ui-tagger-item ${active ? 'is-active' : ''}`}>
+      {swatch === null ? (
+        <span className="ui-tagger-swatch is-none" />
+      ) : onRecolour ? (
+        <label className="ui-tagger-swatch" style={{ background: swatch }} title="Recolour">
+          <input type="color" value={swatch} onChange={(event) => onRecolour(event.currentTarget.value)} />
+        </label>
+      ) : (
+        <span className="ui-tagger-swatch" style={{ background: swatch }} />
+      )}
+      {editing === null ? (
+        <button type="button" className="ui-tagger-name" onClick={onClick} onDoubleClick={onRename ? () => setEditing(name) : undefined} title={onRename ? 'Double-click to rename' : undefined}>
+          {name}
+        </button>
+      ) : (
+        <input
+          ref={input}
+          className="ui-tagger-rename"
+          value={editing}
+          onChange={(event) => setEditing(event.currentTarget.value)}
+          onBlur={commit}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') commit()
+            if (event.key === 'Escape') setEditing(null)
+            event.stopPropagation()
+          }}
+        />
+      )}
+      {active && onRemove !== undefined ? (
+        <button type="button" className="ui-tagger-remove" disabled={onRemove === null} title={removeTitle} onClick={onRemove ?? undefined} aria-label="Remove terrain">
+          <Icon name="close" size={11} />
+        </button>
+      ) : null}
+    </div>
+  )
 }
