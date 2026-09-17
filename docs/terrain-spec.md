@@ -122,7 +122,12 @@ position, corner k holding B when bit k of the tile's index in the block is
 set and A otherwise, in the order NW=1, NE=2, SW=4, SE=8. Placing it with
 A = nothing makes B's **edge set**. Art drawn to the template is wired in one
 placement; art that was not is tagged one corner at a time. Both are editor
-operations on the sidecar; the map never sees them.
+operations on the sidecar; the map never sees them. The editor's is the
+Terrains section of Project settings, after Tiled's terrain editor (decision
+of 2026-09-14): the sheet as an image with its terrain list beside it, a
+terrain picked and corners tagged by clicking or dragging over the tiles,
+each tagged corner drawn as a translucent quadrant in its terrain's colour.
+A stroke is one write of the sidecar.
 
 The project's materials point into terrain sets (ruling of 2026-09-14: the
 library is the project's, in `papercut.json`, never a map's; a map stores

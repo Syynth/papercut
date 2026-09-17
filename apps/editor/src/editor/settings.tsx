@@ -14,19 +14,19 @@ import { useState } from 'react'
 
 import { sheetName, type MaterialDef, type SheetEntry } from '@papercut/document'
 import { useHost, useProject, useProjectSelector, useViewSelector, useViewportSelector, type SettingsSection } from '@papercut/editor-host'
-import { addTerrain, edgeCoverage, pairAuthored, type LoadedSet, type TerrainDef } from '@papercut/geometry'
-import { slugOf } from '@papercut/project'
+import type { LoadedSet } from '@papercut/geometry'
 import { chordFor, commands, keymap, type Platform } from '@papercut/registry'
-import { Action, ColorInput, Field, FieldGrid, FileButton, Kbd, Note, NumberInput, Row, Segmented, SettingsBlock, SettingsDialog, SettingsRailItem, SettingsRailNote, SettingsScope, SettingsSearch, SheetPreview, Status, Swatch, Table, TableRow, TextInput, Toggle } from '@papercut/ui'
+import { Action, Field, FieldGrid, FileButton, Kbd, Note, NumberInput, Row, Segmented, SettingsBlock, SettingsDialog, SettingsRailItem, SettingsRailNote, SettingsScope, SettingsSearch, SheetPreview, Status, Swatch, Table, TableRow, TextInput, Toggle } from '@papercut/ui'
 import type { IconName } from '@papercut/ui'
 
 import { useArt } from './art'
 import { run } from './commands'
 import { MaterialsSettings } from './materials'
+import { TerrainsSettings } from './terrains'
 import { CameraRigProperties } from './panels'
 import { rgbaToDataUrl } from './rgba'
 import { loadPrefs, savePrefs, type EditorPrefs } from './prefs'
-import { addImagesTo, newMapIn, openMapAt, replaceSheetImage, revealInFolder, setSheetTile, unlistSheet, updateTerrainSet, type Session } from './session'
+import { addImagesTo, newMapIn, openMapAt, replaceSheetImage, revealInFolder, setSheetTile, unlistSheet, type Session } from './session'
 
 type Scope = 'project' | 'app'
 
@@ -34,7 +34,7 @@ const SECTIONS: ReadonlyArray<{ id: SettingsSection; title: string; icon: IconNa
   { id: 'general', title: 'General', icon: 'rect', scope: 'project', keywords: 'name folder maps order' },
   { id: 'resolution', title: 'Resolution', icon: 'grid', scope: 'project', keywords: 'texel density pixels per tile filtering nearest linear' },
   { id: 'sheets', title: 'Sheets', icon: 'tile', scope: 'project', keywords: 'images png tileset sprites missing relink replace reveal' },
-  { id: 'terrains', title: 'Terrain sets', icon: 'terrain', scope: 'project', keywords: 'sidecar tags corners transitions author edge set pairs' },
+  { id: 'terrains', title: 'Terrain sets', icon: 'terrain', scope: 'project', keywords: 'sidecar tags corners transitions author edge set pairs tag paint image tiled' },
   { id: 'materials', title: 'Materials', icon: 'sculpt', scope: 'project', keywords: 'brush paint library priority top side role swatch delete repaint' },
   { id: 'camera', title: 'Camera rig', icon: 'camera', scope: 'project', keywords: 'yaw pitch fov bounds projection orthographic' },
   { id: 'editor', title: 'Editor', icon: 'grid', scope: 'app', keywords: 'grid missing marks projection defaults autosave' },
@@ -349,121 +349,6 @@ function SheetsSettings({ session, sets, warning, selected, onSelect }: { sessio
           <Note>{loaded ? 'Replacing keeps the name, the tile size and the terrain set, so every material and tag pointing at it still holds. Removing keeps the file on disk and unlists it; materials that point into it draw in their swatch colour until relinked.' : 'The file is not in the folder. Relink picks an image to copy in under this name; every material and tag pointing at it holds.'}</Note>
         </SettingsBlock>
       ) : null}
-    </>
-  )
-}
-
-// --- Terrain sets -------------------------------------------------------------
-
-const TERRAIN_COLOURS = ['#6aa84f', '#8b6b45', '#8e8e8e', '#d9c27e', '#b08f5e', '#5f8fb0', '#a06060', '#7a6a52']
-
-function TerrainsSettings({ session, sets }: { session: Session; sets: readonly LoadedSet[] }) {
-  const host = useHost()
-  const project = useProject((p) => p)
-  const missing = useViewportSelector((snapshot) => snapshot.context.stats.missingTransitions)
-  const mapName = useProjectSelector((snapshot) => snapshot.context.map)
-  const [chosen, setChosen] = useState<{ sheet: string; terrain: string } | null>(null)
-  const [newName, setNewName] = useState('')
-  const notify = (notice: string): void => void run(host, 'view.set', { notice })
-  const write = (sheet: string, next: LoadedSet['set']): void => void updateTerrainSet(host, session, sheet, next).catch((error: unknown) => notify(messageOf(error)))
-  const withSidecar = project.sheets.filter((s) => s.terrainSet !== null)
-  return (
-    <>
-      <SettingsBlock note="One set per sheet: what each tile is, tagged by corner. Stored beside the image as <sheet>.terrain.json, so an artist's sheet travels with its tags. Tagging tiles in the editor is a follow-up; a set's terrains are managed here." />
-      {sets.map((loaded) => {
-        const { set } = loaded
-        const entry = withSidecar.find((s) => sheetName(s.path) === set.sheet)
-        const selected = chosen?.sheet === set.sheet ? set.terrains.find((t) => t.id === chosen.terrain) : undefined
-        const add = (): void => {
-          const label = newName.trim()
-          if (!label) return
-          const id = slugOf(label)
-          if (set.terrains.some((t) => t.id === id)) {
-            notify(`${set.sheet} already has a terrain called ${id}.`)
-            return
-          }
-          setNewName('')
-          write(set.sheet, addTerrain(set, { id, name: label, color: TERRAIN_COLOURS[set.terrains.length % TERRAIN_COLOURS.length] }))
-          setChosen({ sheet: set.sheet, terrain: id })
-        }
-        const change = (terrain: TerrainDef, changes: Partial<TerrainDef>): void => write(set.sheet, { ...set, terrains: set.terrains.map((t) => (t.id === terrain.id ? { ...t, ...changes } : t)) })
-        return (
-          <SettingsBlock
-            key={set.sheet}
-            title={entry ? sheetName(entry.terrainSet ?? '') : set.sheet}
-            note={`${set.sheet} · ${set.tile} px · ${set.columns} × ${set.rows} tiles`}
-            action={
-              <>
-                <TextInput value={chosen?.sheet === set.sheet || sets.length === 1 ? newName : ''} onChange={(v) => { setChosen({ sheet: set.sheet, terrain: chosen?.sheet === set.sheet ? chosen.terrain : '' }); setNewName(v) }} placeholder="New terrain" />
-                <Action title="Add terrain" disabled={!newName.trim() || (chosen?.sheet !== set.sheet && sets.length > 1)} onClick={add} />
-              </>
-            }
-          >
-            <Table
-              columns={[
-                { title: 'Terrain', width: '1.2fr' },
-                { title: 'Id', width: '0.9fr' },
-                { title: 'Edge set', width: '0.8fr' },
-                { title: 'Pairs', width: '0.7fr' },
-                { title: 'Materials', width: '1fr' },
-              ]}
-            >
-              {set.terrains.map((t) => {
-                const coverage = edgeCoverage(set, t.id)
-                const pairs = set.terrains.filter((o) => o.id !== t.id && pairAuthored(set, t.id, o.id)).length
-                const users = project.materials.filter((m) => (m.top.sheet === set.sheet && m.top.terrain === t.id) || (m.side?.sheet === set.sheet && m.side.terrain === t.id)).map((m) => m.name)
-                return (
-                  <TableRow
-                    key={t.id}
-                    active={selected?.id === t.id}
-                    onClick={() => setChosen({ sheet: set.sheet, terrain: t.id })}
-                    cells={[
-                      <>
-                        <Swatch color={t.color} />
-                        {t.name}
-                      </>,
-                      <code>{t.id}</code>,
-                      <Status tone={coverage === 16 ? 'ok' : coverage === 0 ? 'muted' : 'warn'}>{coverage} / 16</Status>,
-                      `${pairs}`,
-                      users.length ? users.join(', ') : <Status tone="muted">none</Status>,
-                    ]}
-                  />
-                )
-              })}
-            </Table>
-            {selected ? (
-              <FieldGrid columns={3}>
-                <Field label="Name">
-                  <TextInput value={selected.name} onChange={(label) => (label.trim() ? change(selected, { name: label }) : undefined)} />
-                </Field>
-                <Field label="Colour" hint="The swatch, and the fill where no tile is tagged">
-                  <ColorInput value={parseInt(selected.color.slice(1), 16)} onChange={(color) => change(selected, { color: `#${color.toString(16).padStart(6, '0')}` })} />
-                </Field>
-                <Field label="Id" hint="What tags and materials name; fixed once tiles carry it">
-                  <Row label="" value={selected.id} muted />
-                </Field>
-              </FieldGrid>
-            ) : null}
-          </SettingsBlock>
-        )
-      })}
-      {sets.length === 0 ? <Note>No sheet with a terrain set is loaded. Add one in Sheets, or add a terrain to a sheet to give it a set.</Note> : null}
-      <SettingsBlock title="Transitions" note={`Corners painted in ${mapName ? mapLabel(mapName) : 'this map'} that no tile is tagged for, drawn as composites: the tiles still to author. The status bar counts the same list.`}>
-        {missing.length === 0 ? (
-          <Note>Every corner in this map has an authored tile.</Note>
-        ) : (
-          <Table
-            columns={[
-              { title: 'Corner', width: '2fr' },
-              { title: 'Drawn as', width: '1fr' },
-            ]}
-          >
-            {missing.map((combo) => (
-              <TableRow key={combo} cells={[<code>{combo}</code>, <Status tone="accent">composite, to author</Status>]} />
-            ))}
-          </Table>
-        )}
-      </SettingsBlock>
     </>
   )
 }
