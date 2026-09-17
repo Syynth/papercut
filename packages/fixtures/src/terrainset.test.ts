@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { TerrainAtlas, edgeCoverage, exactTile, pairAuthored, parseTerrainSet, serializeTerrainSet, terrainKey } from '@papercut/geometry'
+import { TerrainAtlas, edgeCoverage, exactTile, pairAuthored, terrainOf, terrainSetFrom, terrainKey } from '@papercut/geometry'
 
 import { PLACEHOLDER_PAIRS, PLACEHOLDER_TERRAINS, generatePlaceholderTerrainSet } from './terrainset'
 
@@ -48,8 +48,9 @@ describe('the placeholder terrain set', () => {
     expect(Math.abs(red(set.tile - 1) - dirtRed)).toBeLessThan(Math.abs(red(set.tile - 1) - grassRed))
   })
 
-  it('round-trips through the sidecar and feeds the atlas as-is', () => {
-    const back = parseTerrainSet(JSON.parse(serializeTerrainSet(set)))
+  it('round-trips through the shape the project file holds and feeds the atlas as-is', () => {
+    const { set: back, dropped } = terrainSetFrom(set.sheet, set.tile, set.columns, set.rows, terrainOf(set))
+    expect(dropped).toEqual([])
     expect(back.tiles.size).toBe(set.tiles.size)
     const atlas = new TerrainAtlas([{ set: back, image }], (key) => PLACEHOLDER_TERRAINS.findIndex((t) => key === terrainKey('ground.png', t.id)))
     expect(atlas.tileFor([terrainKey('ground.png', 'grass'), terrainKey('ground.png', 'grass'), terrainKey('ground.png', 'path'), terrainKey('ground.png', 'path')]).composite).toBe(false)

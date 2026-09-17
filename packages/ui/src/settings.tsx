@@ -221,3 +221,210 @@ export function TaggerItem({ name, swatch, active, onClick, onRename, onRecolour
     </div>
   )
 }
+
+// --- the image library (decisions of 2026-09-17) ---------------------------------
+
+/**
+ * The library's frame: tabs across the top, the list down the left, the
+ * chosen image big in the middle, its properties as a form on the right —
+ * the terrain editor's layout, with a form where the tagger has none.
+ * `onDropFiles` takes files dropped anywhere on it: the one-gesture import.
+ */
+export function Library({ tabs, side, stage, form, stageRef, onDropFiles }: { tabs: ReactNode; side: ReactNode; stage: ReactNode; form: ReactNode; stageRef?: Ref<HTMLDivElement>; onDropFiles?: (files: File[]) => void }) {
+  const [over, setOver] = useState(false)
+  return (
+    <div
+      className={`ui-library ${over ? 'is-over' : ''}`}
+      onDragOver={onDropFiles ? (event) => {
+        if ([...event.dataTransfer.types].includes('Files')) {
+          event.preventDefault()
+          setOver(true)
+        }
+      } : undefined}
+      onDragLeave={onDropFiles ? () => setOver(false) : undefined}
+      onDrop={onDropFiles ? (event) => {
+        event.preventDefault()
+        setOver(false)
+        const files = [...event.dataTransfer.files]
+        if (files.length > 0) onDropFiles(files)
+      } : undefined}
+    >
+      <div className="ui-library-tabs">{tabs}</div>
+      <div className="ui-library-side">{side}</div>
+      <div className="ui-library-stage" ref={stageRef}>
+        {stage}
+      </div>
+      <div className="ui-library-form">{form}</div>
+      {over ? <div className="ui-library-drop">Drop to import</div> : null}
+    </div>
+  )
+}
+
+export function LibraryTab({ title, active, soon, onClick }: { title: string; active: boolean; soon?: boolean; onClick: () => void }) {
+  return (
+    <button type="button" className={`ui-library-tab ${active ? 'is-active' : ''}`} onClick={onClick}>
+      {title}
+      {soon ? <span className="ui-library-soon">soon</span> : null}
+    </button>
+  )
+}
+
+/** A row of the library's list: thumbnail, name, a second line, and a status dot — or a trailing control in the dot's place. */
+export function LibraryItem({ thumb, name, meta, tone, badge, active, dim, onClick, trailing }: { thumb?: string; name: string; meta: ReactNode; tone?: 'ok' | 'warn' | 'muted'; badge?: string; active?: boolean; dim?: boolean; onClick?: () => void; trailing?: ReactNode }) {
+  return (
+    <div className={`ui-library-item ${active ? 'is-active' : ''} ${dim ? 'is-dim' : ''}`}>
+      {thumb ? <img className="ui-library-thumb" src={thumb} alt="" /> : <span className="ui-library-thumb" />}
+      <button type="button" className="ui-library-item-text" onClick={onClick} disabled={!onClick}>
+        <span className="ui-library-item-name">
+          {name}
+          {badge ? <span className="ui-library-soon">{badge}</span> : null}
+        </span>
+        <span className="ui-library-item-meta">{meta}</span>
+      </button>
+      {trailing ?? <span className={`ui-library-dot is-${tone ?? 'muted'}`} />}
+    </div>
+  )
+}
+
+/** A group heading inside the list. */
+export function LibraryGroup({ children }: { children: ReactNode }) {
+  return <div className="ui-library-group">{children}</div>
+}
+
+/** A read-only line of a property form: a label and a value that is derived, never typed. */
+export function Derived({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="ui-derived">
+      <span className="ui-derived-label">{label}</span>
+      <span className="ui-derived-value">{children}</span>
+    </div>
+  )
+}
+
+/**
+ * An X Y pair with a link: one field while linked, two when split (decision of 2026-09-17). Stored per axis
+ * always; the link is the view. `unit` is the suffix.
+ */
+export function PairInput({ label, value, onChange, unit = 'px', min = 0 }: { label: string; value: { x: number; y: number }; onChange: (value: { x: number; y: number }) => void; unit?: string; min?: number }) {
+  const [linked, setLinked] = useState(value.x === value.y)
+  const number = (v: number, set: (n: number) => void) => (
+    <input
+      type="number"
+      className="ui-pair-field"
+      min={min}
+      value={v}
+      onChange={(event) => {
+        const n = Number(event.currentTarget.value)
+        if (Number.isInteger(n) && n >= min) set(n)
+      }}
+    />
+  )
+  return (
+    <div className="ui-field">
+      <div className="ui-field-label ui-pair-label">
+        <span>{label}</span>
+        <button type="button" className={`ui-pair-link ${linked ? '' : 'is-split'}`} title={linked ? 'Split into X and Y' : 'Link X and Y'} onClick={() => setLinked((l) => !l)} aria-label={linked ? 'Split into X and Y' : 'Link X and Y'}>
+          <Icon name={linked ? 'link' : 'unlink'} size={12} />
+        </button>
+      </div>
+      <div className="ui-pair">
+        {linked ? (
+          number(value.x, (n) => onChange({ x: n, y: n }))
+        ) : (
+          <>
+            <span className="ui-pair-axis">X</span>
+            {number(value.x, (n) => onChange({ ...value, x: n }))}
+            <span className="ui-pair-axis">Y</span>
+            {number(value.y, (n) => onChange({ ...value, y: n }))}
+          </>
+        )}
+        <span className="ui-pair-unit">{unit}</span>
+      </div>
+    </div>
+  )
+}
+
+export interface PickerOption {
+  readonly value: string
+  readonly name: string
+  /** The second line, and what typing also matches. */
+  readonly meta: string
+  readonly thumb?: string
+}
+
+/**
+ * A rich typeahead over assets (decision of 2026-09-17): type to filter names and details, a thumbnail and a
+ * second line per row, ↑ ↓ ⏎ ⎋, the current value shown as such a row. `footer` says what is not listed and why.
+ */
+export function AssetPicker({ value, options, onChange, footer, placeholder = 'Type to find…' }: { value: string; options: readonly PickerOption[]; onChange: (value: string) => void; footer?: ReactNode; placeholder?: string }) {
+  const [open, setOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const [cursor, setCursor] = useState(0)
+  const input = useRef<HTMLInputElement>(null)
+  const current = options.find((o) => o.value === value)
+  const q = query.trim().toLowerCase()
+  const shown = q ? options.filter((o) => o.name.toLowerCase().includes(q) || o.value.toLowerCase().includes(q) || o.meta.toLowerCase().includes(q)) : options
+  const choose = (option: PickerOption): void => {
+    onChange(option.value)
+    setOpen(false)
+    setQuery('')
+  }
+  useEffect(() => {
+    if (open) input.current?.focus()
+  }, [open])
+  useEffect(() => setCursor(0), [q])
+  return (
+    <div className="ui-picker" onBlur={(event) => {
+      if (!event.currentTarget.contains(event.relatedTarget)) setOpen(false)
+    }}>
+      {open ? (
+        <input
+          ref={input}
+          className="ui-picker-input"
+          value={query}
+          placeholder={current?.name ?? placeholder}
+          onChange={(event) => setQuery(event.currentTarget.value)}
+          onKeyDown={(event) => {
+            event.stopPropagation()
+            if (event.key === 'ArrowDown') setCursor((c) => Math.min(shown.length - 1, c + 1))
+            else if (event.key === 'ArrowUp') setCursor((c) => Math.max(0, c - 1))
+            else if (event.key === 'Enter' && shown[cursor]) choose(shown[cursor])
+            else if (event.key === 'Escape') setOpen(false)
+            else return
+            event.preventDefault()
+          }}
+        />
+      ) : (
+        <button type="button" className="ui-picker-current" onClick={() => setOpen(true)}>
+          {current?.thumb ? <img className="ui-library-thumb is-small" src={current.thumb} alt="" /> : null}
+          <span className="ui-picker-name">{current?.name ?? placeholder}</span>
+          <span className="ui-picker-caret">▾</span>
+        </button>
+      )}
+      {open ? (
+        <div className="ui-picker-menu" role="listbox">
+          {shown.map((option, index) => (
+            <button
+              key={option.value}
+              type="button"
+              role="option"
+              aria-selected={option.value === value}
+              className={`ui-picker-row ${index === cursor ? 'is-cursor' : ''} ${option.value === value ? 'is-active' : ''}`}
+              onMouseEnter={() => setCursor(index)}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => choose(option)}
+            >
+              {option.thumb ? <img className="ui-library-thumb" src={option.thumb} alt="" /> : <span className="ui-library-thumb" />}
+              <span className="ui-picker-row-text">
+                <span className="ui-picker-row-name">{option.name}</span>
+                <span className="ui-picker-row-meta">{option.meta}</span>
+              </span>
+            </button>
+          ))}
+          {shown.length === 0 ? <div className="ui-picker-empty">Nothing matches.</div> : null}
+          {footer ? <div className="ui-picker-footer">{footer}</div> : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}

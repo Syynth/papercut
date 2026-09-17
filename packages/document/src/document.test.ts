@@ -4,7 +4,7 @@ import { applyPatches, History, inversePatch, patchAddress, type Patch, type Str
 import { createMap, defaultFacing, NO_RAMP, type MapDoc, type MapObject, type ReadonlyMapDoc } from './document'
 import { childrenOf, descendantsOf, outlineOf, type VoxelStructure } from './structure'
 import { deserialize, LoadError, serialize } from './io'
-import { createProject, parseProject, serializeProject, sheetName } from './project'
+import { createProject, parseProject, serializeProject, sheetName, stemOf } from './project'
 import { addObject, addSketchPoint, addStructure, brushCells, clearRampRun, closeSketch, columnPatches, createSketch, deleteSketchPoint, fillCells, flatten, paintFace, placeStructureOnto, raise, rampPlan, rampRun, rampRunBlocked, rampRunLength, removeObject, removeStructure, reparentStructure, setSketch, updateObject } from './ops'
 import { FACE_TOP, countDormant, faceKey, parseFaceKey } from './paint'
 import { EditorStore } from './store'
@@ -806,19 +806,20 @@ describe('a map file is checked before it is believed', () => {
 describe('a project file is checked before it is believed', () => {
   const raw = () => JSON.parse(serializeProject(createProject('Harbour Town'))) as Record<string, unknown>
 
-  it('round-trips, and starts with the placeholder sheet, the default materials and no maps', () => {
-    const project = createProject('Harbour Town', 32)
+  it('round-trips, and starts with the placeholder image, the default materials and no maps', () => {
+    const project = createProject('Harbour Town', 32, { terrains: [{ id: 'grass', name: 'Grass', color: '#4f8a46' }], tiles: { 3: ['grass', 'grass', null, null] } })
     expect(project.resolution).toEqual({ texelDensity: 32, filtering: 'nearest' })
-    expect(project.sheets).toEqual([{ path: 'sheets/ground.png', tile: 32, terrainSet: 'sheets/ground.terrain.json' }])
+    expect(project.images).toEqual([{ path: 'sheets/ground.png', name: 'Ground', kind: 'tileset', hash: null, grid: { tile: 32, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, terrain: { terrains: [{ id: 'grass', name: 'Grass', color: '#4f8a46' }], tiles: { 3: ['grass', 'grass', null, null] } } }])
     expect(project.maps).toEqual([])
     expect(parseProject(serializeProject(project))).toEqual(project)
     expect(sheetName('sheets/ground.png')).toBe('ground.png')
+    expect(stemOf('sheets/mz/Outside_A2.png')).toBe('Outside_A2')
   })
 
   it('refuses another format, an empty material list, a shared id and a path outside the folder', () => {
     const version = raw()
-    version.formatVersion = 2
-    expect(() => parseProject(JSON.stringify(version))).toThrow(/format 2/)
+    version.formatVersion = 1
+    expect(() => parseProject(JSON.stringify(version))).toThrow(/format 1/)
     const bare = raw()
     bare.materials = []
     expect(() => parseProject(JSON.stringify(bare))).toThrow(/at least one material/)
@@ -829,17 +830,29 @@ describe('a project file is checked before it is believed', () => {
     outside.maps = ['../elsewhere.map.json']
     expect(() => parseProject(JSON.stringify(outside))).toThrow(/inside the project/)
     const twice = raw()
-    twice.sheets = [{ path: 'sheets/a.png', tile: 16 }, { path: 'other/a.png', tile: 16 }]
+    twice.images = [{ path: 'sheets/a.png', grid: { tile: 16 } }, { path: 'other/a.png', grid: { tile: 16 } }]
     expect(() => parseProject(JSON.stringify(twice))).toThrow(/both called a.png/)
     expect(() => parseProject('nope')).toThrow(LoadError)
   })
 
-  it('defaults what a sparse file leaves out, and never a sheet without a tile size', () => {
-    const sparse = parseProject(JSON.stringify({ formatVersion: 1, name: 'Sparse' }))
+  it('defaults what a sparse file leaves out — an image gets its stem as a name and a plain grid — and never an image without a tile size', () => {
+    const sparse = parseProject(JSON.stringify({ formatVersion: 2, name: 'Sparse' }))
     expect(sparse.resolution).toEqual({ texelDensity: 16, filtering: 'nearest' })
     expect(sparse.materials.length).toBeGreaterThan(0)
-    expect(sparse.sheets).toEqual([])
+    expect(sparse.images).toEqual([])
     expect(sparse.maps).toEqual([])
-    expect(() => parseProject(JSON.stringify({ formatVersion: 1, sheets: [{ path: 'sheets/a.png' }] }))).toThrow(/no tile size/)
+    expect(() => parseProject(JSON.stringify({ formatVersion: 2, images: [{ path: 'sheets/a.png' }] }))).toThrow(/no tile size/)
+    const terse = parseProject(JSON.stringify({ formatVersion: 2, images: [{ path: 'sheets/mz/Outside_A2.png', grid: { tile: 48, margin: 2, spacing: { x: 1, y: 0 } } }] }))
+    expect(terse.images[0]).toEqual({ path: 'sheets/mz/Outside_A2.png', name: 'Outside_A2', kind: 'tileset', hash: null, grid: { tile: 48, margin: { x: 2, y: 2 }, spacing: { x: 1, y: 0 } }, terrain: { terrains: [], tiles: {} } })
+  })
+
+  it('checks a terrain set as the image carries it: unique ids, four tags a tile, tags that name a terrain the image has', () => {
+    const image = (terrain: unknown) => JSON.stringify({ formatVersion: 2, images: [{ path: 'sheets/a.png', grid: { tile: 16 }, terrain }] })
+    expect(() => parseProject(image({ terrains: [{ id: 'g' }, { id: 'g' }] }))).toThrow(/lists the terrain g twice/)
+    expect(() => parseProject(image({ terrains: [{ id: 'g' }], tiles: { 0: ['g', null, null] } }))).toThrow(/four corner tags/)
+    expect(() => parseProject(image({ terrains: [{ id: 'g' }], tiles: { 0: ['g', 'x', null, null] } }))).toThrow(/names a terrain the image does not have/)
+    expect(() => parseProject(image({ terrains: [{ id: 'g' }], tiles: { '-1': ['g', 'g', 'g', 'g'] } }))).toThrow(/not a tile index/)
+    const ok = parseProject(image({ terrains: [{ id: 'g' }], tiles: { 5: ['g', null, null, null], 0: [null, null, null, null] } }))
+    expect(ok.images[0].terrain).toEqual({ terrains: [{ id: 'g', name: 'g', color: '#808080' }], tiles: { 5: ['g', null, null, null], 0: [null, null, null, null] } })
   })
 })

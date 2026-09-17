@@ -14,7 +14,6 @@
 
 export {
   CORNER_BITS,
-  TERRAIN_SET_VERSION,
   TerrainSetError,
   addTerrain,
   cornerAt,
@@ -23,14 +22,16 @@ export {
   edgeTile,
   exactTile,
   pairAuthored,
-  parseTerrainSet,
   removeTerrain,
-  serializeTerrainSet,
   stampTemplate,
   tagCorner,
   templateTags,
+  terrainOf,
+  terrainSetFrom,
 } from './terrainset'
-export type { CornerTags, Tag, TerrainDef, TerrainSet, TerrainSetFile } from './terrainset'
+export type { CornerTags, Tag, TerrainDef, TerrainSet } from './terrainset'
+export { cutGrid, fitsOf, gridCells } from './grid'
+export type { GridCells } from './grid'
 export { TerrainAtlas, terrainKey } from './atlas'
 export { createTerrainLook } from './look'
 export type { TerrainLook } from './look'

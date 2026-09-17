@@ -9,7 +9,7 @@
  * painted corner gets.
  *
  * Every stroke is one write: the corners tagged while the button is down
- * land on a draft, and the draft goes to `updateTerrainSet` on release, which
+ * land on a draft, and the draft goes to `setImageTerrain` on release, which
  * writes the sidecar and swaps the set into the viewport. A set with no
  * sidecar yet gets one on its first stroke or first terrain.
  *
@@ -25,15 +25,16 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
-import type { RgbaImage } from '@papercut/document'
+import { sheetName, type RgbaImage } from '@papercut/document'
 import { useHost, useProject } from '@papercut/editor-host'
 import { addTerrain, cornerAt, removeTerrain, tagCorner, type LoadedSet, type Tag, type TerrainDef, type TerrainSet } from '@papercut/geometry'
 import { slugOf } from '@papercut/project'
-import { Action, Note, Select, Tagger, TaggerItem } from '@papercut/ui'
+import { Action, AssetPicker, Note, Tagger, TaggerItem } from '@papercut/ui'
 
 import { run } from './commands'
 import { rgbaToCanvas } from './rgba'
-import { updateTerrainSet, type Session } from './session'
+import { setImageTerrain, type Session } from './session'
+import { thumbOf } from './images'
 
 const TERRAIN_COLOURS = ['#6aa84f', '#8b6b45', '#8e8e8e', '#d9c27e', '#b08f5e', '#5f8fb0', '#a06060', '#7a6a52']
 const CORNER_NAMES = ['NW', 'NE', 'SW', 'SE'] as const
@@ -131,6 +132,7 @@ const stepZoom = (scale: number, by: 1 | -1): number => {
 export function TerrainsSettings({ session, sets }: { session: Session; sets: readonly LoadedSet[] }) {
   const host = useHost()
   const materials = useProject((p) => p.materials)
+  const images = useProject((p) => p.images)
   const [sheet, setSheet] = useState<string | null>(null)
   /** The terrain the pointer tags; `null` is Nothing. */
   const [brush, setBrush] = useState<Tag>(null)
@@ -156,7 +158,7 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
   const write = (next: TerrainSet): void => {
     if (!loaded) return
     setDraft(next)
-    updateTerrainSet(host, session, loaded.set.sheet, next).catch((error: unknown) => {
+    setImageTerrain(host, session, loaded.set.sheet, next).catch((error: unknown) => {
       setDraft(null)
       notify(messageOf(error))
     })
@@ -226,6 +228,8 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
   }, [loaded, set, scale, hover])
 
   const selected = set?.terrains.find((t) => t.id === brush)
+  /** Listed tilesets the viewport could not draw: named in the picker's footer with the fix in Images. */
+  const notDrawn = images.filter((i) => i.kind === 'tileset' && !sets.some((s) => s.set.sheet === sheetName(i.path))).map((i) => i.name)
   const usedBy = useMemo(() => {
     const users = new Map<string, string[]>()
     if (!loaded) return users
@@ -309,7 +313,15 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
       stageRef={stageRef}
       tools={
         <>
-          <Select value={loaded.set.sheet} options={sets.map((s) => ({ value: s.set.sheet, label: s.set.sheet }))} onChange={setSheet} />
+          <AssetPicker
+            value={loaded.set.sheet}
+            options={sets.map((s) => {
+              const entry = images.find((i) => sheetName(i.path) === s.set.sheet)
+              return { value: s.set.sheet, name: entry?.name ?? s.set.sheet, meta: `${s.set.sheet} · ${entry?.grid.tile ?? s.set.tile} px${entry && entry.grid.tile !== s.set.tile ? ` · ${s.set.tile / entry.grid.tile}×` : ''} · ${s.set.terrains.length} ${s.set.terrains.length === 1 ? 'terrain' : 'terrains'}`, thumb: thumbOf(s) }
+            })}
+            onChange={setSheet}
+            footer={notDrawn.length ? `${notDrawn.length} ${notDrawn.length === 1 ? 'image' : 'images'} in Images ${notDrawn.length === 1 ? 'does' : 'do'} not draw in this project — ${notDrawn.join(', ')}` : undefined}
+          />
           <span>
             {set.columns} × {set.rows} tiles · {set.tile} px
           </span>

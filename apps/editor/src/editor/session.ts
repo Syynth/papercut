@@ -12,14 +12,14 @@
  *
  * Every function here is a SEQUENCE of dispatches around the file work: read
  * the project file, `project.load`; read the first map, `document.load`;
- * hand the viewport the sheets. Nothing in an actor touches a file.
+ * hand the viewport the images. Nothing in an actor touches a file.
  */
 
-import { AIR, SHEETS_DIR, createMap, serialize, serializeProject, sheetName, type MapDoc, type Patch, type ReadonlyMapDoc, type RgbaImage } from '@papercut/document'
+import { AIR, SHEETS_DIR, createMap, serialize, serializeProject, sheetName, type Grid, type ImageEntry, type ImageKind, type MapDoc, type Patch, type ReadonlyMapDoc, type RgbaImage } from '@papercut/document'
 import type { Host } from '@papercut/editor-host'
 import { createSampleMap, generatePlaceholderTerrainSet } from '@papercut/fixtures'
-import { parseTerrainSet, serializeTerrainSet, type LoadedSet, type TerrainSet } from '@papercut/geometry'
-import { MemoryFs, addMap, addSheet, createProjectFolder, forget, joinPath, openProject, parseRecents, readMap, remember, writeMap, writeProject, type ImageCodec, type NewSheet, type OpenedProject, type ProjectFs, type RecentProject } from '@papercut/project'
+import { terrainOf, type LoadedSet, type TerrainSet } from '@papercut/geometry'
+import { MemoryFs, addImage, addMap, createProjectFolder, forget, hashBytes, joinPath, listImage, openProject, parseRecents, readMap, remember, writeMap, writeProject, type ImageCodec, type OpenedProject, type ProjectFs, type RecentProject } from '@papercut/project'
 import { exportGltf } from '@papercut/runtime/export'
 import { desktopShell, type MenuCommand, type ShellDialogs, type ShellMenu } from '@papercut/shell-api'
 
@@ -53,6 +53,23 @@ export interface Session {
   persistFailure: string | null
   /** What is known about every map in the open project without opening it: size and the materials it uses. */
   readonly summaries: SummaryStore
+  /** What the folder holds that the project does not list: image files under sheets/, for the library to offer. */
+  readonly library: LibraryStore
+}
+
+/** The image files in the folder that no entry lists, as of the last open or reload; a store so the library follows it. */
+export class LibraryStore {
+  private unlisted: readonly string[] = []
+  private readonly listeners = new Set<() => void>()
+  get = (): readonly string[] => this.unlisted
+  subscribe = (listener: () => void): (() => void) => {
+    this.listeners.add(listener)
+    return () => this.listeners.delete(listener)
+  }
+  set(unlisted: readonly string[]): void {
+    this.unlisted = unlisted
+    for (const listener of this.listeners) listener()
+  }
 }
 
 /** One map of the project, as read off its file: enough for the menu and the Materials section without opening it. */
@@ -171,8 +188,8 @@ function memoryFs(onFailure: (message: string) => void): MemoryFs {
 /** The session for this build: the shell's filesystem and dialogs when there is a shell, the memory tree otherwise. */
 export async function createSession(): Promise<Session> {
   const shell = desktopShell()
-  if (shell) return { fs: shell.fs, codec: canvasCodec, dialogs: shell.dialogs, menu: shell.menu ?? null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore() }
-  const session: Session = { fs: new MemoryFs(), codec: canvasCodec, dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore() }
+  if (shell) return { fs: shell.fs, codec: canvasCodec, dialogs: shell.dialogs, menu: shell.menu ?? null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore() }
+  const session: Session = { fs: new MemoryFs(), codec: canvasCodec, dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore() }
   const fs = memoryFs((message) => {
     session.persistFailure = message
   })
@@ -229,7 +246,6 @@ function queued<T>(path: string, work: () => Promise<T>): Promise<T> {
 
 // --- opening ---------------------------------------------------------------
 
-const notify = (host: Host, notice: string | null): void => void host.dispatch('view.set', { notice })
 
 /**
  * Put an opened project and its sheets in front of the editor: the map first — the one open there last, else the
@@ -270,7 +286,7 @@ async function install(host: Host, session: Session, folder: string, opened: Ope
   }
   host.dispatch('project.current', { map: path })
   rememberOpen(folder)
-  host.children.viewport.send({ type: 'terrain', sets: opened.sets, warning: opened.warnings.length ? opened.warnings.join('\n') : null })
+  publish(host, session, opened)
   saveRecents(remember(recents(), { name: project.name, folder, openedAt: Date.now() }))
   await refreshSummaries(host, session)
 }
@@ -374,82 +390,119 @@ export async function saveNow(host: Host, session: Session): Promise<string> {
   return map ?? 'papercut.json'
 }
 
-/** Copy a sheet into the project's `sheets/` and list it; reloads the sheets the viewport draws with. */
-export async function addSheetTo(host: Host, session: Session, sheet: NewSheet): Promise<void> {
-  const { folder } = location(host)
-  const project = host.children.project.getSnapshot().context.project
-  session.lastWriteAt = Date.now()
-  const next = await addSheet(session.fs, folder, project, sheet)
-  host.dispatch('project.sheets.set', { sheets: next.sheets })
-  const reopened = await openProject(session.fs, folder, session.codec)
-  host.children.viewport.send({ type: 'terrain', sets: reopened.sets, warning: reopened.warnings.length ? reopened.warnings.join('\n') : null })
-}
-
-/** Reload the project's sheets from its folder into the viewport, after something in `sheets/` changed. */
-async function reloadSheets(host: Host, session: Session, folder: string): Promise<void> {
-  const reopened = await openProject(session.fs, folder, session.codec)
-  host.children.viewport.send({ type: 'terrain', sets: reopened.sets, warning: reopened.warnings.length ? reopened.warnings.join('\n') : null })
-}
-
-/** Write a sheet's terrain set to its sidecar — creating and listing the sidecar for a sheet that had none — and reload. */
-export async function updateTerrainSet(host: Host, session: Session, sheet: string, set: TerrainSet): Promise<void> {
-  const { folder } = location(host)
-  const project = host.children.project.getSnapshot().context.project
-  const entry = project.sheets.find((s) => sheetName(s.path) === sheet)
-  if (!entry) throw new Error(`${sheet} is not a sheet of this project.`)
-  const sidecar = entry.terrainSet ?? `${SHEETS_DIR}/${sheet.replace(/\.[^.]+$/, '')}.terrain.json`
-  session.lastWriteAt = Date.now()
-  await session.fs.writeFile(joinPath(folder, sidecar), serializeTerrainSet({ ...set, sheet }))
-  if (entry.terrainSet !== sidecar) {
-    const sheets = project.sheets.map((s) => (s === entry ? { ...s, terrainSet: sidecar } : { ...s }))
-    host.dispatch('project.sheets.set', { sheets })
-    await writeProject(session.fs, folder, host.children.project.getSnapshot().context.project)
-  }
-  // The one set, swapped in over its image: no other sheet is re-read for a rename.
-  const { loadedTerrain, terrainWarning } = host.children.viewport.getSnapshot().context
-  const swapped = loadedTerrain.some((s) => s.set.sheet === sheet)
-  if (swapped) host.children.viewport.send({ type: 'terrain', sets: loadedTerrain.map((s) => (s.set.sheet === sheet ? { set: { ...set, sheet }, image: s.image } : s)), warning: terrainWarning })
-  else await reloadSheets(host, session, folder)
-}
-
-/** Take a sheet off the project's list. The files stay in the folder; the materials that pointed into it draw from the placeholder or as colour. */
-export async function unlistSheet(host: Host, session: Session, sheet: string): Promise<void> {
-  const { folder } = location(host)
-  const project = host.children.project.getSnapshot().context.project
-  host.dispatch('project.sheets.set', { sheets: project.sheets.filter((s) => sheetName(s.path) !== sheet).map((s) => ({ ...s })) })
-  await writeProject(session.fs, folder, host.children.project.getSnapshot().context.project)
-  await reloadSheets(host, session, folder)
-}
-
-/** Change what the project says about a sheet: its tile size. Reloads, since the check against the sidecar depends on it. */
-export async function setSheetTile(host: Host, session: Session, sheet: string, tile: number): Promise<void> {
-  const { folder } = location(host)
-  const project = host.children.project.getSnapshot().context.project
-  host.dispatch('project.sheets.set', { sheets: project.sheets.map((s) => (sheetName(s.path) === sheet ? { ...s, tile } : { ...s })) })
-  await writeProject(session.fs, folder, host.children.project.getSnapshot().context.project)
-  await reloadSheets(host, session, folder)
+/** Hand the viewport what an open or a reload loaded, and the library what it found unlisted. */
+function publish(host: Host, session: Session, opened: OpenedProject): void {
+  host.children.viewport.send({ type: 'terrain', sets: opened.sets, warning: opened.warnings.length ? opened.warnings.join('\n') : null })
+  session.library.set(opened.unlisted)
 }
 
 /**
- * Files picked for the project: an image, and its sidecar if it was picked with it. An image alone is listed at the
- * project's tile size with no terrain set — a sprite sheet, say — and gets one the moment a terrain is added to it.
+ * Reload the project's images from its folder into the viewport, after something in `sheets/` or in the list
+ * changed. Opening may have refreshed a hash or relinked a moved file; the project actor takes that too, so the
+ * file on disk and the project in memory say the same thing.
  */
-export async function addImagesTo(host: Host, session: Session, files: readonly File[]): Promise<string> {
-  const image = files.find((f) => !f.name.endsWith('.json'))
-  const sidecar = files.find((f) => f.name.endsWith('.json'))
-  if (!image) throw new Error('Pick an image (and its .terrain.json, if it has one).')
+async function reloadImages(host: Host, session: Session, folder: string): Promise<void> {
+  const reopened = await openProject(session.fs, folder, session.codec)
+  const current = host.children.project.getSnapshot().context.project
+  if (JSON.stringify(current.images) !== JSON.stringify(reopened.project.images)) host.dispatch('project.images.set', { images: reopened.project.images })
+  publish(host, session, reopened)
+}
+
+const entryOf = (host: Host, file: string): ImageEntry => {
+  const entry = host.children.project.getSnapshot().context.project.images.find((i) => sheetName(i.path) === file)
+  if (!entry) throw new Error(`${file} is not an image of this project.`)
+  return entry
+}
+
+/** Write the project's image list as the actor now has it. */
+async function writeImages(host: Host, session: Session, images: readonly ImageEntry[]): Promise<void> {
+  const { folder } = location(host)
+  session.lastWriteAt = Date.now()
+  host.dispatch('project.images.set', { images })
+  await writeProject(session.fs, folder, host.children.project.getSnapshot().context.project)
+}
+
+/** A picked file's pixels, decoded now so the import dialog can show them and offer the sizes that fit. */
+export async function inspectImageFile(session: Session, file: File): Promise<{ bytes: Uint8Array; image: RgbaImage }> {
+  const bytes = new Uint8Array(await file.arrayBuffer())
+  return { bytes, image: await session.codec.decode(bytes) }
+}
+
+export interface ImportSpec {
+  /** The file name it goes by in `sheets/`: its identity. */
+  file: string
+  bytes: Uint8Array
+  grid: Grid
+  name?: string
+  kind?: ImageKind
+}
+
+/** Copy an image into the project's `sheets/` and list it with its grid — Import image…, a drop, Replace image… and Relink… all end here. Reloads what the viewport draws with. */
+export async function importImage(host: Host, session: Session, spec: ImportSpec): Promise<void> {
+  const { folder } = location(host)
   const project = host.children.project.getSnapshot().context.project
-  const bytes = new Uint8Array(await image.arrayBuffer())
-  let set: TerrainSet | null = null
-  if (sidecar) {
-    set = parseTerrainSet(JSON.parse(await sidecar.text()))
-  } else {
-    // A sheet with no sidecar still has to be an image this codec can read: found out now, not at the next open.
-    await session.codec.decode(bytes)
-  }
-  const tile = set?.tile ?? project.resolution.texelDensity
-  await addSheetTo(host, session, { name: image.name, bytes, tile, set })
-  return tile === project.resolution.texelDensity ? image.name : `${image.name} — ${tile} px tiles, but the project is ${project.resolution.texelDensity} px; it is listed and not drawn`
+  session.lastWriteAt = Date.now()
+  const next = await addImage(session.fs, folder, project, { file: spec.file, bytes: spec.bytes, grid: spec.grid, ...(spec.name === undefined ? {} : { name: spec.name }), ...(spec.kind === undefined ? {} : { kind: spec.kind }) })
+  host.dispatch('project.images.set', { images: next.images })
+  await reloadImages(host, session, folder)
+}
+
+/** List a file already in `sheets/` — one the library found unlisted — with its grid, without copying it. */
+export async function listUnlistedImage(host: Host, session: Session, path: string, grid: Grid, name?: string): Promise<void> {
+  const { folder } = location(host)
+  const project = host.children.project.getSnapshot().context.project
+  session.lastWriteAt = Date.now()
+  const next = await listImage(session.fs, folder, project, path, grid, name === undefined ? {} : { name })
+  host.dispatch('project.images.set', { images: next.images })
+  await reloadImages(host, session, folder)
+}
+
+/** Change what the project says about an image: its name, its kind, its grid. A grid change reloads, since the tiles are cut by it. */
+export async function setImageProps(host: Host, session: Session, file: string, changes: Partial<Pick<ImageEntry, 'name' | 'kind' | 'grid'>>): Promise<void> {
+  const { folder } = location(host)
+  const entry = entryOf(host, file)
+  const images = host.children.project.getSnapshot().context.project.images.map((i) => (sheetName(i.path) === file ? { ...entry, ...changes } : (i)))
+  await writeImages(host, session, images)
+  if (changes.grid !== undefined) await reloadImages(host, session, folder)
+}
+
+/** Write an image's terrain set into its entry, and swap the set in over its pixels: what every stroke of the tagger does. */
+export async function setImageTerrain(host: Host, session: Session, file: string, set: TerrainSet): Promise<void> {
+  const { folder } = location(host)
+  const entry = entryOf(host, file)
+  const images = host.children.project.getSnapshot().context.project.images.map((i) => (sheetName(i.path) === file ? { ...entry, terrain: terrainOf(set) } : (i)))
+  await writeImages(host, session, images)
+  // The one set, swapped in over its image: no other image is re-read for a tag.
+  const { loadedTerrain, terrainWarning } = host.children.viewport.getSnapshot().context
+  const swapped = loadedTerrain.some((s) => s.set.sheet === file)
+  if (swapped) host.children.viewport.send({ type: 'terrain', sets: loadedTerrain.map((s) => (s.set.sheet === file ? { ...s, set: { ...set, sheet: file } } : s)), warning: terrainWarning })
+  else await reloadImages(host, session, folder)
+}
+
+/** Take an image off the project's list. The file stays in the folder, and shows as unlisted; the materials that pointed into it draw from the placeholder or as colour. */
+export async function unlistImage(host: Host, session: Session, file: string): Promise<void> {
+  const { folder } = location(host)
+  const images = host.children.project.getSnapshot().context.project.images.filter((i) => sheetName(i.path) !== file).map((i) => i)
+  await writeImages(host, session, images)
+  await reloadImages(host, session, folder)
+}
+
+/** Replace a listed image's file with a picked one, keeping its name, grid and terrain set, so every material and tag pointing at it still holds. Also how a missing file is relinked from outside the folder. */
+export async function replaceImageFile(host: Host, session: Session, file: string, picked: File): Promise<void> {
+  const entry = entryOf(host, file)
+  const bytes = new Uint8Array(await picked.arrayBuffer())
+  await session.codec.decode(bytes)
+  await importImage(host, session, { file, bytes, grid: entry.grid })
+}
+
+/** Point a listed image whose file is missing at a file already in the folder — one the library found unlisted — keeping everything the entry knows. */
+export async function relinkImage(host: Host, session: Session, file: string, path: string): Promise<void> {
+  const { folder } = location(host)
+  const entry = entryOf(host, file)
+  const hash = await hashBytes(await session.fs.readFile(joinPath(folder, path)))
+  const images = host.children.project.getSnapshot().context.project.images.map((i) => (sheetName(i.path) === file ? { ...entry, path, hash } : (i)))
+  await writeImages(host, session, images)
+  await reloadImages(host, session, folder)
 }
 
 /** Save, then close: back to the startup screen. A save that fails keeps the project open, and says so. */
@@ -464,8 +517,8 @@ export async function closeProject(host: Host, session: Session): Promise<void> 
   host.dispatch('document.new', { width: 2, height: 2, name: 'No map' })
   rememberOpen(null)
   session.summaries.set([])
+  session.library.set([])
   host.children.viewport.send({ type: 'terrain', sets: [], warning: null })
-  notify(host, null)
 }
 
 /** Show a path of the project in the OS's file browser. Nothing in a browser, where there is no folder to show. */
@@ -474,24 +527,6 @@ export async function revealInFolder(host: Host, path: string): Promise<void> {
   if (!reveal) throw new Error('There is no folder to show in a browser; the desktop app reveals files.')
   const { folder } = location(host)
   await reveal.reveal(joinPath(folder, path))
-}
-
-/**
- * Replace a listed sheet's image with a picked file — or relink one whose file is missing — keeping its name, its
- * tile size and its terrain set, so every material and tag pointing at it still holds.
- */
-export async function replaceSheetImage(host: Host, session: Session, sheet: string, file: File): Promise<void> {
-  const project = host.children.project.getSnapshot().context.project
-  const entry = project.sheets.find((s) => sheetName(s.path) === sheet)
-  if (!entry) throw new Error(`${sheet} is not a sheet of this project.`)
-  const bytes = new Uint8Array(await file.arrayBuffer())
-  const image = await session.codec.decode(bytes)
-  const loaded = host.children.viewport.getSnapshot().context.loadedTerrain.find((s) => s.set.sheet === sheet)
-  const set = loaded ? (loaded.set as TerrainSet) : null
-  if (set && (image.width !== set.columns * set.tile || image.height !== set.rows * set.tile)) {
-    throw new Error(`${file.name} is ${image.width}×${image.height}; ${sheet}'s terrain set describes ${set.columns}×${set.rows} tiles of ${set.tile} px.`)
-  }
-  await addSheetTo(host, session, { name: sheet, bytes, tile: entry.tile, set })
 }
 
 /**
@@ -652,7 +687,7 @@ export function watchProjectSheets(host: Host, session: Session): () => void {
     watch(joinPath(folder, SHEETS_DIR), () => {
       if (Date.now() - session.lastWriteAt < OWN_WRITE_WINDOW_MS) return
       clearTimeout(settle)
-      settle = setTimeout(() => void reloadSheets(host, session, folder).catch(() => undefined), WATCH_SETTLE_MS)
+      settle = setTimeout(() => void reloadImages(host, session, folder).catch(() => undefined), WATCH_SETTLE_MS)
     })
       .then((end) => {
         if (generation === mine) stop = end

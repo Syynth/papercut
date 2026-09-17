@@ -3,7 +3,8 @@ import { describe, expect, it } from 'vitest'
 import type { RgbaImage } from '@papercut/document'
 
 import { TerrainAtlas, terrainKey, type CornerKeys } from './atlas'
-import { TerrainSetError, addTerrain, cornerAt, createTerrainSet, edgeCoverage, edgeTile, exactTile, pairAuthored, parseTerrainSet, removeTerrain, serializeTerrainSet, stampTemplate, tagCorner, templateTags } from './terrainset'
+import { cutGrid, fitsOf, gridCells } from './grid'
+import { TerrainSetError, addTerrain, cornerAt, createTerrainSet, edgeCoverage, edgeTile, exactTile, pairAuthored, removeTerrain, stampTemplate, tagCorner, templateTags, terrainOf, terrainSetFrom } from './terrainset'
 
 const T = 4
 
@@ -73,14 +74,18 @@ describe('terrain sets', () => {
     expect(set.tiles.has(64)).toBe(false)
   })
 
-  it('round-trips through the sidecar, and refuses a sidecar that lies', () => {
+  it('round-trips through the shape the project file holds, and drops a tag past the edge by index', () => {
     const set = groundSet()
-    const back = parseTerrainSet(JSON.parse(serializeTerrainSet(set)))
-    expect(back.terrains).toEqual(set.terrains)
-    expect([...back.tiles.entries()]).toEqual([...set.tiles.entries()].sort((a, b) => a[0] - b[0]))
-    expect(() => parseTerrainSet({ version: 2 })).toThrow(TerrainSetError)
-    expect(() => parseTerrainSet({ version: 1, sheet: 'x.png', tile: 4, columns: 2, rows: 2, terrains: [], tiles: { 9: [null, null, null, null] } })).toThrow(/not on a 2×2 sheet/)
-    expect(() => parseTerrainSet({ version: 1, sheet: 'x.png', tile: 4, columns: 2, rows: 2, terrains: [], tiles: { 0: ['grass', null, null, null] } })).toThrow(/does not have/)
+    const terrain = terrainOf(set)
+    expect(Object.keys(terrain.tiles).map(Number)).toEqual([...set.tiles.keys()].sort((a, b) => a - b))
+    const back = terrainSetFrom('ground.png', T, 8, 9, terrain)
+    expect(back.dropped).toEqual([])
+    expect(back.set.terrains).toEqual(set.terrains)
+    expect([...back.set.tiles.entries()]).toEqual([...set.tiles.entries()].sort((a, b) => a[0] - b[0]))
+    // The same tags over an image that lost its last row: the row's tiles are dropped and named, the rest stand.
+    const shorter = terrainSetFrom('ground.png', T, 8, 7, terrain)
+    expect(shorter.dropped).toEqual([56, 57, 58, 59, 60, 61, 62, 63])
+    expect(shorter.set.tiles.size).toBe(set.tiles.size - 8)
   })
 
   it('finds the corner under a point on the sheet, and nothing off it', () => {
@@ -112,6 +117,43 @@ describe('terrain sets', () => {
 
   it('refuses a template block that leaves the sheet', () => {
     expect(() => stampTemplate(createTerrainSet('x.png', T, 6, 6), 3, 0, null, 'grass')).toThrow(TerrainSetError)
+  })
+})
+
+describe('an image grid', () => {
+  it('counts whole tiles with margin and spacing, and what is left over', () => {
+    expect(gridCells(64, 32, { tile: 16, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } })).toEqual({ columns: 4, rows: 2, ignored: { x: 0, y: 0 } })
+    expect(gridCells(70, 40, { tile: 16, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } })).toEqual({ columns: 4, rows: 2, ignored: { x: 6, y: 8 } })
+    // 1 px margin, 2 px gutters: 1 + 16 + 2 + 16 + 2 + 16 = 53 across, three tiles exactly.
+    expect(gridCells(53, 17, { tile: 16, margin: { x: 1, y: 1 }, spacing: { x: 2, y: 0 } })).toEqual({ columns: 3, rows: 1, ignored: { x: 0, y: 0 } })
+    expect(gridCells(10, 10, { tile: 16, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } })).toEqual({ columns: 0, rows: 0, ignored: { x: 10, y: 10 } })
+  })
+
+  it('offers the tile sizes that fit exactly among those that divide the density, largest first', () => {
+    const plain = { margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }
+    expect(fitsOf(592, 960, plain, 48)).toEqual([16, 8, 4, 2])
+    expect(fitsOf(1536, 768, plain, 48)).toEqual([48, 24, 16, 12, 8, 6, 4, 3, 2])
+    expect(fitsOf(53, 17, { margin: { x: 1, y: 1 }, spacing: { x: 2, y: 0 } }, 48)).toEqual([16, 4])
+    expect(fitsOf(7, 7, plain, 48)).toEqual([])
+  })
+
+  it('cuts tiles out along the grid and scales each by a whole number, nearest neighbour', () => {
+    // A 2×1-tile image of 2 px tiles with a 1 px margin and gutter: |m|aa|g|bb| → 6 px wide, 3 tall.
+    const width = 6
+    const height = 3
+    const data = new Uint8ClampedArray(width * height * 4)
+    const put = (x: number, y: number, v: number): void => {
+      const i = (y * width + x) * 4
+      data[i] = v
+      data[i + 3] = 255
+    }
+    for (let y = 1; y < 3; y++) for (let x = 1; x < 3; x++) put(x, y, 10)
+    for (let y = 1; y < 3; y++) for (let x = 4; x < 6; x++) put(x, y, 20)
+    const cut = cutGrid({ width, height, data }, { tile: 2, margin: { x: 1, y: 1 }, spacing: { x: 1, y: 0 } }, 2)
+    expect([cut.columns, cut.rows, cut.image.width, cut.image.height]).toEqual([2, 1, 8, 4])
+    const at = (x: number, y: number): number => cut.image.data[(y * cut.image.width + x) * 4]
+    expect([at(0, 0), at(3, 3), at(4, 0), at(7, 3)]).toEqual([10, 10, 20, 20])
+    expect(() => cutGrid({ width, height, data }, { tile: 2, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, 1.5)).toThrow(/whole number/)
   })
 })
 

@@ -1,77 +1,154 @@
 /**
  * A project folder on disk: opening one, creating one, and the maps and
- * sheets inside it (decision-log 2026-09-14, "The app opens projects only").
+ * images inside it (decision-log 2026-09-14, "The app opens projects only";
+ * 2026-09-17, "binary assets on disk, map files on their own, everything
+ * else in the project file").
  *
  * The folder is anchored on `papercut.json`; everything else is where the
- * project file says it is, relative to the folder. Opening reads the project
- * file strictly and then each sheet with a terrain set: the sidecar and the
- * image. A sheet that cannot be read is a WARNING, not a failure — the
- * project opens, the sheet is reported, and the runtime draws the materials
- * that pointed into it from the placeholder set or as flat colour — because
- * a missing PNG is the artist's to relink, not a reason to refuse the level.
+ * project file says it is, relative to the folder. Opening reads the
+ * project file strictly and then each image it lists: the file is read,
+ * hashed, cut along its grid and scaled to the project's density, and its
+ * terrain set — held in the entry — laid over it. An image that cannot be
+ * read is a WARNING, not a failure: the project opens, the image is
+ * reported, and the runtime draws the materials that pointed into it from
+ * the placeholder set or as flat colour, because a missing PNG is the
+ * artist's to relink, not a reason to refuse the level.
  *
- * Every write here is whole-file: a map, the project file, a sheet. Nothing
- * is patched in place, so a crash mid-write loses one file, never a folder.
+ * A missing file is looked for by its last seen hash among the image files
+ * in `sheets/` before it is called missing (ruling of 2026-09-17): a rename
+ * or a move relinks silently and is reported as such. Hashes are refreshed
+ * on every read, and the project file is written back when opening changed
+ * an entry.
+ *
+ * Every write here is whole-file: a map, the project file, an image.
+ * Nothing is patched in place, so a crash mid-write loses one file, never a
+ * folder.
  */
 
-import { MAPS_DIR, PROJECT_FILE, SHEETS_DIR, createMap, createProject, deserialize, parseProject, serialize, serializeProject, sheetName, type MapDoc, type ProjectDoc, type ReadonlyMapDoc, type ReadonlyProjectDoc, type SheetEntry } from '@papercut/document'
-import { createTerrainSet, parseTerrainSet, serializeTerrainSet, type LoadedSet, type TerrainSet } from '@papercut/geometry'
+import { MAPS_DIR, PROJECT_FILE, SHEETS_DIR, createMap, createProject, deserialize, parseProject, serialize, serializeProject, sheetName, stemOf, type Grid, type ImageEntry, type ImageKind, type ImageTerrain, type MapDoc, type ProjectDoc, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage } from '@papercut/document'
+import { cutGrid, terrainOf, terrainSetFrom, type LoadedSet } from '@papercut/geometry'
 
 import type { ImageCodec } from './codec'
 import { joinPath, parentPath, type ProjectFs } from './fs'
 
 export interface OpenedProject {
   project: ProjectDoc
-  /** The terrain sets that loaded, one per sheet with a sidecar, in the project's order. */
+  /** The terrain sets that loaded, one per image that could be read and cut, in the project's order. */
   sets: LoadedSet[]
-  /** What could not be loaded, one line each, in the artist's terms. */
+  /** What could not be loaded, or what opening changed, one line each, in the artist's terms. */
   warnings: string[]
+  /** Image files under `sheets/` that no entry lists, by path relative to the folder. */
+  unlisted: string[]
 }
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
-/**
- * Read one sheet's image and, if it has one, its sidecar; `null`, with the reason, when either is not there or not
- * right. A sheet with no sidecar loads as an EMPTY terrain set over its image — no terrains, no tags — so it is
- * listed, previewed, and given a sidecar the moment a terrain is added to it.
- */
-async function loadSheet(fs: ProjectFs, folder: string, entry: SheetEntry, codec: ImageCodec): Promise<{ set: LoadedSet | null; warning: string | null }> {
-  const name = sheetName(entry.path)
-  let image
-  try {
-    image = await codec.decode(await fs.readFile(joinPath(folder, entry.path)))
-  } catch (error) {
-    return { set: null, warning: `${entry.path}: ${messageOf(error)}` }
-  }
-  if (entry.terrainSet === null) {
-    if (image.width % entry.tile !== 0 || image.height % entry.tile !== 0) return { set: null, warning: `${entry.path} is ${image.width}×${image.height}, not a whole number of ${entry.tile} px tiles.` }
-    return { set: { set: createTerrainSet(name, entry.tile, image.width / entry.tile, image.height / entry.tile), image }, warning: null }
-  }
-  let set: TerrainSet
-  try {
-    set = parseTerrainSet(JSON.parse(await fs.readTextFile(joinPath(folder, entry.terrainSet))))
-  } catch (error) {
-    return { set: null, warning: `${entry.terrainSet}: ${messageOf(error)}` }
-  }
-  // The project names the sheet by its file; a sidecar written for another file name is retagged, not refused.
-  if (set.sheet !== name) set = { ...set, sheet: name }
-  if (set.tile !== entry.tile) return { set: null, warning: `${entry.terrainSet} tags ${set.tile} px tiles, but the project lists ${name} at ${entry.tile} px.` }
-  if (image.width !== set.columns * set.tile || image.height !== set.rows * set.tile) {
-    return { set: null, warning: `${entry.path} is ${image.width}×${image.height}, but its terrain set describes ${set.columns}×${set.rows} tiles of ${set.tile} px.` }
-  }
-  return { set: { set, image }, warning: null }
+const IMAGE_FILE = /\.(png|jpe?g|webp|gif|bmp)$/i
+
+interface Crypto {
+  crypto: { subtle: { digest(algorithm: string, data: Uint8Array): Promise<ArrayBuffer> } }
 }
 
-/** Open the project in `folder`: its file, then every sheet it lists. Throws only when the project file itself is missing or unreadable. */
+/** A file's content hash as the project records it: `sha256:<hex>`. WebCrypto, which every runtime this package runs in has. */
+export async function hashBytes(bytes: Uint8Array): Promise<string> {
+  const digest = await (globalThis as unknown as Crypto).crypto.subtle.digest('SHA-256', bytes)
+  return `sha256:${[...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, '0')).join('')}`
+}
+
+/** Every image file under `sheets/`, at any depth, by path relative to the folder. */
+export async function listImageFiles(fs: ProjectFs, folder: string): Promise<string[]> {
+  const found: string[] = []
+  const walk = async (relative: string): Promise<void> => {
+    if (!(await fs.exists(joinPath(folder, relative)))) return
+    for (const entry of await fs.readDir(joinPath(folder, relative))) {
+      const path = `${relative}/${entry.name}`
+      if (entry.kind === 'directory') await walk(path)
+      else if (entry.kind === 'file' && IMAGE_FILE.test(entry.name)) found.push(path)
+    }
+  }
+  await walk(SHEETS_DIR)
+  return found.sort()
+}
+
+interface Loaded {
+  entry: ImageEntry
+  set: LoadedSet | null
+  warnings: string[]
+  /** Whether the entry is not what the file said: a refreshed hash, or a relinked path. */
+  changed: boolean
+}
+
+/**
+ * Read one image: its bytes — found by hash if its path is gone — then its pixels, cut along its grid and scaled to
+ * the density, with its terrain set over them. Every way it can fail is a warning with the image named.
+ */
+async function loadImage(fs: ProjectFs, folder: string, entry: ImageEntry, density: number, codec: ImageCodec, hashesOfUnlisted: () => Promise<Map<string, string>>): Promise<Loaded> {
+  const warnings: string[] = []
+  let current = entry
+  let bytes: Uint8Array
+  try {
+    bytes = await fs.readFile(joinPath(folder, entry.path))
+  } catch (error) {
+    // Not where it was: the same bytes somewhere under sheets/ is the same image, moved.
+    const match = entry.hash === null ? undefined : [...(await hashesOfUnlisted()).entries()].find(([, hash]) => hash === entry.hash)?.[0]
+    if (match === undefined) return { entry, set: null, warnings: [`${entry.path}: ${messageOf(error)}`], changed: false }
+    current = { ...entry, path: match }
+    warnings.push(`${entry.path} was not there; ${match} has the same contents, so ${current.name} now points at it.`)
+    bytes = await fs.readFile(joinPath(folder, match))
+  }
+  const name = sheetName(current.path)
+  const hash = await hashBytes(bytes)
+  const changed = current !== entry || hash !== current.hash
+  if (hash !== current.hash) current = { ...current, hash }
+  let source: RgbaImage
+  try {
+    source = await codec.decode(bytes)
+  } catch (error) {
+    return { entry: current, set: null, warnings: [...warnings, `${current.path}: ${messageOf(error)}`], changed }
+  }
+  const scale = density / current.grid.tile
+  if (!Number.isInteger(scale)) {
+    return { entry: current, set: null, warnings: [...warnings, `${name}: ${current.grid.tile} px tiles do not divide the project's ${density} px, so it is not drawn.`], changed }
+  }
+  const cut = cutGrid(source, current.grid, scale)
+  if (cut.columns === 0 || cut.rows === 0) {
+    return { entry: current, set: null, warnings: [...warnings, `${name} is ${source.width}×${source.height}: not even one ${current.grid.tile} px tile fits its grid.`], changed }
+  }
+  const { set, dropped } = terrainSetFrom(name, density, cut.columns, cut.rows, current.terrain)
+  if (dropped.length > 0) warnings.push(`${name}: ${dropped.length} tagged ${dropped.length === 1 ? 'tile is' : 'tiles are'} past the edge of its ${cut.columns}×${cut.rows} grid and not drawn.`)
+  return { entry: current, set: { set, image: cut.image, source }, warnings, changed }
+}
+
+/**
+ * Open the project in `folder`: its file, then every image it lists. Throws only when the project file itself is
+ * missing or unreadable. Writes the project file back when opening refreshed a hash or relinked a moved file.
+ */
 export async function openProject(fs: ProjectFs, folder: string, codec: ImageCodec): Promise<OpenedProject> {
   const project = parseProject(await fs.readTextFile(joinPath(folder, PROJECT_FILE)))
+  const files = await listImageFiles(fs, folder)
+  const listed = new Set(project.images.map((i) => i.path))
+  let unlistedHashes: Map<string, string> | null = null
+  const hashesOfUnlisted = async (): Promise<Map<string, string>> => {
+    if (unlistedHashes) return unlistedHashes
+    unlistedHashes = new Map()
+    for (const path of files) if (!listed.has(path)) unlistedHashes.set(path, await hashBytes(await fs.readFile(joinPath(folder, path))))
+    return unlistedHashes
+  }
   const sets: LoadedSet[] = []
   const warnings: string[] = []
-  for (const entry of project.sheets) {
-    const { set, warning } = await loadSheet(fs, folder, entry, codec)
-    if (set) sets.push(set)
-    if (warning) warnings.push(warning)
+  const images: ImageEntry[] = []
+  let changed = false
+  for (const entry of project.images) {
+    const loaded = await loadImage(fs, folder, entry, project.resolution.texelDensity, codec, hashesOfUnlisted)
+    images.push(loaded.entry)
+    if (loaded.set) sets.push(loaded.set)
+    warnings.push(...loaded.warnings)
+    changed ||= loaded.changed
   }
+  project.images = images
+  if (changed) await writeProject(fs, folder, project)
+  const now = new Set(images.map((i) => i.path))
+  const unlisted = files.filter((path) => !now.has(path))
   for (const map of project.maps) if (!(await fs.exists(joinPath(folder, map)))) warnings.push(`${map} is listed but not in the folder.`)
   // The other way round too (ruling of 2026-09-14): a map file the list does not know is reported, never silently included.
   if (await fs.exists(joinPath(folder, MAPS_DIR))) {
@@ -80,7 +157,7 @@ export async function openProject(fs: ProjectFs, folder: string, codec: ImageCod
       if (entry.kind === 'file' && entry.name.endsWith('.map.json') && !project.maps.includes(path)) warnings.push(`${path} is in the folder but not in the project's map list.`)
     }
   }
-  return { project, sets, warnings }
+  return { project, sets, warnings, unlisted }
 }
 
 export async function readMap(fs: ProjectFs, folder: string, path: string): Promise<MapDoc> {
@@ -117,24 +194,25 @@ export interface NewProjectOptions {
   firstMap?: MapDoc
 }
 
-/** Create a project folder: the project file, one map, and the placeholder sheet beside its sidecar. Refuses a folder that holds anything already. */
+/** Create a project folder: the project file with the placeholder's terrain set in it, one map, and the placeholder image. Refuses a folder that holds anything already. */
 export async function createProjectFolder(fs: ProjectFs, folder: string, options: NewProjectOptions, codec: ImageCodec): Promise<OpenedProject> {
   if (await fs.exists(joinPath(folder, PROJECT_FILE))) throw new Error(`${folder} already holds a project.`)
   if ((await fs.exists(folder)) && (await fs.readDir(folder)).length > 0) throw new Error(`${folder} is not empty; a project gets a folder of its own.`)
   await fs.mkdir(folder, { recursive: true })
   await fs.mkdir(joinPath(folder, MAPS_DIR), { recursive: true })
   await fs.mkdir(joinPath(folder, SHEETS_DIR), { recursive: true })
-  const project = createProject(options.name, options.texelDensity)
-  const sheet = project.sheets[0]
-  const placeholder: LoadedSet = { set: { ...options.placeholder.set, sheet: sheetName(sheet.path) }, image: options.placeholder.image }
-  await fs.writeFile(joinPath(folder, sheet.path), await codec.encode(placeholder.image))
-  if (sheet.terrainSet) await fs.writeFile(joinPath(folder, sheet.terrainSet), serializeTerrainSet(placeholder.set))
+  const project = createProject(options.name, options.texelDensity, terrainOf(options.placeholder.set))
+  const image = project.images[0]
+  const bytes = await codec.encode(options.placeholder.image)
+  await fs.writeFile(joinPath(folder, image.path), bytes)
+  image.hash = await hashBytes(bytes)
+  const placeholder: LoadedSet = { set: { ...options.placeholder.set, sheet: sheetName(image.path) }, image: options.placeholder.image, source: options.placeholder.image }
   const first = options.firstMap ?? createMap(32, 32, options.name)
   const path = mapPathFor(project, first.name)
   await writeMap(fs, folder, path, first)
   project.maps = [path]
   await writeProject(fs, folder, project)
-  return { project, sets: [placeholder], warnings: [] }
+  return { project, sets: [placeholder], warnings: [], unlisted: [] }
 }
 
 /** Write a new map into the project and list it last. Returns the project as it now is and where the map went. */
@@ -147,26 +225,54 @@ export async function addMap(fs: ProjectFs, folder: string, project: ReadonlyPro
   return { project: next, path }
 }
 
-export interface NewSheet {
-  /** The file name the sheet goes by: `cliffs.png`. */
-  name: string
+export interface NewImage {
+  /** The file name the image goes by: `cliffs.png`. Its identity. */
+  file: string
   /** The image as it will be written, already encoded. */
   bytes: Uint8Array
-  tile: number
-  /** The terrain set tagging it, written as `sheets/<name>.terrain.json`; `null` for an image nothing autotiles from. */
-  set: TerrainSet | null
+  grid: Grid
+  /** What the app calls it; the file's stem when absent. */
+  name?: string
+  kind?: ImageKind
+  /** Its terrain set; empty when absent, or kept from the entry it replaces. */
+  terrain?: ImageTerrain
 }
 
-/** Copy a sheet into `sheets/` and list it, replacing an entry of the same name. Returns the project as it now is. */
-export async function addSheet(fs: ProjectFs, folder: string, project: ReadonlyProjectDoc, sheet: NewSheet): Promise<ProjectDoc> {
-  const path = `${SHEETS_DIR}/${sheet.name}`
-  const sidecar = sheet.set ? `${SHEETS_DIR}/${sheet.name.replace(/\.[^.]+$/, '')}.terrain.json` : null
+function withEntry(project: ReadonlyProjectDoc, entry: ImageEntry): ProjectDoc {
+  const file = sheetName(entry.path)
+  const known = project.images.some((i) => sheetName(i.path) === file)
+  const images = known ? project.images.map((i) => (sheetName(i.path) === file ? entry : { ...(i as ImageEntry) })) : [...project.images.map((i) => ({ ...(i as ImageEntry) })), entry]
+  return { ...(project as ProjectDoc), images }
+}
+
+/**
+ * Copy an image into `sheets/` and list it. An entry of the same file name is replaced, keeping its name, kind and
+ * terrain set unless new ones are given — what Replace image… and Relink… do. Returns the project as it now is.
+ */
+export async function addImage(fs: ProjectFs, folder: string, project: ReadonlyProjectDoc, image: NewImage): Promise<ProjectDoc> {
+  const path = `${SHEETS_DIR}/${image.file}`
   await fs.mkdir(joinPath(folder, SHEETS_DIR), { recursive: true })
-  await fs.writeFile(joinPath(folder, path), sheet.bytes)
-  if (sheet.set && sidecar) await fs.writeFile(joinPath(folder, sidecar), serializeTerrainSet({ ...sheet.set, sheet: sheet.name }))
-  const entry: SheetEntry = { path, tile: sheet.tile, terrainSet: sidecar }
-  const sheets = project.sheets.some((s) => sheetName(s.path) === sheet.name) ? project.sheets.map((s) => (sheetName(s.path) === sheet.name ? entry : { ...s })) : [...project.sheets.map((s) => ({ ...s })), entry]
-  const next: ProjectDoc = { ...(project as ProjectDoc), sheets }
+  await fs.writeFile(joinPath(folder, path), image.bytes)
+  const previous = project.images.find((i) => sheetName(i.path) === image.file) as ImageEntry | undefined
+  const entry: ImageEntry = {
+    path,
+    name: image.name ?? previous?.name ?? stemOf(path),
+    kind: image.kind ?? previous?.kind ?? 'tileset',
+    hash: await hashBytes(image.bytes),
+    grid: image.grid,
+    terrain: image.terrain ?? previous?.terrain ?? { terrains: [], tiles: {} },
+  }
+  const next = withEntry(project, entry)
+  await writeProject(fs, folder, next)
+  return next
+}
+
+/** List an image file already in the folder — one `openProject` reported as unlisted — without copying it. Returns the project as it now is. */
+export async function listImage(fs: ProjectFs, folder: string, project: ReadonlyProjectDoc, path: string, grid: Grid, options: { name?: string; kind?: ImageKind } = {}): Promise<ProjectDoc> {
+  const file = sheetName(path)
+  if (project.images.some((i) => sheetName(i.path) === file)) throw new Error(`An image called ${file} is already listed.`)
+  const entry: ImageEntry = { path, name: options.name ?? stemOf(path), kind: options.kind ?? 'tileset', hash: await hashBytes(await fs.readFile(joinPath(folder, path))), grid, terrain: { terrains: [], tiles: {} } }
+  const next = withEntry(project, entry)
   await writeProject(fs, folder, next)
   return next
 }

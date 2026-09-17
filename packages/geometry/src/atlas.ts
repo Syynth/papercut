@@ -40,7 +40,10 @@ export function terrainKey(sheet: string, terrain: string): TerrainKey {
 /** A terrain set and the pixels of its sheet. */
 export interface LoadedSet {
   set: TerrainSet
+  /** The tiles edge to edge at the project's density: what the atlas reads. */
   image: RgbaImage
+  /** The file's pixels as they are, before the grid was cut and scaled; what a library shows. Absent for a generated set. */
+  source?: RgbaImage
 }
 
 /** The four terrains at a corner, in `CornerTags` order; `null` is nothing. */
