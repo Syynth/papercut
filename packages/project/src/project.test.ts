@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import { PROJECT_FILE, createMap, parseProject, plainGrid, type RgbaImage } from '@papercut/document'
-import { addTerrain, createTerrainSet, stampTemplate, terrainOf, type LoadedSet } from '@papercut/geometry'
+import { CORNER_BLOCKS, addTerrain, createTerrainSet, exactTile, renderTemplate, stampTemplate, terrainOf, type LoadedSet } from '@papercut/geometry'
 
 import { rawImageCodec } from './codec'
 import { addImage, addMap, createProjectFolder, hashBytes, listImage, listImageFiles, mapPathFor, openProject, readMap, slugOf, writeMap } from './folder'
@@ -79,8 +79,8 @@ describe('a project folder', () => {
     const fs = new MemoryFs()
     await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)
     const project = parseProject(await fs.readTextFile('/p/papercut.json'))
-    project.images.push({ path: 'sheets/cliffs.png', name: 'Cliffs', kind: 'tileset', hash: null, grid: plainGrid(4), terrain: { terrains: [], tiles: {} } })
-    project.images.push({ path: 'sheets/props.png', name: 'Props', kind: 'tileset', hash: null, grid: plainGrid(3), terrain: { terrains: [], tiles: {} } })
+    project.images.push({ path: 'sheets/cliffs.png', name: 'Cliffs', kind: 'tileset', hash: null, grid: plainGrid(4), layout: null, terrain: { terrains: [], tiles: {} } })
+    project.images.push({ path: 'sheets/props.png', name: 'Props', kind: 'tileset', hash: null, grid: plainGrid(3), layout: null, terrain: { terrains: [], tiles: {} } })
     await fs.writeFile('/p/sheets/props.png', await rawImageCodec.encode(placeholder(3).image))
     // The placeholder's tags describe a 4×4 grid; listed at 8 px it is 2×2, so twelve tags fall past the edge.
     project.images[0].grid = plainGrid(8)
@@ -188,6 +188,49 @@ describe('a project folder', () => {
     expect(listed.images[2].hash).toMatch(/^sha256:/)
     await expect(listImage(fs, '/p', listed, 'sheets/props.png', plainGrid(2))).rejects.toThrow(/already listed/)
     expect((await openProject(fs, '/p', rawImageCodec)).unlisted).toEqual([])
+  })
+})
+
+describe('an image laid out to a convention', () => {
+  it('derives its tags from its layout, and the entry\'s own tags win over them', async () => {
+    const fs = new MemoryFs()
+    const { project } = await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 8, placeholder: placeholder(8) }, rawImageCodec)
+    const terrains = [{ id: 'a', name: 'A', color: '#6aa84f' }, { id: 'b', name: 'B', color: '#d9c27e' }]
+    const template = renderTemplate('corner-blocks', terrains, { tile: 8 })
+    const next = await addImage(fs, '/p', project, {
+      file: 'kit.png',
+      bytes: await rawImageCodec.encode(template.image),
+      grid: plainGrid(8),
+      name: 'Kit',
+      layout: { convention: 'corner-blocks', origin: { x: 0, y: 0 }, terrains: ['a', 'b'], unauthored: [] },
+      terrain: { terrains, tiles: {} },
+    })
+    // The entry stays small: the layout is the tags, not a list of them.
+    expect(next.images[1].terrain.tiles).toEqual({})
+    expect(next.images[1].layout).toEqual({ convention: 'corner-blocks', origin: { x: 0, y: 0 }, terrains: ['a', 'b'], unauthored: [] })
+
+    const opened = await openProject(fs, '/p', rawImageCodec)
+    expect(opened.warnings).toEqual([])
+    const kit = opened.sets.find((s) => s.set.sheet === 'kit.png')
+    expect(kit).toBeDefined()
+    expect(kit?.set.tiles.size).toBe(CORNER_BLOCKS.tiles(2).length)
+    // Every corner of one or two of these terrains is answered by a real tile.
+    expect(exactTile(kit!.set, ['a', 'a', 'a', 'a'])).not.toBeNull()
+    expect(exactTile(kit!.set, ['a', null, null, null])).not.toBeNull()
+    expect(exactTile(kit!.set, ['a', 'b', 'a', 'b'])).not.toBeNull()
+
+    // An entry tag on the same tile wins; a block named unauthored stops tagging at all.
+    const reopened = parseProject(await fs.readTextFile('/p/papercut.json'))
+    const image = reopened.images[1]
+    image.terrain.tiles['0'] = ['b', 'b', 'b', 'b']
+    image.layout!.unauthored = ['1+2']
+    await fs.writeFile('/p/papercut.json', JSON.stringify(reopened))
+    const again = await openProject(fs, '/p', rawImageCodec)
+    const set = again.sets.find((s) => s.set.sheet === 'kit.png')!.set
+    expect(set.tiles.get(0)).toEqual(['b', 'b', 'b', 'b'])
+    // The a+b block is gone, so a corner where both meet has no tile of its own any more.
+    expect(exactTile(set, ['a', 'b', 'a', 'b'])).toBeNull()
+    expect(exactTile(set, ['a', null, null, null])).not.toBeNull()
   })
 })
 

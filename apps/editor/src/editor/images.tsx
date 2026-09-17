@@ -22,14 +22,16 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactN
 
 import { sheetName, stemOf, type DeepReadonly, type Grid, type ImageEntry, type ImageKind, type RgbaImage } from '@papercut/document'
 import { useHost, useProject } from '@papercut/editor-host'
-import { fitsOf, gridCells, type LoadedSet } from '@papercut/geometry'
+import { conventionOf, conventions, fitsOf, gridCells, type LoadedSet } from '@papercut/geometry'
 import { Action, Derived, Dialog, Field, FileButton, Library, LibraryGroup, LibraryItem, LibraryTab, Note, PairInput, Select, TextInput } from '@papercut/ui'
 
 import { run } from './commands'
 import { rgbaToCanvas, rgbaToDataUrl } from './rgba'
-import { importImage, inspectImageFile, listUnlistedImage, relinkImage, replaceImageFile, revealInFolder, setImageProps, unlistImage, type Session } from './session'
+import { importImage, inspectImageFile, listUnlistedImage, newTemplateImage, relinkImage, replaceImageFile, revealInFolder, setImageProps, unlistImage, type Session } from './session'
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))
+/** A terrain's id from what it is called, the way a map's file name comes from its name. */
+const slugOfTerrain = (name: string): string => name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
 const ZOOMS = [0.25, 0.5, 1, 2, 3, 4] as const
 type Entry = DeepReadonly<ImageEntry>
 
@@ -276,6 +278,80 @@ function RelinkDialog({ session, entry, unlisted, onClose }: { session: Session;
   )
 }
 
+/** The palette a new template's terrains start from; the artist recolours them as they paint. */
+const TEMPLATE_COLOURS = ['#6aa84f', '#d9c27e', '#8e8e8e', '#5f8fb0', '#a06060', '#8b6b45', '#7a6a52', '#b08f5e']
+
+/**
+ * New tileset from a template: pick a convention and name the terrains, and papercut draws the
+ * whole layout at the project's density (ruling of 2026-09-17). What comes back is an image whose
+ * corners are already answered — the artist paints over the blocks rather than tagging them.
+ */
+function TemplateDialog({ session, density, taken, onClose, onMade }: { session: Session; density: number; taken: readonly string[]; onClose: () => void; onMade: (file: string) => void }) {
+  const host = useHost()
+  const [convention, setConvention] = useState(conventions()[0]?.id ?? '')
+  const [name, setName] = useState('Terrain kit')
+  const [names, setNames] = useState<string[]>(['Grass', 'Sand'])
+  const [busy, setBusy] = useState(false)
+  const chosen = conventionOf(convention)
+  const file = `${slugOfTerrain(name) || 'kit'}.png`
+  const ids = names.map((n) => slugOfTerrain(n))
+  const clash = taken.includes(file)
+  const duplicate = new Set(ids.filter(Boolean)).size !== ids.filter(Boolean).length
+  const blank = ids.some((i) => !i)
+  const extent = chosen && names.length > 0 ? chosen.extent(names.length) : null
+  const problem = clash ? `An image called ${file} is already listed.` : blank ? 'Every terrain needs a name.' : duplicate ? 'Two terrains would have the same id.' : null
+  const make = (): void => {
+    if (!chosen || problem) return
+    setBusy(true)
+    newTemplateImage(host, session, { file, name, convention, terrains: names.map((n, i) => ({ id: ids[i], name: n, color: TEMPLATE_COLOURS[i % TEMPLATE_COLOURS.length] })) })
+      .then((made) => {
+        run(host, 'view.set', { notice: `${name} drawn: ${made.columns} × ${made.rows} tiles, ready to paint` })
+        onMade(file)
+        onClose()
+      })
+      .catch((error: unknown) => {
+        setBusy(false)
+        run(host, 'view.set', { notice: messageOf(error) })
+      })
+  }
+  return (
+    <Dialog opened onClose={onClose} title="New tileset from a template" description="Papercut draws the layout; you paint over it. Every corner these terrains can make is a tile in the sheet, and tagged before you start." width={560} footer={
+      <>
+        <Action title="Cancel" onClick={onClose} />
+        <Action title="Draw the template" tone="accent" disabled={busy || problem !== null || !chosen} onClick={make} />
+      </>
+    }>
+      <Field label="Name" hint={`Written to sheets/${file} at the project's ${density} px.`}>
+        <TextInput value={name} onChange={setName} placeholder="Terrain kit" />
+      </Field>
+      <Field label="Layout" hint={chosen?.note}>
+        <Select value={convention} options={conventions().map((c) => ({ value: c.id, label: c.title }))} onChange={setConvention} />
+      </Field>
+      <Field label="Terrains" hint="In the layout's order. Rename or recolour them later in Terrain sets.">
+        <div style={{ display: 'grid', gap: 6 }}>
+          {names.map((n, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="ui-tagger-swatch" style={{ background: TEMPLATE_COLOURS[i % TEMPLATE_COLOURS.length], cursor: 'default' }} />
+              <TextInput value={n} onChange={(v) => setNames(names.map((o, j) => (j === i ? v : o)))} placeholder={`Terrain ${i + 1}`} />
+              <Action title="Remove" disabled={names.length <= 1} onClick={() => setNames(names.filter((_, j) => j !== i))} />
+            </div>
+          ))}
+          <div>
+            <Action title="Add terrain" disabled={names.length >= 6} onClick={() => setNames([...names, `Terrain ${names.length + 1}`])} />
+          </div>
+        </div>
+      </Field>
+      {extent ? (
+        <Derived label="Sheet">
+          {extent.columns} × {extent.rows} tiles · {extent.columns * density} × {extent.rows * density} px
+        </Derived>
+      ) : null}
+      {problem ? <div className="ui-library-warn">{problem}</div> : null}
+      {names.length >= 5 ? <div className="ui-library-warn">{names.length} terrains is a big sheet, and every one of them has to be drawn against every other. Four is usually plenty.</div> : null}
+    </Dialog>
+  )
+}
+
 // --- the section --------------------------------------------------------------------
 
 type Tab = 'all' | ImageKind | 'animations'
@@ -288,6 +364,7 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
   const [zoom, setZoom] = useState<number | null>(null)
   const [pending, setPending] = useState<Pending | null>(null)
   const [relinking, setRelinking] = useState<string | null>(null)
+  const [templating, setTemplating] = useState(false)
   const queue = useRef<File[]>([])
   const density = project.resolution.texelDensity
   const warnings = useMemo(() => warning?.split('\n') ?? [], [warning])
@@ -387,7 +464,8 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
           </>
         ) : null}
       </div>
-      <div className="ui-library-foot">
+      <div className="ui-library-foot" style={{ display: 'grid', gap: 6 }}>
+        <Action title="New from template…" tone="accent" onClick={() => setTemplating(true)} />
         <FileButton icon="plus" title="Import image…" accept="image/png,image/*" multiple onFiles={importFiles} />
       </div>
     </>
@@ -423,6 +501,15 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
           return c.ignored.x === 0 && c.ignored.y === 0 ? 'none' : `${c.ignored.x} × ${c.ignored.y} px`
         })() : '—'}</Derived>
       </div>
+      {chosen.layout ? (
+        <>
+          <div className="ui-k">Layout</div>
+          <Derived label="Convention">{conventionOf(chosen.layout.convention)?.title ?? chosen.layout.convention}</Derived>
+          <Derived label="Terrains">{chosen.layout.terrains.length}</Derived>
+          {chosen.layout.unauthored.length > 0 ? <Derived label="Not drawn">{chosen.layout.unauthored.length} blocks</Derived> : null}
+          <div className="ui-tagger-hint" style={{ minHeight: 0 }}>Its tags come from the layout; anything tagged in the editor is kept on top.</div>
+        </>
+      ) : null}
       <div className="ui-k">Terrain set</div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
         <span style={{ color: 'var(--ui-ink-2)' }}>{chosen.terrain.terrains.length === 0 ? 'none yet' : `${chosen.terrain.terrains.length} ${chosen.terrain.terrains.length === 1 ? 'terrain' : 'terrains'} · ${tagged} tagged`}</span>
@@ -448,6 +535,7 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
       <Library tabs={tabs} side={side} stage={stage} form={form} onDropFiles={importFiles} />
       {pending ? <ImportDialog session={session} pending={pending} density={density} taken={taken} onClose={closePending} /> : null}
       {relinkEntry ? <RelinkDialog session={session} entry={relinkEntry} unlisted={unlisted} onClose={() => setRelinking(null)} /> : null}
+      {templating ? <TemplateDialog session={session} density={density} taken={taken} onClose={() => setTemplating(false)} onMade={onSelect} /> : null}
     </>
   )
 }

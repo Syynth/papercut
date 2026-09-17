@@ -25,8 +25,8 @@
  * folder.
  */
 
-import { MAPS_DIR, PROJECT_FILE, SHEETS_DIR, createMap, createProject, deserialize, parseProject, serialize, serializeProject, sheetName, stemOf, type Grid, type ImageEntry, type ImageKind, type ImageTerrain, type MapDoc, type ProjectDoc, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage } from '@papercut/document'
-import { cutGrid, terrainOf, terrainSetFrom, type LoadedSet } from '@papercut/geometry'
+import { MAPS_DIR, PROJECT_FILE, SHEETS_DIR, createMap, createProject, deserialize, parseProject, serialize, serializeProject, sheetName, stemOf, type Grid, type ImageEntry, type ImageKind, type ImageLayout, type ImageTerrain, type MapDoc, type ProjectDoc, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage } from '@papercut/document'
+import { cutGrid, terrainFromLayout, terrainOf, terrainSetFrom, type LoadedSet } from '@papercut/geometry'
 
 import type { ImageCodec } from './codec'
 import { joinPath, parentPath, type ProjectFs } from './fs'
@@ -114,7 +114,9 @@ async function loadImage(fs: ProjectFs, folder: string, entry: ImageEntry, densi
   if (cut.columns === 0 || cut.rows === 0) {
     return { entry: current, set: null, warnings: [...warnings, `${name} is ${source.width}×${source.height}: not even one ${current.grid.tile} px tile fits its grid.`], changed }
   }
-  const { set, dropped } = terrainSetFrom(name, density, cut.columns, cut.rows, current.terrain)
+  // A layout describes the sheet and the entry's own tags correct it (ruling of 2026-09-17).
+  const terrain = current.layout === null ? current.terrain : terrainFromLayout(current.layout, current.terrain, cut.columns, cut.rows)
+  const { set, dropped } = terrainSetFrom(name, density, cut.columns, cut.rows, terrain)
   if (dropped.length > 0) warnings.push(`${name}: ${dropped.length} tagged ${dropped.length === 1 ? 'tile is' : 'tiles are'} past the edge of its ${cut.columns}×${cut.rows} grid and not drawn.`)
   return { entry: current, set: { set, image: cut.image, source }, warnings, changed }
 }
@@ -236,6 +238,8 @@ export interface NewImage {
   kind?: ImageKind
   /** Its terrain set; empty when absent, or kept from the entry it replaces. */
   terrain?: ImageTerrain
+  /** The convention it was laid out to, for an image papercut generated as a template. */
+  layout?: ImageLayout | null
 }
 
 function withEntry(project: ReadonlyProjectDoc, entry: ImageEntry): ProjectDoc {
@@ -260,6 +264,7 @@ export async function addImage(fs: ProjectFs, folder: string, project: ReadonlyP
     kind: image.kind ?? previous?.kind ?? 'tileset',
     hash: await hashBytes(image.bytes),
     grid: image.grid,
+    layout: image.layout === undefined ? (previous?.layout ?? null) : image.layout,
     terrain: image.terrain ?? previous?.terrain ?? { terrains: [], tiles: {} },
   }
   const next = withEntry(project, entry)
@@ -271,7 +276,7 @@ export async function addImage(fs: ProjectFs, folder: string, project: ReadonlyP
 export async function listImage(fs: ProjectFs, folder: string, project: ReadonlyProjectDoc, path: string, grid: Grid, options: { name?: string; kind?: ImageKind } = {}): Promise<ProjectDoc> {
   const file = sheetName(path)
   if (project.images.some((i) => sheetName(i.path) === file)) throw new Error(`An image called ${file} is already listed.`)
-  const entry: ImageEntry = { path, name: options.name ?? stemOf(path), kind: options.kind ?? 'tileset', hash: await hashBytes(await fs.readFile(joinPath(folder, path))), grid, terrain: { terrains: [], tiles: {} } }
+  const entry: ImageEntry = { path, name: options.name ?? stemOf(path), kind: options.kind ?? 'tileset', hash: await hashBytes(await fs.readFile(joinPath(folder, path))), grid, layout: null, terrain: { terrains: [], tiles: {} } }
   const next = withEntry(project, entry)
   await writeProject(fs, folder, next)
   return next
