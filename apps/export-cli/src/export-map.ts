@@ -31,7 +31,7 @@ export interface ExportMapResult {
   bytes: number
   /** The project folder the map was exported under, or `null` for the default project. */
   project: string | null
-  /** What the project's sheets had to say while loading, one line each. */
+  /** What the project's images had to say while loading, one line each. */
   warnings: string[]
 }
 
@@ -53,11 +53,11 @@ export async function exportMapFile(
   // flag for an artist's own sheet would decode it through the same
   // `fast-png`, into the same `RgbaImage` shape, right here.
   const { sprites } = await loadBakedAssets()
-  // The map's project, found by walking up to its `papercut.json`: its materials, its resolution and its sheets.
+  // The map's project, found by walking up to its `papercut.json`: its materials, its resolution and its images.
   // Without one the map exports under the default project, which is what a map made before there were projects
   // paints with. Either way the generated placeholder stands in for any sheet the folder does not supply.
   const folder = await findProjectFolder(inputPath)
-  const opened = folder === null ? { project: createProject(), sets: [], warnings: [] } : await openProject(nodeFs, folder, fastPngCodec)
+  const opened = folder === null ? { project: createProject(), sets: [], warnings: [], unlisted: [] } : await openProject(nodeFs, folder, fastPngCodec)
   const { project } = opened
   const generated = generatePlaceholderTerrainSet(project.resolution.texelDensity)
   const usable = opened.sets.filter((s) => s.set.tile === project.resolution.texelDensity)

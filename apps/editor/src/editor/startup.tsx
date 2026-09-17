@@ -180,7 +180,7 @@ export function NewProjectDialog({ session }: { session: Session }) {
         rows={[
           { name: 'papercut.json', note: 'name, resolution profile, the sheet and material lists', tone: 'accent' },
           { name: `maps/${slug}.map.json`, note: 'an empty 32 × 32 map, opened first' },
-          { name: 'sheets/ground.png + .terrain.json', note: `the placeholder terrain set at ${texelDensity} px, yours to replace`, tone: 'ok' },
+          { name: 'sheets/ground.png', note: `the placeholder tileset at ${texelDensity} px, its terrain set in papercut.json, yours to replace`, tone: 'ok' },
         ]}
       />
       {error ? <ErrorLine>{error}</ErrorLine> : null}

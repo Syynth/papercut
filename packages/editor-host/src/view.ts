@@ -16,7 +16,7 @@ import { z } from 'zod'
 export const VIEW_OWNER = reserveOwner('editor-host.view')
 
 /** The Project settings sections, in rail order (design of 2026-09-14). */
-export const SETTINGS_SECTIONS = ['general', 'resolution', 'sheets', 'terrains', 'materials', 'camera', 'editor', 'keymap'] as const
+export const SETTINGS_SECTIONS = ['general', 'resolution', 'images', 'terrains', 'materials', 'camera', 'editor', 'keymap'] as const
 export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
 
 export const viewKeys = {

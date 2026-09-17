@@ -106,7 +106,7 @@ reachable again.
 
 A folder anchored on `papercut.json`, holding what every map in it shares: the
 material library, the resolution profile (texel density and filtering), the
-sheets the materials draw from with their terrain-set sidecars, the camera rig
+images the materials draw from with their grids and terrain sets, the camera rig
 new maps start from, and the maps themselves in order. The app opens projects,
 and a map only within its project (rulings of 2026-09-14). Held live by the
 host's project actor; edited by `project.*` commands, which are settings, not
@@ -145,29 +145,44 @@ One continuous interaction with a tool, from press to release. A stroke may
 span many frames and touch a cell many times, but it produces exactly one
 [Edit](#edit).
 
-## Sheet
+## Image
 
-A texture image of square tiles that a [Terrain set](#terrain-set)
-describes. Position on the sheet means nothing to the renderer; the terrain
-set's tags do. The placeholder sheet is generated; the artist's is loaded
-from a file with its terrain set beside it.
+A file of pixels the project draws from, listed in `papercut.json` with
+everything the project knows about it: the **name** the app shows (free to
+change; the file name stays the identity that tags and materials point at),
+its **kind** (tileset, sprite sheet, texture), the **hash** of its file as
+last seen, its **grid**, and its [Terrain set](#terrain-set). Managed in the
+Images section of Project settings — the image library (decision of
+2026-09-17) — where it is imported, viewed, annotated and recovered.
+
+A **grid** says how the image is cut into tiles: square tiles of `tile` px,
+after a margin, spaced apart, with whatever lies past the last whole tile
+ignored. A tile size must divide the project's
+[texel density](#resolution-profile), and the image is scaled up by that
+whole number with nearest neighbour, so a 16 px kit draws at 3× in a 48 px
+project without a resampled texel.
+
+An image whose file has moved is found again by its hash when the project
+opens; one that was edited AND moved is missing, and relinked by hand.
 
 ## Terrain set
 
-A [Sheet](#sheet) plus a sidecar file that tags every tile on it with the
-terrain at each of its four corners, or nothing. That is the whole model of
-what a tile is: a tile is authored as the transition it shows, half grass
-and half path, and tagged so. The **template** fills a 4×4 block's tags from
-position for a pair of terrains, which is how art drawn to the template is
-wired in one placement; art that was not is tagged one corner at a time, in
-the Terrains section of Project settings, which works the way Tiled's
-terrain editor does (decision of 2026-09-14): pick a terrain, click or drag
-over tile corners on the sheet image, and every tagged corner shows as a
-translucent quadrant in its terrain's colour. The section takes the window while it is open, and tagging there is undoable in the editor's own history (decision of 2026-09-17), unlike the other Project settings.
+An [Image](#image) plus the tags its project entry carries: every tile of
+the image, tagged with the terrain at each of its four corners, or nothing.
+That is the whole model of what a tile is: a tile is authored as the
+transition it shows, half grass and half path, and tagged so. The
+**template** fills a 4×4 block's tags from position for a pair of terrains,
+which is how art drawn to the template is wired in one placement; art that
+was not is tagged one corner at a time, in the Terrain sets section of
+Project settings, which works the way Tiled's terrain editor does (decision
+of 2026-09-14): pick a terrain, click or drag over tile corners on the
+image, and every tagged corner shows as a translucent quadrant in its
+terrain's colour. The section takes the window while it is open, and tagging
+there is undoable in the editor's own history (decision of 2026-09-17),
+unlike the other Project settings.
 
-A terrain whose partner is nothing has an **edge set**: the tiles drawn at
-the edge of the ground or the top of a cliff, and the pieces a composited
-corner is built from.
+Terrain sets live in the project file, never in sidecars beside the images
+(decision of 2026-09-17).
 
 ## Corner
 

@@ -88,29 +88,48 @@ a face that stops existing waits for the face to come back.
 
 ## 2. Terrain sets
 
-A **terrain set** is a sheet image plus a sidecar file next to it that says
-what every tile on the sheet is, the way Tiled's terrain sets do:
+A **terrain set** says what every tile of an image is. It lives in the
+project file, as part of that image's entry (ruling of 2026-09-17: binary
+assets on disk, map files on their own, everything else in the project
+file); there are no sidecars:
 
 ```jsonc
-// ground.terrain.json, beside ground.png
+// in papercut.json
 {
-  "version": 1,
-  "sheet": "ground.png",
-  "tile": 16,                       // pixels per tile, square
-  "columns": 16, "rows": 8,         // the sheet's size in tiles
-  "terrains": [
-    { "id": "grass", "name": "Grass", "color": "#4f8a46" },
-    { "id": "path",  "name": "Path",  "color": "#b08f5e" }
-  ],
-  "tiles": {
-    // tile index (row-major on the sheet) -> corner tags NW, NE, SW, SE.
-    // null is nothing: the edge of the ground, or the top of a cliff.
-    "0":  ["grass", "grass", "grass", "grass"],
-    "17": ["grass", "grass", "path",  "path"],
-    "40": ["grass", null,    null,    null]
-  }
+  "images": [
+    {
+      "path": "sheets/ground.png",
+      "name": "Ground",                 // what the app shows; the file name is the identity
+      "kind": "tileset",
+      "hash": "sha256:…",               // the file as last seen: how a moved file is found again
+      "grid": {                         // how the image is cut into tiles
+        "tile": 16,                     // pixels per tile, square; must divide the texel density
+        "margin": { "x": 0, "y": 0 },   // pixels before the first tile
+        "spacing": { "x": 0, "y": 0 }   // pixels between tiles
+      },
+      "terrain": {
+        "terrains": [
+          { "id": "grass", "name": "Grass", "color": "#4f8a46" },
+          { "id": "path",  "name": "Path",  "color": "#b08f5e" }
+        ],
+        "tiles": {
+          // tile index (row-major on the image's grid) -> corner tags NW, NE, SW, SE.
+          // null is nothing: the edge of the ground, or the top of a cliff.
+          "0":  ["grass", "grass", "grass", "grass"],
+          "17": ["grass", "grass", "path",  "path"],
+          "40": ["grass", null,    null,    null]
+        }
+      }
+    }
+  ]
 }
 ```
+
+Anything past the last whole tile of the grid is ignored, and columns and
+rows are derived from it. The image is scaled up to the texel density by a
+whole number, nearest neighbour, so a 16 px kit draws at 3× in a 48 px
+project without a resampled texel; a tile size that does not divide the
+density is refused with the reason, in the Images section.
 
 The tags are the whole model. A tile is authored as the transition it shows,
 half grass and half path, and tagged with the terrain at each corner. There
@@ -122,12 +141,12 @@ position, corner k holding B when bit k of the tile's index in the block is
 set and A otherwise, in the order NW=1, NE=2, SW=4, SE=8. Placing it with
 A = nothing makes B's **edge set**. Art drawn to the template is wired in one
 placement; art that was not is tagged one corner at a time. Both are editor
-operations on the sidecar; the map never sees them. The editor's is the
+operations on the image's entry; the map never sees them. The editor's is the
 Terrains section of Project settings, after Tiled's terrain editor (decision
 of 2026-09-14): the sheet as an image with its terrain list beside it, a
 terrain picked and corners tagged by clicking or dragging over the tiles,
 each tagged corner drawn as a translucent quadrant in its terrain's colour.
-A stroke is one write of the sidecar, and one step in the editor's own undo history (decision of 2026-09-17), which lives only while the section is open.
+A stroke is one write of the project file, and one step in the editor's own undo history (decision of 2026-09-17), which lives only while the section is open.
 
 The project's materials point into terrain sets (ruling of 2026-09-14: the
 library is the project's, in `papercut.json`, never a map's; a map stores
@@ -295,7 +314,7 @@ and the baked fixtures with it.
 
 The placeholder generator produces the sheet `ground.png` and its terrain
 set in memory, for the project's texel density. A new project writes them
-into its `sheets/` folder beside the sidecar, so the folder stands on its
+into its `sheets/` folder, its terrain set in the project file, so the folder stands on its
 own (2026-09-14); the editor, the export CLI and the tests otherwise draw
 their own: an edge set
 per material and transition blocks for every pair of the sample map's
@@ -311,7 +330,7 @@ Each step leaves `pnpm gate` green.
    patches, io at version 3, the ops (`raise`, `flatten`, `smooth`, ramp
    run and clear, material, face, tint), the sample map. The existing
    mesher keeps working through the derived `cornerHeights`.
-2. **Terrain sets and the atlas.** The sidecar loader, the corner lookup,
+2. **Terrain sets and the atlas.** The image loader, the corner lookup,
    the composite baker, the runtime atlas, the placeholder generator.
    Pure data; no DOM.
 3. **Mesher.** Faces from voxels, quarters, side faces in face space, the

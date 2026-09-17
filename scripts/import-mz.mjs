@@ -285,10 +285,9 @@ async function convertSheet(family, kind, outDir) {
 
   const outName = `${family}_${kind}.png`
   await writeFile(join(outDir, outName), encode({ width: dst.width, height: dst.height, data: dst.data, channels: 4 }))
-  const sidecar = { version: 1, sheet: outName, tile: TILE, columns: perRow * 4, rows: rows * 4, terrains, tiles }
-  await writeFile(join(outDir, `${family}_${kind}.terrain.json`), JSON.stringify(sidecar, null, 2))
   const pairs = blocks.filter((b) => parseName(b.name, bases).under !== null).length
-  return { path: `sheets/mz/${outName}`, tile: TILE, terrainSet: `sheets/mz/${family}_${kind}.terrain.json`, terrains: terrains.length, blocks: blocks.length, pairs }
+  // The terrain set travels in the project file now (ruling of 2026-09-17), as part of the image's entry.
+  return { path: `sheets/mz/${outName}`, name: `${family} ${kind}`, terrain: { terrains, tiles }, terrains: terrains.length, blocks: blocks.length, pairs }
 }
 
 /** @param {string} family @param {string} kind @param {string} outDir */
@@ -299,7 +298,7 @@ async function copySheet(family, kind, outDir) {
   } catch {
     return null
   }
-  return { path: `sheets/mz/${file}`, tile: TILE, terrainSet: null }
+  return { path: `sheets/mz/${file}`, name: `${family} ${kind}`, terrain: { terrains: [], tiles: {} } }
 }
 
 async function main() {
@@ -308,7 +307,7 @@ async function main() {
   await mkdir(sheetsDir, { recursive: true })
   await mkdir(spritesDir, { recursive: true })
 
-  /** @type {{ path: string, tile: number, terrainSet: string | null }[]} */
+  /** @type {{ path: string, name: string, terrain: { terrains: {id: string, name: string, color: string}[], tiles: Record<number, (string|null)[]> } }[]} */
   const entries = []
   /** @type {string[]} */
   const notes = []
@@ -316,7 +315,7 @@ async function main() {
     for (const kind of ['A2', 'A3', 'A4']) {
       const converted = await convertSheet(family, kind, sheetsDir)
       if (!converted) continue
-      entries.push({ path: converted.path, tile: converted.tile, terrainSet: converted.terrainSet })
+      entries.push({ path: converted.path, name: converted.name, terrain: converted.terrain })
       notes.push(`${family}_${kind}: ${converted.blocks} blocks → ${converted.terrains} terrains, ${converted.pairs} pairs`)
     }
     for (const kind of ['A5', 'B', 'C', 'D', 'E']) {
@@ -335,12 +334,13 @@ async function main() {
   const projectFile = join(projectDir, 'papercut.json')
   const doc = JSON.parse(await readFile(projectFile, 'utf8'))
   doc.resolution = { ...doc.resolution, texelDensity: TILE }
-  const kept = doc.sheets.filter((/** @type {{ path: string }} */ s) => !s.path.startsWith('sheets/mz/') && basename(s.path) !== 'ground.png')
-  doc.sheets = [...kept, ...entries]
+  const kept = doc.images.filter((/** @type {{ path: string }} */ s) => !s.path.startsWith('sheets/mz/') && basename(s.path) !== 'ground.png')
+  const grid = { tile: TILE, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }
+  doc.images = [...kept, ...entries.map((e) => ({ path: e.path, name: e.name, kind: 'tileset', hash: null, grid, terrain: e.terrain }))]
   await writeFile(projectFile, JSON.stringify(doc, null, 2))
 
   console.log(notes.join('\n'))
-  console.log(`${entries.length} sheets listed, ${sprites} character sheets copied to sprites/mz/, project at ${TILE} px`)
+  console.log(`${entries.length} images listed, ${sprites} character sheets copied to sprites/mz/, project at ${TILE} px`)
 }
 
 await main()

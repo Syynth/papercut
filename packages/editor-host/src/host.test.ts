@@ -162,9 +162,11 @@ describe('the document commands, routed to the document actor', () => {
     expect(project().maps).toEqual(['maps/a.map.json', 'maps/b.map.json'])
     // Paths stay inside the folder, and a sheet is named by its file name, so two cannot share one.
     expect(dispatch('project.maps.set', { maps: ['../outside.map.json'] })).toMatchObject({ ok: false, kind: 'invalid-args' })
-    expect(dispatch('project.sheets.set', { sheets: [{ path: 'sheets/a.png', tile: 16, terrainSet: null }, { path: 'other/a.png', tile: 16, terrainSet: null }] })).toMatchObject({ ok: false, kind: 'invalid-args' })
-    expect(dispatch('project.sheets.set', { sheets: [{ path: 'sheets/a.png', tile: 16, terrainSet: 'sheets/a.terrain.json' }] })).toEqual({ ok: true })
-    expect(project().sheets).toEqual([{ path: 'sheets/a.png', tile: 16, terrainSet: 'sheets/a.terrain.json' }])
+    const image = (path: string, terrain: { terrains: Array<{ id: string; name: string; color: string }>; tiles: Record<string, [string | null, string | null, string | null, string | null]> } = { terrains: [], tiles: {} }) => ({ path, name: 'A', kind: 'tileset', hash: null, grid: { tile: 16, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, terrain })
+    expect(dispatch('project.images.set', { images: [image('sheets/a.png'), image('other/a.png')] })).toMatchObject({ ok: false, kind: 'invalid-args' })
+    expect(dispatch('project.images.set', { images: [image('sheets/a.png', { terrains: [{ id: 'g', name: 'G', color: '#0f0' }], tiles: { 0: ['g', 'x', null, null] } })] })).toMatchObject({ ok: false, kind: 'invalid-args' })
+    expect(dispatch('project.images.set', { images: [image('sheets/a.png', { terrains: [{ id: 'g', name: 'G', color: '#0f0' }], tiles: { 0: ['g', null, null, null] } })] })).toEqual({ ok: true })
+    expect(project().images).toEqual([image('sheets/a.png', { terrains: [{ id: 'g', name: 'G', color: '#0f0' }], tiles: { 0: ['g', null, null, null] } })])
     host.stop()
   })
 
@@ -175,7 +177,7 @@ describe('the document commands, routed to the document actor', () => {
     // Closing needs a project to close: the key says none is open.
     expect(dispatch('project.close')).toMatchObject({ ok: false, kind: 'unavailable' })
     // A file that will not parse is refused as invalid-args carrying the load error, and nothing changes.
-    expect(dispatch('project.load', { folder: '/p', json: '{"formatVersion": 2}' })).toMatchObject({ ok: false, kind: 'invalid-args' })
+    expect(dispatch('project.load', { folder: '/p', json: '{"formatVersion": 1}' })).toMatchObject({ ok: false, kind: 'invalid-args' })
     expect(project().folder).toBeNull()
     const opened = createProject('Harbour Town', 16)
     opened.maps = ['maps/a.map.json']

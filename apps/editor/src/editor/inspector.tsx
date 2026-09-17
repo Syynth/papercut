@@ -59,7 +59,7 @@ export function InspectorRegion({ platform }: { platform: Platform }) {
   const selected = selection?.kind === 'object' ? (doc.objects[selection.id] ?? null) : null
   const updateObject = (id: string, changes: Partial<MapObject>): void => run(host, 'objects.update', { id, changes })
 
-  const onSettings = (): void => run(host, 'view.set', { settings: 'sheets' })
+  const onSettings = (): void => run(host, 'view.set', { settings: 'images' })
 
   return (
     <Inspector

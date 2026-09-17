@@ -189,5 +189,5 @@ export { snapTo, type SnapAnchor, type SnapMode } from './snap'
 export type { DocumentTarget } from './target'
 
 // The project: what every map in a folder shares (2026-09-14).
-export { MAPS_DIR, PROJECT_FILE, PROJECT_FORMAT_VERSION, SHEETS_DIR, createProject, normaliseMaterials, parseProject, placeholderSheet, serializeProject, sheetName } from './project'
-export type { ProjectDoc, ReadonlyProjectDoc, ResolutionProfile, SheetEntry } from './project'
+export { MAPS_DIR, PROJECT_FILE, PROJECT_FORMAT_VERSION, SHEETS_DIR, createProject, emptyTerrain, normaliseGrid, normaliseImage, normaliseMaterials, normaliseTerrain, parseProject, placeholderImage, plainGrid, serializeProject, sheetName, stemOf } from './project'
+export type { Axes, CornerTags, Grid, ImageEntry, ImageKind, ImageTerrain, ProjectDoc, ReadonlyProjectDoc, ResolutionProfile, Tag, TerrainDef } from './project'

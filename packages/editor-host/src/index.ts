@@ -48,7 +48,7 @@ export { TOOLS_OWNER, toolKeys } from './tools'
 export type { FeatureParams, ToolId, ToolSettings, ToolsContext } from './tools'
 
 export { PROJECT_OWNER, projectKeys } from './project'
-export type { MaterialsSetArgs, MapsSetArgs, ProjectContext, ProjectCurrentArgs, ProjectLoadArgs, ProjectSettings, SheetsSetArgs } from './project'
+export type { MaterialsSetArgs, MapsSetArgs, ProjectContext, ProjectCurrentArgs, ProjectLoadArgs, ProjectSettings, ImagesSetArgs } from './project'
 export { VIEW_OWNER, selectionSubject, viewKeys } from './view'
 export { VIEWPORT_OWNER, sameSurface } from './viewport'
 export type { BrushCells, CameraReadout, FrameStats, ViewportState } from './viewport'

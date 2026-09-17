@@ -2,7 +2,7 @@
  * The project actor: what every map in the folder shares, held live.
  *
  * The project document (`@papercut/document`'s `ProjectDoc`) is small — the
- * material library, the resolution profile, the sheet list, the map list —
+ * material library, the resolution profile, the image list, the map list —
  * so unlike the map it is context, replaced whole on every edit. Edits are
  * commands, one per list, each taking the list whole: a material reorder is
  * a priority change and lands as one edit; ids never move, so no voxel
@@ -18,7 +18,7 @@
  * is what the startup screen shows for.
  */
 
-import { createProject, parseProject, type ProjectDoc } from '@papercut/document'
+import { createProject, normaliseTerrain, parseProject, type ImageEntry, type ProjectDoc } from '@papercut/document'
 import { commands, defineContextKey, reserveOwner } from '@papercut/registry'
 import { setup, types } from 'xstate'
 import { z } from 'zod'
@@ -50,11 +50,36 @@ const materialsSet = z
   .strict()
   .refine(({ materials }) => new Set(materials.map((m) => m.id)).size === materials.length, { message: 'material ids must be unique' })
 
-const sheetEntry = z.object({ path: relativePath, tile: z.int().min(1), terrainSet: relativePath.nullable() }).strict()
-const sheetsSet = z
-  .object({ sheets: z.array(sheetEntry) })
+const axes = z.object({ x: z.int().min(0), y: z.int().min(0) }).strict()
+const grid = z.object({ tile: z.int().min(1), margin: axes, spacing: axes }).strict()
+const terrainDef = z.object({ id: z.string().min(1), name: z.string().min(1), color: z.string().min(1) }).strict()
+const cornerTag = z.string().min(1).nullable()
+/** An image's terrain set, checked the way the project file's parser checks it: unique ids, and tags that name only those. */
+const imageTerrain = z
+  .object({ terrains: z.array(terrainDef), tiles: z.record(z.string(), z.tuple([cornerTag, cornerTag, cornerTag, cornerTag])) })
   .strict()
-  .refine(({ sheets }) => new Set(sheets.map((s) => s.path.slice(s.path.lastIndexOf('/') + 1))).size === sheets.length, { message: 'a sheet is named by its file name, so two cannot share one' })
+  .check((ctx) => {
+    try {
+      normaliseTerrain(ctx.value, 'image')
+    } catch (error) {
+      ctx.issues.push({ code: 'custom', input: ctx.value, message: error instanceof Error ? error.message : String(error) })
+    }
+  })
+const imageEntry = z
+  .object({
+    path: relativePath,
+    name: z.string().min(1),
+    kind: z.enum(['tileset', 'sprites', 'texture']),
+    hash: z.string().min(1).nullable(),
+    grid,
+    terrain: imageTerrain,
+  })
+  .strict()
+/** The whole list, replaced. An image is identified by its file name, so two cannot share one. */
+const imagesSet = z
+  .object({ images: z.array(imageEntry) })
+  .strict()
+  .refine(({ images }) => new Set(images.map((i) => i.path.slice(i.path.lastIndexOf('/') + 1))).size === images.length, { message: 'an image is identified by its file name, so two cannot share one' })
 
 const mapsSet = z.object({ maps: z.array(relativePath) }).strict()
 
@@ -96,12 +121,12 @@ export type ProjectSettings = z.infer<typeof projectSettings>
 export type ProjectLoadArgs = z.infer<typeof projectLoad>
 export type ProjectCurrentArgs = z.infer<typeof projectCurrent>
 export type MaterialsSetArgs = z.infer<typeof materialsSet>
-export type SheetsSetArgs = z.infer<typeof sheetsSet>
+export type ImagesSetArgs = z.infer<typeof imagesSet>
 export type MapsSetArgs = z.infer<typeof mapsSet>
 
 commands.declare(PROJECT_OWNER, { id: 'project.set', title: 'Set Project Settings', category: 'Project', args: projectSettings })
 commands.declare(PROJECT_OWNER, { id: 'project.materials.set', title: 'Set Materials', category: 'Project', args: materialsSet })
-commands.declare(PROJECT_OWNER, { id: 'project.sheets.set', title: 'Set Sheets', category: 'Project', args: sheetsSet })
+commands.declare(PROJECT_OWNER, { id: 'project.images.set', title: 'Set Images', category: 'Project', args: imagesSet })
 commands.declare(PROJECT_OWNER, { id: 'project.maps.set', title: 'Set Map List', category: 'Project', args: mapsSet })
 commands.declare(PROJECT_OWNER, { id: 'project.load', title: 'Open Project', category: 'File', args: projectLoad })
 commands.declare(PROJECT_OWNER, { id: 'project.current', title: 'Set Current Map', category: 'File', args: projectCurrent })
@@ -142,8 +167,8 @@ export function projectLogicWith(initial: ProjectDoc, folder: string | null = nu
               }
               case 'project.materials.set':
                 return { context: { project: { ...project, materials: (event.args as MaterialsSetArgs).materials.map((m) => ({ ...m })) } } }
-              case 'project.sheets.set':
-                return { context: { project: { ...project, sheets: (event.args as SheetsSetArgs).sheets.map((s) => ({ ...s })) } } }
+              case 'project.images.set':
+                return { context: { project: { ...project, images: (event.args as ImagesSetArgs).images.map((i) => JSON.parse(JSON.stringify(i)) as ImageEntry) } } }
               case 'project.maps.set':
                 return { context: { project: { ...project, maps: [...(event.args as MapsSetArgs).maps] } } }
               case 'project.load': {

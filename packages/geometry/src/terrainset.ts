@@ -1,9 +1,10 @@
 /**
  * Terrain sets: what every tile on a sheet is (spec §2).
  *
- * A terrain set is the sidecar beside a sheet image. It names the terrains
- * the sheet draws and tags each tile with the terrain at each of its four
- * corners, or nothing. That is the whole model: a tile is authored as the
+ * A terrain set is part of its image's entry in the project file (ruling of
+ * 2026-09-17; there are no sidecars). It names the terrains the image draws
+ * and tags each tile with the terrain at each of its four corners, or
+ * nothing. That is the whole model: a tile is authored as the
  * transition it shows — half grass, half path — and tagged so; position on
  * the sheet means nothing to anyone but the artist. The renderer's one
  * question is `exactTile`: the tile tagged exactly like a corner.
@@ -17,92 +18,50 @@
  * with its image.
  */
 
-/** A corner's terrain: an id in the set's `terrains`, or `null` for nothing — the edge of the ground, the top of a cliff. */
-export type Tag = string | null
+import type { CornerTags, ImageTerrain, Tag, TerrainDef } from '@papercut/document'
 
-/** The four corners of a tile, in the order NW, NE, SW, SE. */
-export type CornerTags = readonly [Tag, Tag, Tag, Tag]
+export type { CornerTags, Tag, TerrainDef }
 
 /** The bit each corner holds in a template mask, in `CornerTags` order. */
 export const CORNER_BITS = [1, 2, 4, 8] as const
 
-export interface TerrainDef {
-  id: string
-  name: string
-  /** `#rrggbb`, the swatch and the fallback fill. */
-  color: string
-}
-
 export interface TerrainSet {
-  /** The sheet image's file name, relative to the sidecar. */
+  /** The image's file name: its identity in the project. */
   sheet: string
-  /** Pixels per tile, square. */
+  /** Pixels per tile, square — the project's density, once the image's grid has been cut and scaled. */
   tile: number
-  /** The sheet's size in tiles. */
+  /** The image's size in tiles. */
   columns: number
   rows: number
   terrains: TerrainDef[]
-  /** Tile index (row-major on the sheet) → corner tags. Untagged tiles are absent. */
+  /** Tile index (row-major on the image) → corner tags. Untagged tiles are absent. */
   tiles: ReadonlyMap<number, CornerTags>
 }
 
-export const TERRAIN_SET_VERSION = 1
-
 export class TerrainSetError extends Error {}
 
-/** The sidecar's shape on disk. */
-export interface TerrainSetFile {
-  version: number
-  sheet: string
-  tile: number
-  columns: number
-  rows: number
-  terrains: TerrainDef[]
-  tiles: Record<string, [Tag, Tag, Tag, Tag]>
-}
-
-function must(condition: boolean, message: string): asserts condition {
-  if (!condition) throw new TerrainSetError(message)
-}
-
-/** Read a sidecar, strictly: a wrong shape is refused with a message, never half-read. */
-export function parseTerrainSet(raw: unknown): TerrainSet {
-  must(typeof raw === 'object' && raw !== null, 'A terrain set is a JSON object.')
-  const file = raw as Partial<TerrainSetFile>
-  must(file.version === TERRAIN_SET_VERSION, `Terrain set version ${String(file.version)}; this build reads ${TERRAIN_SET_VERSION}.`)
-  must(typeof file.sheet === 'string' && file.sheet.length > 0, 'A terrain set names its sheet.')
-  for (const key of ['tile', 'columns', 'rows'] as const) {
-    const value = file[key]
-    must(typeof value === 'number' && Number.isInteger(value) && value > 0, `Terrain set ${key} is a positive integer.`)
-  }
-  must(Array.isArray(file.terrains), 'A terrain set lists its terrains.')
-  const ids = new Set<string>()
-  const terrains: TerrainDef[] = []
-  for (const t of file.terrains as unknown[]) {
-    const def = t as Partial<TerrainDef>
-    must(typeof def.id === 'string' && def.id.length > 0, 'Every terrain has an id.')
-    must(!ids.has(def.id), `Terrain ${def.id} is listed twice.`)
-    ids.add(def.id)
-    terrains.push({ id: def.id, name: typeof def.name === 'string' ? def.name : def.id, color: typeof def.color === 'string' ? def.color : '#808080' })
-  }
-  const count = (file.columns as number) * (file.rows as number)
+/**
+ * The set an image's entry describes, over an image known to be `columns` × `rows` tiles. A tag on a tile past the
+ * edge — the image shrank, or the grid changed — is dropped and reported by index rather than refused, since the
+ * rest of the set is still right.
+ */
+export function terrainSetFrom(sheet: string, tile: number, columns: number, rows: number, terrain: ImageTerrain): { set: TerrainSet; dropped: number[] } {
+  const count = columns * rows
   const tiles = new Map<number, CornerTags>()
-  must(typeof file.tiles === 'object' && file.tiles !== null, 'A terrain set tags its tiles.')
-  for (const [key, tags] of Object.entries(file.tiles as Record<string, unknown>)) {
+  const dropped: number[] = []
+  for (const [key, tags] of Object.entries(terrain.tiles)) {
     const index = Number(key)
-    must(Number.isInteger(index) && index >= 0 && index < count, `Tile ${key} is not on a ${file.columns}×${file.rows} sheet.`)
-    must(Array.isArray(tags) && tags.length === 4, `Tile ${key} has four corner tags.`)
-    for (const tag of tags as unknown[]) must(tag === null || (typeof tag === 'string' && ids.has(tag)), `Tile ${key} names a terrain the set does not have.`)
-    tiles.set(index, [...(tags as [Tag, Tag, Tag, Tag])])
+    if (index >= count) dropped.push(index)
+    else tiles.set(index, [...tags])
   }
-  return { sheet: file.sheet, tile: file.tile as number, columns: file.columns as number, rows: file.rows as number, terrains, tiles }
+  return { set: { sheet, tile, columns, rows, terrains: terrain.terrains.map((t) => ({ ...t })), tiles }, dropped: dropped.sort((x, y) => x - y) }
 }
 
-export function serializeTerrainSet(set: TerrainSet): string {
+/** The set as the project file holds it: the terrains, and the tags by tile index in order. */
+export function terrainOf(set: TerrainSet): ImageTerrain {
   const tiles: Record<string, [Tag, Tag, Tag, Tag]> = {}
-  for (const index of [...set.tiles.keys()].sort((a, b) => a - b)) tiles[String(index)] = [...(set.tiles.get(index) as CornerTags)] as [Tag, Tag, Tag, Tag]
-  const file: TerrainSetFile = { version: TERRAIN_SET_VERSION, sheet: set.sheet, tile: set.tile, columns: set.columns, rows: set.rows, terrains: set.terrains, tiles }
-  return JSON.stringify(file, null, 2)
+  for (const index of [...set.tiles.keys()].sort((x, y) => x - y)) tiles[String(index)] = [...(set.tiles.get(index) as CornerTags)] as [Tag, Tag, Tag, Tag]
+  return { terrains: set.terrains.map((t) => ({ ...t })), tiles }
 }
 
 /** A fresh set for a sheet, with no terrains and nothing tagged. */

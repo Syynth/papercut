@@ -75,7 +75,7 @@ export type { IconOption } from './frame'
 
 export { Dialog, DialogManifest, Menu, MenuDivider, MenuItem, MenuLabel, TopCrumb } from './overlays'
 export { Checkbox, Door, Doors, ErrorLine, RecentList, RecentRow, StartupScreen, StartupSection } from './startup'
-export { FieldGrid, SettingsBlock, SettingsDialog, Tagger, TaggerItem, SettingsRailItem, SettingsRailNote, SettingsScope, SettingsSearch, SheetPreview, Status, Swatch, Table, TableRow } from './settings'
+export { FieldGrid, SettingsBlock, SettingsDialog, Tagger, TaggerItem, Library, LibraryTab, LibraryItem, LibraryGroup, Derived, PairInput, AssetPicker, SettingsRailItem, SettingsRailNote, SettingsScope, SettingsSearch, SheetPreview, Status, Swatch, Table, TableRow } from './settings'
 
 export { BarScrub, Scrub } from './scrub'
 export type { ScrubProps } from './scrub'
@@ -87,3 +87,4 @@ export { UiProvider } from './provider'
 export { cssVariables, darkScale, shades, theme, themeOverride } from './theme'
 export { colors, fontSize, fonts, frame, radius, space, tokens } from './tokens'
 export type { Tokens } from './tokens'
+export type { PickerOption } from './settings'
