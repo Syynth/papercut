@@ -7,7 +7,7 @@ import { UiProvider } from '@papercut/ui'
 
 import App from './editor/App'
 import { loadPrefs } from './editor/prefs'
-import { createSession, installShellMenu, openFolder, openProjectAt, recents, reopenLast, watchProjectSheets } from './editor/session'
+import { createSession, installShellMenu, openFolder, openProjectAt, recents, reopenLast, watchProjectFolder } from './editor/session'
 import { features } from './features'
 // The vocabulary's stylesheet — Mantine's base plus the frame — then the
 // app's own remainder, which only paints what the vocabulary does not.
@@ -43,7 +43,7 @@ async function boot(): Promise<void> {
   // The machine's preferences are the view's starting state.
   host.dispatch('view.set', loadPrefs())
   installShellMenu(host, session)
-  watchProjectSheets(host, session)
+  watchProjectFolder(host, session)
 
   // `UiProvider` sits outside the host: it is the one place Mantine is mounted
   // and the tokens become CSS variables, and it needs nothing from the host.
