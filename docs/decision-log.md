@@ -605,3 +605,11 @@ Each entry:
 - **SCOPE:** minor/local (follows "An image's entry keeps the last seen hash")
 - **WHAT:** When an entry's file is missing and no file in the folder matches its hash — the image was edited and moved, or deleted — the entry is missing, and the library offers a recover flow on the row: Relink…, which opens a picker of candidates (files in the folder that nothing lists, ranked by matching dimensions and similar name) with a Browse… escape to any file. Relinking keeps the entry's name, grid, terrain set and every reference, and refreshes the hash.
 - **WHY:** The hash catches the common case for free; the rare case still needs a human, and the app's job is to make that one click by suggesting the likely file.
+
+## Terrain sets live in the project file; maps stay external
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** project format
+- **SCOPE:** architectural (amends the terrain spec §2; sidecars were the spec's choice, never ruled on)
+- **WHAT:** A terrain set lives in the project file, as part of its image's entry: the image's terrains and its tile tags sit beside its name, grid and hash in `papercut.json`. There are no `<sheet>.terrain.json` sidecars; tagging writes the project file, and a set exists as soon as its image is listed, empty until tagged. Maps stay external files in `maps/`, referencing the project's materials by id — LDtk's shape with external levels on. The materials, the images and the terrain sets are the project; the maps are what is made with it.
+- **WHY:** One file holds everything about an image — what it is called, how it is cut, what its tiles are — so there is nothing to keep in agreement across files and nothing to go missing separately. A tagged sheet travelling between projects is rare enough to be an export later, not a reason for a second file per image.
