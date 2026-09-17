@@ -15,7 +15,7 @@
  * moving the mouse (#131).
  */
 
-import { useEffect, useMemo } from 'react'
+import { Suspense, lazy, useEffect, useMemo } from 'react'
 
 import { useHost, useProjectSelector } from '@papercut/editor-host'
 import { Frame } from '@papercut/ui'
@@ -25,12 +25,21 @@ import { InspectorRegion } from './inspector'
 import { detectPlatform, installKeyDispatcher } from './keys'
 import { Rail } from './rail'
 import { saveNow, type Session } from './session'
-import { ProjectSettings } from './settings'
 import { Stage } from './stage'
 import { NewMapDialog } from './dialogs'
 import { NewProjectDialog, Startup } from './startup'
 import { StatusBar } from './status'
 import { TopBar } from './top'
+
+/**
+ * The settings modal, on demand: it is a third of the editor's code — the
+ * image library with its import and relink dialogs, the tagger, the material
+ * library, the keymap table — and none of it is reachable until the modal is
+ * opened, so it is a chunk of its own rather than a third of the entry
+ * bundle (#29's 500 kB ceiling). Nothing waits for it: the fallback is
+ * nothing, and the modal renders when it arrives.
+ */
+const ProjectSettings = lazy(async () => ({ default: (await import('./settings')).ProjectSettings }))
 
 /** How long the document has to sit still before it is written to its file. */
 const AUTOSAVE_DELAY_MS = 1200
@@ -108,7 +117,9 @@ export default function App({ session }: { session: Session }) {
     <>
       <NewProjectDialog session={session} />
       <NewMapDialog session={session} />
-      <ProjectSettings session={session} platform={platform} />
+      <Suspense fallback={null}>
+        <ProjectSettings session={session} platform={platform} />
+      </Suspense>
       <Frame
         top={<TopBar platform={platform} session={session} />}
         rail={<Rail platform={platform} />}
