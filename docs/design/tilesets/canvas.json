@@ -54,6 +54,13 @@
       "y": 1000,
       "w": 340,
       "text": "DECIDED 2026-09-17: asset pickers are rich typeaheads. The terrain editor's sheet picker is the first one built."
+    },
+    {
+      "id": "note-controls",
+      "x": 1260,
+      "y": 1180,
+      "w": 340,
+      "text": "DECIDED 2026-09-17: the web look stays; every control is what its value is. Tile size is a typed number with validation and the fits as a hint. Margin and spacing are linked X Y pairs with a split toggle (Spacing shown split). Scale, Tiles, Ignored are read-only text. Name is text with Rename. The import dialog is shown failing on 24 so the reason and the fits are visible."
     }
   ],
   "launch": {
