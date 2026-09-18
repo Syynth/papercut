@@ -47,3 +47,10 @@
   editor's sheet picker is the first rich typeahead. Decisions of 2026-09-17 in
   `docs/decision-log.md`. Published copy:
   https://claude.ai/artifact/XLJUUeheTo28GYFnAzS465
+- [`transitions/`](transitions/README.md) — the 2026-09-17 reframe: a TRANSITION between
+  materials is what the project holds, not a terrain set per sheet. Drafted when the
+  per-sheet rule turned out to be a hard limit in the atlas and when RPG Maker art laid out
+  to a sheet-shaped convention came out mostly void. Materials carry an orientation, a
+  transition carries one too so the same pair can have a floor block and a wall block, and
+  tiles are addressed by GID across the project. Published copy:
+  https://claude.ai/artifact/9QuKYwggoDfmk3xcQr9V6g

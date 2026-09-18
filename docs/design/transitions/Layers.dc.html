@@ -1,0 +1,122 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font: 13px/1.5 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; background: #15171c; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    .k { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, monospace; }
+    .note { font-size: 11.5px; line-height: 1.55; color: #7b8294; }
+    h2 { font-size: 15px; font-weight: 600; margin: 0; }
+    h3 { font-size: 13px; font-weight: 600; margin: 0; }
+    p { margin: 0; font-size: 12.5px; line-height: 1.6; color: #aab0c0; }
+    .px { image-rendering: pixelated; display: block; }
+    .card { border: 1px solid #353b4a; border-radius: 8px; background: #1b1e25; padding: 14px; display: grid; gap: 10px; align-content: start; }
+    .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 5px; }
+    .tag { display: inline-block; font: 500 10px/1 'IBM Plex Mono', Menlo, monospace; border: 1px solid #414859; border-radius: 3px; padding: 3px 5px; color: #aab0c0; }
+    .tag.on { border-color: #e9a23b; color: #e9a23b; background: rgba(233,162,59,.1); }
+    .tag.no { color: #e5636f; border-color: #e5636f; }
+    .tag.ok { color: #7bc47f; border-color: #7bc47f; }
+    .row { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 10px; align-items: start; }
+    .row .n { font: 600 12px/1.5 'IBM Plex Mono', Menlo, monospace; color: #e9a23b; }
+    code { font-family: 'IBM Plex Mono', Menlo, monospace; color: #e8eaf0; font-size: 12px; }
+    pre { margin: 0; font: 11.5px/1.6 'IBM Plex Mono', Menlo, monospace; color: #aab0c0; background: #0f1115; border: 1px solid #353b4a; border-radius: 6px; padding: 12px; overflow: hidden; }
+    pre .c { color: #7b8294; } pre .s { color: #e9a23b; } pre .g { color: #7bc47f; }
+    table { border-collapse: collapse; font-size: 12px; width: 100%; }
+    th { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; text-align: left; padding: 0 14px 6px 0; }
+    td { padding: 6px 14px 6px 0; color: #aab0c0; border-top: 1px solid #2c3140; vertical-align: top; }
+    td.first { color: #e8eaf0; }
+    .item { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; gap: 10px; align-items: center; height: 34px; padding: 0 8px; border-radius: 4px; color: #aab0c0; font-size: 12.5px; }
+    .item.on { background: rgba(233,162,59,.14); color: #e9a23b; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 5px; border: 1px solid #353b4a; background: #2c3140; color: #e8eaf0; font-size: 12px; }
+    .btn.on { background: #e9a23b; color: #1a1305; border-color: #e9a23b; font-weight: 600; }
+  </style>
+</helmet>
+<div style="width: 1240px; padding: 28px 32px; box-sizing: border-box; display: grid; gap: 20px; align-content: start;">
+  <div>
+    <div class="k">Feeling it out &middot; how the pieces sit</div>
+    <h2 style="margin-top: 6px;">Four layers, and the artist only touches two</h2>
+    <p style="max-width: 92ch; margin-top: 8px;">The trouble with the model as it stood was that every concept was in the artist's face at once: terrains, sheets, tags, materials with a top and a side. Stacked properly, most of it is machinery.</p>
+  </div>
+
+  <div style="display:grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap:16px;">
+    <div class="card" style="border-color:#e9a23b;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
+        <h3>Block</h3><span class="tag on">the artist</span>
+      </div>
+      <p>What you place. A rule that says what each face is made of given what is around it. This is the only thing on the palette.</p>
+      <pre>Grassy earth
+  top, open to the sky  &#8594; Grass
+  side                  &#8594; Dirt</pre>
+    </div>
+    <div class="card" style="border-color:#e9a23b;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
+        <h3>Material</h3><span class="tag on">the artist</span>
+      </div>
+      <p>Art for a face. It owes the fifteen-tile edge set its archetype's plane asks for, and it may meet other materials.</p>
+      <pre>Grass   archetype: ground
+Dirt    archetype: wall
+Cobble  archetype: ramp</pre>
+    </div>
+    <div class="card" style="border-color:#353b4a;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
+        <h3>Archetype</h3><span class="tag">papercut</span>
+      </div>
+      <p>Which plane a face's four corner cells lie in, how big its tiles are, and which seams it has. NOT a second matching scheme: the sixteen-tile corner set is the same for every archetype.</p>
+      <pre>ground  corners in map x/y     d &times; d
+wall    corners in run/height  d &times; d   + 2 seams
+ramp    corners in run/across  d &times; round(d&radic;2)</pre>
+    </div>
+    <div class="card" style="border-color:#353b4a;">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
+        <h3>Transition</h3><span class="tag">the artist, rarely</span>
+      </div>
+      <p>A block of art where two to four materials genuinely meet, in one archetype. Only where somebody draws one; everything else composites.</p>
+      <pre>[Grass, Sand]        ground  at gid 1120
+[Grass, Dirt]        wall    at gid 5360</pre>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns: 1.15fr 1fr; gap:18px;">
+    <div class="card">
+      <div class="k">Reading a face</div>
+      <div style="display:grid;gap:8px;">
+        <div class="row"><span class="n">1</span><p>The voxel's block rule says what this face is made of. One material, usually.</p></div>
+        <div class="row"><span class="n">2</span><p>The four cells at each of its corners give the sixteen-tile mask, in whichever plane the archetype names.</p></div>
+        <div class="row"><span class="n">3</span><p>If every cell holds the same material, take that material's own edge set. This is nearly every face on a map.</p></div>
+        <div class="row"><span class="n">4</span><p>If they do not, look for a transition over exactly those materials, in that archetype.</p></div>
+        <div class="row"><span class="n">5</span><p>No transition? Composite from the materials' own edge sets in priority order, and count it as still to author &mdash; which is what papercut does now.</p></div>
+      </div>
+    </div>
+    <div class="card" style="border-color:#414859;">
+      <div class="k">What this replaces</div>
+      <table>
+        <tr><th>goes</th><th>because</th></tr>
+        <tr><td class="first">terrain</td><td class="note">a material is the only noun</td></tr>
+        <tr><td class="first">a terrain set per sheet</td><td class="note">art is addressed by gid, not owned by a sheet</td></tr>
+        <tr><td class="first">a material's <code>top</code> / <code>side</code></td><td class="note">the block rule decides the face; the archetype decides the shapes</td></tr>
+        <tr><td class="first">a material's <code>role</code></td><td class="note">the archetype says which plane its corners lie in</td></tr>
+        <tr><td class="first">tagging tiles by hand</td><td class="note">a material's shapes and a transition's block are both laid out, so pointing at one place reads the lot</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="border-color:#414859;">
+    <div class="k">Still unsettled, and worth arguing before anything is built</div>
+    <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 24px;">
+      <div class="row"><span class="n">?</span><p>Does a block paint materials onto faces ONCE, or does the voxel remember its block and re-derive forever? The second survives sculpting; the first lets an artist override one face and keep it.</p></div>
+      <div class="row"><span class="n">?</span><p>Can a block rule see a NEIGHBOUR'S block, so "earth beside stone" can be said? That is the difference between a rule and a lookup table.</p></div>
+      <div class="row"><span class="n">?</span><p>Are a wall's two seams &mdash; convex and concave, where faces meet at an angle &mdash; art an artist draws, or geometry the mesher miters? The brief's profile strip suggests the second.</p></div>
+      <div class="row"><span class="n">?</span><p>Does the ramp archetype need a direction, or does the mesher rotate one set of art through four?</p></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

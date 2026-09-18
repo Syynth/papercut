@@ -1,0 +1,113 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font: 13px/1.5 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; background: #15171c; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    .k { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, monospace; }
+    .note { font-size: 11.5px; line-height: 1.55; color: #7b8294; }
+    h2 { font-size: 15px; font-weight: 600; margin: 0; }
+    h3 { font-size: 13px; font-weight: 600; margin: 0; }
+    p { margin: 0; font-size: 12.5px; line-height: 1.6; color: #aab0c0; }
+    .px { image-rendering: pixelated; display: block; }
+    .card { border: 1px solid #353b4a; border-radius: 8px; background: #1b1e25; padding: 14px; display: grid; gap: 10px; align-content: start; }
+    .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 5px; }
+    .tag { display: inline-block; font: 500 10px/1 'IBM Plex Mono', Menlo, monospace; border: 1px solid #414859; border-radius: 3px; padding: 3px 5px; color: #aab0c0; }
+    .tag.on { border-color: #e9a23b; color: #e9a23b; background: rgba(233,162,59,.1); }
+    .tag.no { color: #e5636f; border-color: #e5636f; }
+    .tag.ok { color: #7bc47f; border-color: #7bc47f; }
+    .row { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 10px; align-items: start; }
+    .row .n { font: 600 12px/1.5 'IBM Plex Mono', Menlo, monospace; color: #e9a23b; }
+    code { font-family: 'IBM Plex Mono', Menlo, monospace; color: #e8eaf0; font-size: 12px; }
+    pre { margin: 0; font: 11.5px/1.6 'IBM Plex Mono', Menlo, monospace; color: #aab0c0; background: #0f1115; border: 1px solid #353b4a; border-radius: 6px; padding: 12px; overflow: hidden; }
+    pre .c { color: #7b8294; } pre .s { color: #e9a23b; } pre .g { color: #7bc47f; }
+    table { border-collapse: collapse; font-size: 12px; width: 100%; }
+    th { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; text-align: left; padding: 0 14px 6px 0; }
+    td { padding: 6px 14px 6px 0; color: #aab0c0; border-top: 1px solid #2c3140; vertical-align: top; }
+    td.first { color: #e8eaf0; }
+    .item { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; gap: 10px; align-items: center; height: 34px; padding: 0 8px; border-radius: 4px; color: #aab0c0; font-size: 12.5px; }
+    .item.on { background: rgba(233,162,59,.14); color: #e9a23b; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 5px; border: 1px solid #353b4a; background: #2c3140; color: #e8eaf0; font-size: 12px; }
+    .btn.on { background: #e9a23b; color: #1a1305; border-color: #e9a23b; font-weight: 600; }
+  </style>
+</helmet>
+<div style="width: 1240px; padding: 28px 32px; box-sizing: border-box; display: grid; gap: 20px; align-content: start;">
+  <div>
+    <div class="k">Feeling it out &middot; corrected</div>
+    <h2 style="margin-top: 6px;">The corner model already has the corners. Sixteen, not forty-seven.</h2>
+    <p style="max-width: 92ch; margin-top: 8px;">Inside and outside corners are not something to add to the corner model &mdash; they are already in it. One material against nothing is sixteen arrangements, fifteen of them drawn, and those fifteen ARE the vocabulary. Nothing here needs eight-neighbour matching, and authoring stays at sixteen tiles a pairing.</p>
+  </div>
+
+  <div class="card">
+    <div class="k">One material against nothing &mdash; all fifteen, sorted by what they are</div>
+    <div style="display:flex; gap:26px; flex-wrap:wrap; align-items:start;">
+      <div style="display:grid;gap:6px;justify-items:start;">
+      <div style="display:flex;gap:4px;"><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg></div>
+      <span class="note"><b style="color:#aab0c0;">interior</b> &middot; 1</span>
+    </div>
+      <div style="display:grid;gap:6px;justify-items:start;">
+      <div style="display:flex;gap:4px;"><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="17.0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="17.0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg></div>
+      <span class="note"><b style="color:#aab0c0;">outside corners</b> &middot; 4</span>
+    </div>
+      <div style="display:grid;gap:6px;justify-items:start;">
+      <div style="display:flex;gap:4px;"><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="17.0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg></div>
+      <span class="note"><b style="color:#aab0c0;">edges</b> &middot; 4</span>
+    </div>
+      <div style="display:grid;gap:6px;justify-items:start;">
+      <div style="display:flex;gap:4px;"><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="17.0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg></div>
+      <span class="note"><b style="color:#aab0c0;">inside corners</b> &middot; 4</span>
+    </div>
+      <div style="display:grid;gap:6px;justify-items:start;">
+      <div style="display:flex;gap:4px;"><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="17.0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg></div>
+      <span class="note"><b style="color:#aab0c0;">diagonals</b> &middot; 2</span>
+    </div>
+    </div>
+    <p>That is the whole edge set, and it is what an artist already draws. A blob set spends 47 tiles saying the same thing because it asks about eight neighbours per cell; the dual grid asks about four cells per corner and gets there in fifteen.</p>
+  </div>
+
+  <div style="display:grid; grid-template-columns: 1.05fr 1fr; gap:18px;">
+    <div class="card">
+      <div class="k">So what ISN'T a corner?</div>
+      <p>Only two things, and neither is a tile in the set.</p>
+      <div style="display:grid;gap:10px;margin-top:4px;">
+        <div class="row"><span class="n">1</span><p><b style="color:#e8eaf0;">Which plane the four cells are in.</b> A floor's corner sits between four cells of the map. A wall's corner sits between four cells of the wall &mdash; two along its run, two up its height. Same sixteen arrangements, different plane. That is what an archetype settles.</p></div>
+        <div class="row"><span class="n">2</span><p><b style="color:#e8eaf0;">The seam where two faces meet at an angle.</b> Where a wall turns a corner in plan, two wall faces meet along a vertical edge. That seam is between faces, not inside one, so no corner tile can describe it. A convex seam and a concave seam are the pieces walls need that floors do not.</p></div>
+      </div>
+    </div>
+    <div class="card" style="border-color:#414859;">
+      <div class="k">What an archetype actually is, then</div>
+      <table>
+        <tr><th>archetype</th><th>corner plane</th><th>tile</th><th>seams</th></tr>
+        <tr><td class="first">ground</td><td class="note">map x, map y</td><td class="mono">d &times; d</td><td class="note">none</td></tr>
+        <tr><td class="first">wall</td><td class="note">run, height</td><td class="mono">d &times; d</td><td class="note">convex, concave</td></tr>
+        <tr><td class="first">ramp</td><td class="note">run, across</td><td class="mono">d &times; round(d&radic;2)</td><td class="note">head, foot</td></tr>
+      </table>
+      <p class="note">Three short rows, not a bag of a dozen shapes. The sixteen-tile set is the same for every archetype; what changes is where its cells are and how big its tiles are.</p>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="k">And the same set does two materials, which is where it earns its keep</div>
+    <div style="display:flex; gap:26px; align-items:flex-start; flex-wrap:wrap;">
+      <div style="display:grid;gap:6px;">
+        <div style="display:flex;gap:4px;"><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="0" y="17.0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x="17.0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#15171c"/><rect x="0" y="0" width="17.0" height="17.0" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a" stroke-width="1"/></svg></div>
+        <span class="note"><span class="sw" style="background:#6aa84f;"></span>Grass against nothing &mdash; its own edge set</span>
+      </div>
+      <div style="display:grid;gap:6px;">
+        <div style="display:flex;gap:4px;"><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#8b6b45"/><rect x="0" y="0" width="17" height="17" fill="#6aa84f"/><rect x="17" y="0" width="17" height="17" fill="#6aa84f"/><rect x="0" y="17" width="17" height="17" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#8b6b45"/><rect x="0" y="0" width="17" height="17" fill="#6aa84f"/><rect x="17" y="0" width="17" height="17" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#8b6b45"/><rect x="0" y="0" width="17" height="17" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a"/></svg><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#8b6b45"/><rect x="0" y="0" width="17" height="17" fill="#6aa84f"/><rect x="17" y="17" width="17" height="17" fill="#6aa84f"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a"/></svg></div>
+        <span class="note"><span class="sw" style="background:#6aa84f;"></span>Grass over <span class="sw" style="background:#8b6b45;"></span>Dirt &mdash; the same fifteen arrangements, one material instead of nothing</span>
+      </div>
+    </div>
+    <p class="note">A transition is the same block with the empty half filled in. That is why the model closes at four materials and why nothing needs a second matching scheme.</p>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

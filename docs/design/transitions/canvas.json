@@ -1,0 +1,125 @@
+{
+  "artboards": [
+    {
+      "file": "Screen.dc.html",
+      "x": 0,
+      "y": 0,
+      "w": 1320,
+      "h": 900,
+      "title": "Materials — the screen"
+    },
+    {
+      "file": "Archetypes.dc.html",
+      "x": 1420,
+      "y": 0,
+      "w": 1280,
+      "h": 900,
+      "title": "Archetypes own their vocabularies"
+    },
+    {
+      "file": "Blocks.dc.html",
+      "x": 0,
+      "y": 1000,
+      "w": 1240,
+      "h": 800,
+      "title": "A block is what you place"
+    },
+    {
+      "file": "Main.dc.html",
+      "x": 1340,
+      "y": 1000,
+      "w": 1180,
+      "h": 900,
+      "title": "The model"
+    },
+    {
+      "file": "Shapes.dc.html",
+      "x": 0,
+      "y": 1900,
+      "w": 1240,
+      "h": 800,
+      "title": "Sixteen, not forty-seven"
+    },
+    {
+      "file": "Seams.dc.html",
+      "x": 1340,
+      "y": 2000,
+      "w": 1240,
+      "h": 820,
+      "title": "Mitred, or drawn"
+    },
+    {
+      "file": "Grid.dc.html",
+      "x": 0,
+      "y": 2800,
+      "w": 1180,
+      "h": 900,
+      "title": "The corner blocks"
+    },
+    {
+      "file": "Material.dc.html",
+      "x": 1340,
+      "y": 2920,
+      "w": 1280,
+      "h": 860,
+      "title": "An earlier art page"
+    },
+    {
+      "file": "Layers.dc.html",
+      "x": 0,
+      "y": 3800,
+      "w": 1240,
+      "h": 860,
+      "title": "How the pieces sit"
+    },
+    {
+      "file": "Authoring.dc.html",
+      "x": 1340,
+      "y": 3880,
+      "w": 1240,
+      "h": 800,
+      "title": "Transitions, as first sketched"
+    },
+    {
+      "file": "Format.dc.html",
+      "x": 0,
+      "y": 4760,
+      "w": 1120,
+      "h": 760,
+      "title": "The format, as first sketched"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "note-screen",
+      "x": 2800,
+      "y": 0,
+      "w": 340,
+      "text": "THE SCREEN. A material shows the patch it actually draws — its archetype's slots, assembled — beside the raw slots, and a Meets list of everything it can touch.\n\nMeets is GROUPED BY ARCHETYPE, because the archetype decides the shape of the art: a floor pairing is 15 slots, a wall pairing 7, a ramp pairing 4. The same pairing can appear under two headings, since a transition's archetype belongs to the transition rather than to its materials.\n\nPicking a pairing swaps the preview. Same screen, same shape; one material became two and the empty half of each slot filled in."
+    },
+    {
+      "id": "note-arc",
+      "x": 2800,
+      "y": 420,
+      "w": 340,
+      "text": "An archetype owns a vocabulary of slots — floor's are the sixteen corner masks, wall's are named parts including its seams, ramp's are parts at a root-2 aspect.\n\nA material fills that vocabulary with its own art. A transition fills the SAME vocabulary with two to four materials meeting. So transitions live in every archetype."
+    },
+    {
+      "id": "note-open",
+      "x": 2800,
+      "y": 860,
+      "w": 340,
+      "text": "OPEN: how much resolution a non-corner slot needs. A wall's face slot is one tile, so stone becoming wood along a run is abrupt; a small left/right mask would let it feather.\n\nAlso: a transition's archetype belongs to the transition, not its materials, so one pairing may have a floor block and a wall strip."
+    },
+    {
+      "id": "note-hist",
+      "x": 2800,
+      "y": 1900,
+      "w": 340,
+      "text": "The boards below are kept in the order they were drawn, with their supersessions noted, so the reasoning stays legible. Shapes is right that 16 beats 47; Seams is right that a seam cannot be a corner tag; both predate archetypes owning their own vocabularies."
+    }
+  ],
+  "launch": {
+    "view": "canvas"
+  }
+}

@@ -1,0 +1,98 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font: 13px/1.5 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; background: #15171c; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    .k { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, monospace; }
+    .note { font-size: 11.5px; line-height: 1.55; color: #7b8294; }
+    h2 { font-size: 15px; font-weight: 600; margin: 0; }
+    h3 { font-size: 13px; font-weight: 600; margin: 0; }
+    p { margin: 0; font-size: 12.5px; line-height: 1.6; color: #aab0c0; }
+    .px { image-rendering: pixelated; display: block; }
+    .card { border: 1px solid #353b4a; border-radius: 8px; background: #1b1e25; padding: 14px; display: grid; gap: 10px; align-content: start; }
+    .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 5px; }
+    .tag { display: inline-block; font: 500 10px/1 'IBM Plex Mono', Menlo, monospace; border: 1px solid #414859; border-radius: 3px; padding: 3px 5px; color: #aab0c0; }
+    .tag.on { border-color: #e9a23b; color: #e9a23b; background: rgba(233,162,59,.1); }
+    .tag.no { color: #e5636f; border-color: #e5636f; }
+    .tag.ok { color: #7bc47f; border-color: #7bc47f; }
+    .row { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 10px; align-items: start; }
+    .row .n { font: 600 12px/1.5 'IBM Plex Mono', Menlo, monospace; color: #e9a23b; }
+    code { font-family: 'IBM Plex Mono', Menlo, monospace; color: #e8eaf0; font-size: 12px; }
+    pre { margin: 0; font: 11.5px/1.6 'IBM Plex Mono', Menlo, monospace; color: #aab0c0; background: #0f1115; border: 1px solid #353b4a; border-radius: 6px; padding: 12px; overflow: hidden; }
+    pre .c { color: #7b8294; } pre .s { color: #e9a23b; } pre .g { color: #7bc47f; }
+    table { border-collapse: collapse; font-size: 12px; width: 100%; }
+    th { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; text-align: left; padding: 0 14px 6px 0; }
+    td { padding: 6px 14px 6px 0; color: #aab0c0; border-top: 1px solid #2c3140; vertical-align: top; }
+    td.first { color: #e8eaf0; }
+    .item { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; gap: 10px; align-items: center; height: 34px; padding: 0 8px; border-radius: 4px; color: #aab0c0; font-size: 12.5px; }
+    .item.on { background: rgba(233,162,59,.14); color: #e9a23b; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 5px; border: 1px solid #353b4a; background: #2c3140; color: #e8eaf0; font-size: 12px; }
+    .btn.on { background: #e9a23b; color: #1a1305; border-color: #e9a23b; font-weight: 600; }
+  </style>
+</helmet>
+<div style="width: 1240px; padding: 28px 32px; box-sizing: border-box; display: grid; gap: 20px; align-content: start;">
+  <div>
+    <div class="k">Feeling it out &middot; the artist's object</div>
+    <h2 style="margin-top: 6px;">A block is what you place. It decides its own faces.</h2>
+    <p style="max-width: 90ch; margin-top: 8px;">A material is art for one face. That is the right primitive and the wrong thing to hand an artist: nobody wants to paint five faces to put down a clod of earth. The thing you place is a <b style="color:#e8eaf0;">block</b>, and a block is a RULE, not a fixed assignment &mdash; it says what each of its faces is made of given what is around it, and it is re-read whenever the neighbourhood changes.</p>
+  </div>
+
+  <div style="display: grid; grid-template-columns: 300px minmax(0, 1fr); gap: 20px; align-items: start;">
+    <div class="card">
+      <div class="k">A block, defined</div>
+      <div style="font-size:13px; font-weight:600;">Grassy earth</div>
+      <table>
+        <tr><th>face</th><th>when</th><th>material</th></tr>
+        <tr><td class="first">top</td><td class="note">open to the sky</td><td><span class="sw" style="background:#6aa84f;"></span>Grass</td></tr>
+        <tr><td class="first">top</td><td class="note">covered</td><td class="note">not drawn</td></tr>
+        <tr><td class="first">side</td><td class="note">any</td><td><span class="sw" style="background:#8b6b45;"></span>Dirt</td></tr>
+      </table>
+      <p class="note">Three lines. Everything else &mdash; which edge piece, which corner, where grass meets sand &mdash; is the material's own business, resolved from its archetype and the transitions.</p>
+    </div>
+
+    <div class="card">
+      <div class="k">Placed, and stacked</div>
+      <div style="display:grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 14px; align-items:end;">
+        <div style="display:grid; gap:8px; justify-items:center;"><svg width="150" height="130" viewBox="0 0 150 130"><polygon points="75,13.0 109,30 75,47.0 41,30" fill="#6aa84f" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="41,30 75,47.0 75,81.0 41,64" fill="#8b6b45" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="109,30 75,47.0 75,81.0 109,64" fill="#6f5637" stroke="#15171c" stroke-width="1" opacity="1.0"/></svg><span class="note">one block &mdash; grass lid, earth sides</span></div>
+        <div style="display:grid; gap:8px; justify-items:center;"><svg width="150" height="130" viewBox="0 0 150 130"><polygon points="75,9.0 109,26 75,43.0 41,26" fill="#6aa84f" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="41,26 75,43.0 75,77.0 41,60" fill="#8b6b45" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="109,26 75,43.0 75,77.0 109,60" fill="#6f5637" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="41,60 75,77.0 75,111.0 41,94" fill="#8b6b45" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="109,60 75,77.0 75,111.0 109,94" fill="#6f5637" stroke="#15171c" stroke-width="1" opacity="1.0"/></svg><span class="note">another on top &mdash; the lid below is no longer open to the sky, so it is simply not drawn</span></div>
+        <div style="display:grid; gap:8px; justify-items:center;"><svg width="150" height="150" viewBox="0 0 150 150"><polygon points="75,5.0 109,22 75,39.0 41,22" fill="#6aa84f" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="41,22 75,39.0 75,73.0 41,56" fill="#8b6b45" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="109,22 75,39.0 75,73.0 109,56" fill="#6f5637" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="41,56 75,73.0 75,107.0 41,90" fill="#8b6b45" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="109,56 75,73.0 75,107.0 109,90" fill="#6f5637" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="41,90 75,107.0 75,141.0 41,124" fill="#8b6b45" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="109,90 75,107.0 75,141.0 109,124" fill="#6f5637" stroke="#15171c" stroke-width="1" opacity="1.0"/></svg><span class="note">three &mdash; and the sides are one continuous earth face, not three stacked ones</span></div>
+      </div>
+      <p>Nothing was reassigned by hand. The rule is evaluated per face against the neighbourhood, so stacking, digging and sculpting all keep the faces right for free.</p>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px;">
+    <div class="card">
+      <div class="k">Where it gets interesting</div>
+      <div style="display:flex; gap:18px; align-items:flex-end;">
+        <div style="display:grid; gap:8px; justify-items:center;">
+          <svg width="200" height="150" viewBox="0 0 200 150"><polygon points="70,23.0 104,40 70,57.0 36,40" fill="#6aa84f" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="36,40 70,57.0 70,91.0 36,74" fill="#8b6b45" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="104,40 70,57.0 70,91.0 104,74" fill="#6f5637" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="36,74 70,91.0 70,125.0 36,108" fill="#8b6b45" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="104,74 70,91.0 70,125.0 104,108" fill="#6f5637" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="138,57.0 172,74 138,91.0 104,74" fill="#6aa84f" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="104,74 138,91.0 138,125.0 104,108" fill="#8b6b45" stroke="#15171c" stroke-width="1" opacity="1.0"/><polygon points="172,74 138,91.0 138,125.0 172,108" fill="#6f5637" stroke="#15171c" stroke-width="1" opacity="1.0"/></svg>
+          <span class="note">a step down</span>
+        </div>
+        <div style="display:grid; gap:10px;">
+          <p>The block rule can say more than "top" and "side". A side face knows how far below the top it is, so a block can put a fringe of grass on the first band of its earth wall and plain earth below.</p>
+          <p class="note">That is today's <code>side</code> field on a material, expressed as a rule rather than a second reference &mdash; and it stops being a property of the material at all.</p>
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="k">Open, and worth arguing about</div>
+      <div style="display:grid; gap:8px;">
+        <div class="row"><span class="n">?</span><p>Is a block a BRUSH (it paints materials onto faces once, and they stay) or a TYPE the voxel remembers (its faces are re-derived forever)? The second is Minecraft's model and survives sculpting; the first is simpler and lets an artist override one face and keep it.</p></div>
+        <div class="row"><span class="n">?</span><p>Can a rule see the neighbour's block, not just whether a face is covered? "Earth beside stone" would need it.</p></div>
+        <div class="row"><span class="n">?</span><p>Does a block own its materials, or reference shared ones? Sharing means renaming Grass fixes every block; owning means a block is a self-contained thing you can hand to someone.</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
