@@ -14,7 +14,7 @@ import { useState } from 'react'
 
 import { useHost, useProject, useProjectSelector, useViewSelector, useViewportSelector, type SettingsSection } from '@papercut/editor-host'
 import { chordFor, commands, keymap, type Platform } from '@papercut/registry'
-import { Action, Field, FieldGrid, Kbd, Note, NumberInput, Row, Segmented, SettingsBlock, SettingsDialog, SettingsRailItem, SettingsRailNote, SettingsScope, SettingsSearch, Status, Table, TableRow, TextInput, Toggle } from '@papercut/ui'
+import { Action, ColorInput, Field, FieldGrid, Kbd, Note, NumberInput, Row, Segmented, SettingsBlock, SettingsDialog, SettingsRailItem, SettingsRailNote, SettingsScope, SettingsSearch, Status, Table, TableRow, TextInput, Toggle } from '@papercut/ui'
 import type { IconName } from '@papercut/ui'
 
 import { useArt } from './art'
@@ -268,6 +268,9 @@ function EditorSettings() {
       <Row label="Marks on corners still to author">
         <Toggle checked={prefs.showMissing} onChange={(showMissing) => change({ showMissing })} />
       </Row>
+      <Field label="Fallback" hint="What a face with no material on it, and a corner no tile is drawn for, shows">
+        <ColorInput value={prefs.fallback} onChange={(fallback) => change({ fallback })} />
+      </Field>
       <Field label="Editor camera" hint="How the free camera projects; the game's rig has its own">
         <Segmented
           value={prefs.projection}

@@ -95,6 +95,7 @@ export function Stage({ platform }: { platform: Platform }) {
   const tool = useToolsSelector((snapshot) => snapshot.context.tool)
   const showGrid = useViewSelector((snapshot) => snapshot.context.showGrid)
   const showMissing = useViewSelector((snapshot) => snapshot.context.showMissing)
+  const fallback = useViewSelector((snapshot) => snapshot.context.fallback)
   const gameCamera = useViewSelector((snapshot) => snapshot.context.gameCamera)
   const projection = useViewSelector((snapshot) => snapshot.context.projection)
   const selection = useViewSelector((snapshot) => snapshot.context.selection)
@@ -172,8 +173,8 @@ export function Stage({ platform }: { platform: Platform }) {
   // where the character stands up, read at the transition.
   const play = useMemo(() => (playing ? host.playSession() : null), [host, playing])
   useEffect(() => {
-    viewportRef.current?.setOptions({ showGrid, showMissing, gameCamera, projection, play, selection: selectionSubject(selection), layers })
-  }, [showGrid, showMissing, gameCamera, projection, play, selection, layers])
+    viewportRef.current?.setOptions({ showGrid, showMissing, fallback, gameCamera, projection, play, selection: selectionSubject(selection), layers })
+  }, [showGrid, showMissing, fallback, gameCamera, projection, play, selection, layers])
 
   useEffect(() => {
     if (tool !== 'sketch') viewportRef.current?.setOptions({ sketch: null })

@@ -170,8 +170,8 @@ function UnpaintedFaces() {
   return <span title="Faces that show and hold no material: they draw the fallback">unpainted {unpainted}</span>
 }
 
-/** Corners the atlas had to compose because no tile is authored for them: the artist's list of transitions to draw (spec §3). */
-/** Also the switch for the marks: click to see where on the map each composited corner is. */
+/** Corners no tile is authored for, which draw the fallback: the artist's list of transitions to draw (spec §3). */
+/** Also the switch for the marks: click to see where on the map each of those corners is. */
 function MissingTransitions() {
   const host = useHost()
   const missing = useViewportSelector((snapshot) => snapshot.context.stats.missingTransitions)
@@ -181,7 +181,7 @@ function MissingTransitions() {
     <button
       type="button"
       className={`ui-status-toggle ${shown ? 'is-on' : ''}`}
-      title={`${missing.length} transitions composed from edge sets because nobody has drawn them, each a tile to author. Click to ${shown ? 'hide' : 'show'} where they are.${names}`}
+      title={`${missing.length} transitions nobody has drawn, drawn as the fallback until someone does: each a tile to author. Click to ${shown ? 'hide' : 'show'} where they are.${names}`}
       aria-pressed={shown}
       onClick={() => run(host, 'view.set', { showMissing: !shown })}
     >

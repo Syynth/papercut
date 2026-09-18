@@ -87,7 +87,7 @@ const choose = (values: readonly number[], k: number): number[][] => {
  * `0+1` is terrain 1's edge set against nothing. TRIPLES are 6 × 6 blocks in
  * the second: the thirty-six ways three values meet with all three present.
  * Four different values at one corner are not drawn — there is no block for
- * them — which is exactly the case the atlas composites.
+ * them — which is exactly the case no tile answers.
  */
 const PAIR_MASKS: readonly (readonly number[])[] = [
   [8, 12, 4, 7, 11],
@@ -120,7 +120,7 @@ function pairsAndTriples(count: number): { pairs: number[][]; triples: number[][
 export const CORNER_BLOCKS: Convention = {
   id: 'corner-blocks',
   title: 'Corner blocks',
-  note: 'Pairs in a 5 × 3 block each, triples in a 6 × 6, and four-way corners left to composite.',
+  note: 'Pairs in a 5 × 3 block each, triples in a 6 × 6, and four-way corners left undrawn.',
   extent(count) {
     const { pairs, triples } = pairsAndTriples(count)
     return { columns: PAIR_W + TRIPLE_W, rows: Math.max(pairs.length * PAIR_H, triples.length * TRIPLE_H) }
@@ -153,7 +153,7 @@ export const CORNER_BLOCKS: Convention = {
       }
       return { columns: TRIPLE_W, rows: TRIPLE_H, cells }
     }
-    // Four different values at one corner are not drawn; that is the case the atlas composites.
+    // Four different values at one corner are not drawn; no tile answers that case.
     return null
   },
   tiles(count) {

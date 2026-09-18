@@ -18,7 +18,15 @@
  *     run along the side across, layers up;
  *   - one water quad if the column holds water.
  *
- * What a top face sees at a corner: the four cells around it, each by the
+ * Every quarter is looked up once per MATERIAL LAYER (ruling of 2026-09-18):
+ * each of a face's four layers is its own dual grid, where a cell whose
+ * layer is empty is nothing, so a material alone on a layer draws its edge
+ * tiles against nothing and whatever is under it shows through. The four
+ * atlas rects ride on each vertex — `uvs` and `stackUvs` — and the shader
+ * stacks them. A face with nothing on it draws the fallback on its first
+ * layer, and a corner no tile answers draws the fallback on its own.
+ *
+ * What a top face sees at a corner, on each layer: the four cells around it, each by the
  * height of its own vertex there. A neighbour whose vertex is lower is
  * nothing (the cliff top draws its rim from the edge set); one level with
  * or above it is its own material (the same material continues, another
@@ -59,7 +67,14 @@ import type { TerrainLook } from './look'
 export interface MeshBuffers {
   positions: Float32Array
   normals: Float32Array
+  /** The atlas UV of each vertex; on terrain, of its first material layer. */
   uvs: Float32Array
+  /**
+   * On terrain, the atlas UVs of material layers 2, 3 and 4: six floats per
+   * vertex. The shader stacks the four over each other (`stackLayers` in the
+   * runtime). Absent on meshes that draw one texture, which is everything else.
+   */
+  stackUvs?: Float32Array
   colors: Float32Array
   indices: Uint32Array
   /** Four ints per triangle: kind, x, y, extra. See surface.ts. */
@@ -71,10 +86,10 @@ export interface TerrainChunkMesh {
   key: string
   solid: MeshBuffers
   water: MeshBuffers | null
-  /** Where the atlas had to compose a tile nobody drew: one xyz per composited corner, for the editor to mark (spec §3). */
+  /** Where a corner no tile answers drew the fallback: one xyz per such corner, for the editor to mark (spec §3). */
   marks: Float32Array
-  /** The distinct combinations composed in this chunk, by name — what is left to author, counted over the chunks on screen. */
-  composites: string[]
+  /** The distinct combinations no tile answered in this chunk, by name — what is left to author, counted over the chunks on screen. */
+  missing: string[]
 }
 
 /** Height treated as existing outside the map, so borders read as an island. */
@@ -86,10 +101,17 @@ const AO_STRENGTH = 0.17
 /** Quarter q of a face (0 NW, 1 NE, 2 SW, 3 SE in the face's own space) is this quadrant of the corner tile it sits on: the opposite one. */
 const QUADRANT_OF_QUARTER = [3, 2, 1, 0]
 
+/** An atlas UV rectangle, [u0, v0, u1, v1]. */
+type Rect = readonly [number, number, number, number]
+
+/** How many material layers a face stacks, and so how many atlas rects each vertex carries. */
+const STACK = 4
+
 class BufferBuilder {
   positions: number[] = []
   normals: number[] = []
   uvs: number[] = []
+  stackUvs: number[] = []
   colors: number[] = []
   indices: number[] = []
   faceAddr: number[] = []
@@ -98,15 +120,23 @@ class BufferBuilder {
     return this.positions.length / 3
   }
 
+  constructor(private readonly stacked: boolean) {}
+
   /**
    * Emit a convex polygon as a fan of triangles, corners in winding order
    * p0, p1, p2, … such that (p1-p0) x (p2-p0) points outwards. Wall bands are
    * clipped to arbitrary convex shapes — a slope crossing a band leaves a
    * triangle or a pentagon, not a quad — and a top quarter is a quad.
+   *
+   * `local` places each corner inside the texture, 0–1 across and up; `rects`
+   * are the atlas rectangles it is drawn from, one per material layer on a
+   * stacked builder (one on any other), so every layer is sampled at the same
+   * place in its own tile.
    */
   polygon(
     corners: ReadonlyArray<readonly [number, number, number]>,
-    cornerUvs: ReadonlyArray<readonly [number, number]>,
+    local: ReadonlyArray<readonly [number, number]>,
+    rects: readonly Rect[],
     shade: readonly number[],
     tint: readonly [number, number, number],
     address: readonly [number, number, number, number],
@@ -138,7 +168,15 @@ class BufferBuilder {
     for (let i = 0; i < corners.length; i++) {
       this.positions.push(corners[i][0], corners[i][1], corners[i][2])
       this.normals.push(nx, ny, nz)
-      this.uvs.push(cornerUvs[i][0], cornerUvs[i][1])
+      const [s0, t0] = local[i]
+      const [u0, v0, u1, v1] = rects[0]
+      this.uvs.push(u0 + s0 * (u1 - u0), v0 + t0 * (v1 - v0))
+      if (this.stacked) {
+        for (let l = 1; l < STACK; l++) {
+          const [lu0, lv0, lu1, lv1] = rects[l]
+          this.stackUvs.push(lu0 + s0 * (lu1 - lu0), lv0 + t0 * (lv1 - lv0))
+        }
+      }
       const s = shade[i]
       this.colors.push(tint[0] * s, tint[1] * s, tint[2] * s)
     }
@@ -153,6 +191,7 @@ class BufferBuilder {
       positions: new Float32Array(this.positions),
       normals: new Float32Array(this.normals),
       uvs: new Float32Array(this.uvs),
+      ...(this.stacked ? { stackUvs: new Float32Array(this.stackUvs) } : {}),
       colors: new Float32Array(this.colors),
       indices: new Uint32Array(this.indices),
       faceAddr: new Int32Array(this.faceAddr),
@@ -193,9 +232,19 @@ const CORNER_AT = [
   [3, 2],
 ]
 
+/** A face's tags, one per material layer, and whether it holds nothing at all. */
+interface FaceKeys {
+  /** One tag per material layer, bottom first: `null` where that layer is empty. */
+  readonly keys: readonly Tag[]
+  /** No layer holds anything, or nobody painted it: it draws the fallback, and is nothing to its neighbours. */
+  readonly empty: boolean
+}
+
+const NOTHING: FaceKeys = { keys: [null, null, null, null], empty: true }
+
 /**
  * What one build of a chunk asks about a cell over and over — its corner
- * heights, its top, the terrain its top is drawn with — answered once per
+ * heights, its top, the terrains its top is drawn with — answered once per
  * cell and kept for the build. A chunk build touches every cell of its own
  * and a ring of neighbours several times per quarter; recomputing a column
  * from its voxels each time is what made the first cut of this mesher ten
@@ -203,7 +252,7 @@ const CORNER_AT = [
  */
 class Cells {
   private cells = new Map<number, CellInfo>()
-  private bands = new Map<number, Tag>()
+  private bands = new Map<number, FaceKeys>()
 
   constructor(
     private readonly voxel: ReadonlyVoxel,
@@ -218,7 +267,7 @@ class Cells {
     const corners = cornerHeights(this.voxel, x, y)
     const top = topHeight(this.voxel, x, y)
     // The top face is the top voxel's; an empty column's is the bedrock floor's, at layer -1.
-    info = { corners, top, topKey: this.faceKey(x, y, Math.ceil(top / 2) - 1, FACE_TOP) }
+    info = { corners, top, face: this.faceKeys(x, y, Math.ceil(top / 2) - 1, FACE_TOP) }
     this.cells.set(key, info)
     return info
   }
@@ -234,27 +283,29 @@ class Cells {
     return this.at(x, y).corners[CORNER_AT[vx - x][vy - y]]
   }
 
-  /** The terrain a band of a side is drawn with: the face of the voxel the band belongs to. */
-  bandKey(x: number, y: number, dir: number, level: number): Tag {
+  /** The terrains a band of a side is drawn with: the face of the voxel the band belongs to. */
+  band(x: number, y: number, dir: number, level: number): FaceKeys {
     const key = ((y * this.voxel.size.width + x) * 4 + dir) * 256 + level
     const known = this.bands.get(key)
     if (known !== undefined) return known
-    const answer = this.faceKey(x, y, Math.floor(level / 2), dir)
+    const answer = this.faceKeys(x, y, Math.floor(level / 2), dir)
     this.bands.set(key, answer)
     return answer
   }
 
-  /** A face's tag: its first material layer's, until the layers above it are drawn (stage two of the material layers work). */
-  private faceKey(x: number, y: number, layer: number, dir: number): Tag {
-    return this.look.keyOf(slotMaterial(faceLayers(this.voxel.paint, x, y, layer, dir)?.[0]))
+  private faceKeys(x: number, y: number, layer: number, dir: number): FaceKeys {
+    const stack = faceLayers(this.voxel.paint, x, y, layer, dir)
+    if (!stack) return NOTHING
+    const keys = stack.map((slot) => this.look.keyOf(slotMaterial(slot)))
+    return keys.every((k) => k === null) ? NOTHING : { keys, empty: false }
   }
 }
 
 interface CellInfo {
   readonly corners: readonly [number, number, number, number]
   readonly top: number
-  /** The terrain the top is drawn with: its top face's. */
-  readonly topKey: Tag
+  /** The terrains the top is drawn with: its top face's. */
+  readonly face: FaceKeys
 }
 
 /** A value at a point inside the cell, bilinear across its corners in `CORNER_OFFSETS` order. */
@@ -391,17 +442,18 @@ const SIDE_GEOMETRY: ReadonlyArray<{
 // --- what a face sees ---------------------------------------------------------
 
 /**
- * The four terrains around grid vertex (vx, vy), seen from cell (x, y): the
- * cells NW, NE, SW, SE of the vertex, each by the height of its own corner
- * there against this cell's.
+ * The four terrains around grid vertex (vx, vy) on material layer `layer`,
+ * seen from cell (x, y): the cells NW, NE, SW, SE of the vertex, each by the
+ * height of its own corner there against this cell's. Each material layer is
+ * its own dual grid: a cell whose layer is empty is nothing on it.
  */
-function topCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, vx: number, vy: number): CornerKeys {
+function topCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, vx: number, vy: number, layer: number): CornerKeys {
   const mine = cells.vertex(x, y, vx, vy)
-  const own = cells.at(x, y).topKey
+  const own = cells.at(x, y).face.keys[layer]
   const at = (cx: number, cy: number): Tag => {
     if (!inBounds(voxel.size, cx, cy)) return own
     if (cx === x && cy === y) return own
-    return cells.vertex(cx, cy, vx, vy) < mine ? null : cells.at(cx, cy).topKey
+    return cells.vertex(cx, cy, vx, vy) < mine ? null : cells.at(cx, cy).face.keys[layer]
   }
   return [at(vx - 1, vy - 1), at(vx, vy - 1), at(vx - 1, vy), at(vx, vy)]
 }
@@ -422,19 +474,19 @@ function bandExists(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, di
 }
 
 /**
- * The four terrains around a corner of a band, in face space: `atEnd` picks
+ * The four terrains around a corner of a band on material layer `layer`, in face space: `atEnd` picks
  * the corner at the side's end (u = 1) rather than its start, `atTop` the
  * corner at the band's top rather than its bottom. Bands beside are on the
  * cell before or after this one along the side; off the volume continues.
  */
-function bandCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, level: number, atEnd: boolean, atTop: boolean): CornerKeys {
+function bandCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, level: number, atEnd: boolean, atTop: boolean, layer: number): CornerKeys {
   const [ux, uy] = SIDE_GEOMETRY[dir].u
-  const own = cells.bandKey(x, y, dir, level)
+  const own = cells.band(x, y, dir, level).keys[layer]
   const at = (along: number, l: number): Tag => {
     const cx = x + along * ux
     const cy = y + along * uy
     if (!inBounds(voxel.size, cx, cy)) return own
-    return bandExists(cells, voxel, cx, cy, dir, l) ? cells.bandKey(cx, cy, dir, l) : null
+    return bandExists(cells, voxel, cx, cy, dir, l) ? cells.band(cx, cy, dir, l).keys[layer] : null
   }
   const before = atEnd ? 0 : -1
   const upper = atTop ? level + 1 : level
@@ -445,13 +497,32 @@ function bandCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, di
 
 export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: TerrainLook): TerrainChunkMesh {
   const bounds = chunkBounds(key, voxel.size.width, voxel.size.height)
-  const solid = new BufferBuilder()
-  const water = new BufferBuilder()
+  const solid = new BufferBuilder(true)
+  const water = new BufferBuilder(false)
   const { atlas } = look
   const cells = new Cells(voxel, look)
   const marks: number[] = []
   const marked = new Set<string>()
-  const composites = new Set<string>()
+  const missing = new Set<string>()
+  const fallback = atlas.uv(atlas.fallbackTile(), -1)
+  /**
+   * The atlas rects one quarter draws, a rect per material layer: each
+   * layer's corner tile, the quadrant of it that falls in this quarter. A
+   * face with nothing on it draws the fallback under whatever its
+   * neighbours' layers bring onto it. A corner no tile answers is marked.
+   */
+  const quarterRects = (empty: boolean, quadrant: number, cornerOf: (layer: number) => CornerKeys, markAt: () => void): Rect[] => {
+    const rects: Rect[] = []
+    for (let layer = 0; layer < STACK; layer++) {
+      const answer = atlas.tileFor(cornerOf(layer))
+      if (answer.missing) {
+        markAt()
+        if (answer.combo) missing.add(answer.combo)
+      }
+      rects.push(layer === 0 && empty ? fallback : atlas.uv(answer.tile, quadrant))
+    }
+    return rects
+  }
   const mark = (x: number, y: number, z: number): void => {
     const id = `${x},${y},${z}`
     if (marked.has(id)) return
@@ -460,7 +531,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
   }
 
   if (!bounds) {
-    return { key, solid: solid.finish(), water: null, marks: new Float32Array(0), composites: [] }
+    return { key, solid: solid.finish(), water: null, marks: new Float32Array(0), missing: [] }
   }
 
   for (let y = bounds.y0; y < bounds.y1; y++) {
@@ -476,21 +547,24 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
         for (let q = 0; q < 4; q++) {
           const fx0 = (q % 2) * 0.5
           const fy0 = q > 1 ? 0.5 : 0
-          const { tile, composite, combo } = atlas.tileFor(topCorner(cells, voxel, x, y, x + (q % 2), y + (q > 1 ? 1 : 0)))
-          if (composite) {
-            mark(x + (q % 2), bilinear(cornerH, q % 2, q > 1 ? 1 : 0) * HALF, y + (q > 1 ? 1 : 0))
-            if (combo) composites.add(combo)
-          }
-          const [u0, v0, u1, v1] = atlas.uv(tile, QUADRANT_OF_QUARTER[q])
+          const vx = x + (q % 2)
+          const vy = y + (q > 1 ? 1 : 0)
+          const rects = quarterRects(
+            cells.at(x, y).face.empty,
+            QUADRANT_OF_QUARTER[q],
+            (layer) => topCorner(cells, voxel, x, y, vx, vy, layer),
+            () => mark(vx, bilinear(cornerH, q % 2, q > 1 ? 1 : 0) * HALF, vy),
+          )
           // Corner order c00, c01, c11, c10 within the quarter. Sheets are authored top-down, so increasing map +Z walks down the sheet, which is decreasing v.
           solid.polygon(
             [at(fx0, fy0), at(fx0, fy0 + 0.5), at(fx0 + 0.5, fy0 + 0.5), at(fx0 + 0.5, fy0)],
             [
-              [u0, v1],
-              [u0, v0],
-              [u1, v0],
-              [u1, v1],
+              [0, 1],
+              [0, 0],
+              [1, 0],
+              [1, 1],
             ],
+            rects,
             [bilinear(shadeAt, fx0, fy0), bilinear(shadeAt, fx0, fy0 + 0.5), bilinear(shadeAt, fx0 + 0.5, fy0 + 0.5), bilinear(shadeAt, fx0 + 0.5, fy0)],
             tint,
             [SURFACE_TOP, x, y, 0],
@@ -529,16 +603,17 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
             // The wall region cut to this quarter of this band, exactly: a slope crossing it is followed, not approximated.
             const piece = clipToRect(region, t0, t0 + 0.5, h0, h0 + 0.5)
             if (piece.length === 0) continue
-            const { tile, composite, combo } = atlas.tileFor(bandCorner(cells, voxel, x, y, dir, level, atEnd, atTop))
-            if (composite) {
-              mark(ox + u[0] * (atEnd ? 1 : 0), (atTop ? level + 1 : level) * HALF, oz + u[1] * (atEnd ? 1 : 0))
-              if (combo) composites.add(combo)
-            }
-            const [u0, v0, u1, v1] = atlas.uv(tile, QUADRANT_OF_QUARTER[q])
+            const rects = quarterRects(
+              cells.band(x, y, dir, level).empty,
+              QUADRANT_OF_QUARTER[q],
+              (layer) => bandCorner(cells, voxel, x, y, dir, level, atEnd, atTop, layer),
+              () => mark(ox + u[0] * (atEnd ? 1 : 0), (atTop ? level + 1 : level) * HALF, oz + u[1] * (atEnd ? 1 : 0)),
+            )
             solid.polygon(
               piece.map(([t, h]) => [ox + u[0] * t, h * HALF, oz + u[1] * t] as const),
               // The texture keeps its scale however the piece is cut: u along the side, v up the band.
-              piece.map(([t, h]) => [u0 + ((t - t0) / 0.5) * (u1 - u0), v0 + ((h - h0) / 0.5) * (v1 - v0)] as const),
+              piece.map(([t, h]) => [(t - t0) / 0.5, (h - h0) / 0.5] as const),
+              rects,
               piece.map(([, h]) => deep + (1 - deep) * (h - level)),
               tint,
               [SURFACE_CLIFF, x, y, encodeExtra(dir, level)],
@@ -564,6 +639,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
             [1, 0],
             [1, 1],
           ],
+          [[0, 0, 1, 1]],
           [1, 1, 1, 1],
           [1, 1, 1],
           [SURFACE_WATER, x, y, 0],
@@ -577,6 +653,6 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
     solid: solid.finish(),
     water: water.isEmpty ? null : water.finish(),
     marks: new Float32Array(marks),
-    composites: [...composites],
+    missing: [...missing],
   }
 }

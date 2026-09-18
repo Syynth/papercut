@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   DEFAULT_MATERIALS,
   CORNER_OFFSETS,
+  FACE_TOP,
   DIR_VECTORS,
   HALF,
   NO_RAMP,
@@ -45,8 +46,8 @@ function solid(width: number, height: number, rgba: [number, number, number, num
  * A stand-in for the placeholder terrain set the default materials draw from:
  * the five materials, each with an edge set stamped on its own 4×4 block
  * (four blocks per block-row on a 16-column sheet), over one flat colour.
- * Every corner the mesher asks for resolves — exact for one material, a
- * composite for a pair — so the look never refuses.
+ * A corner of one material and nothing resolves exactly; a pair is not
+ * drawn, so it is the fallback.
  */
 function placeholderSet(): LoadedSet {
   let set = createTerrainSet(PLACEHOLDER_SHEET, TILE, 16, 8)
@@ -121,9 +122,9 @@ describe('what a face is drawn with', () => {
     const look = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet()])
     const magenta = (rgba: number[]): boolean => rgba[0] === 0xff && rgba[1] === 0 && rgba[2] === 0xff && rgba[3] === 255
 
-    // The east side of the column's top voxel: layer 3, whose bands are levels 6 and 7.
-    const key = faceKey(3, 3, 3, 0)
-    ground(doc).paint.faces[key] = layersOf(2)
+    // The whole east side of the column in stone, so the band at level 6 (layer 3's lower band) meets
+    // only stone and nothing: a stone band beside a grass one is a pair nobody drew, which is the fallback too.
+    for (let y = 0; y < 4; y++) ground(doc).paint.faces[faceKey(3, 3, y, 0)] = layersOf(2)
     const painted = bandTexels(meshTerrainChunk(ground(doc), '0,0', look), look, 3, 3, 0, 6)
     expect(painted.length).toBeGreaterThan(0)
     expect(painted.some(magenta)).toBe(false)
@@ -134,6 +135,67 @@ describe('what a face is drawn with', () => {
     const bare = bandTexels(meshTerrainChunk(ground(doc), '0,0', look), look, 3, 3, 0, 6)
     expect(bare.length).toBe(painted.length)
     expect(bare.every(magenta)).toBe(true)
+  })
+})
+
+describe('material layers, stacked', () => {
+  it('gives every vertex a rect per layer: its own tile where a layer holds something, transparent where it is empty', () => {
+    const doc = createMap(6, 6)
+    const g = ground(doc)
+    // (2,2)'s top holds grass under path; everything else is grass alone.
+    g.paint.faces[faceKey(2, 2, 0, FACE_TOP)] = ['m:0', 'm:4', null, null]
+    const look = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet()])
+    const { solid } = meshTerrainChunk(g, '0,0', look)
+    const { width, height, data } = look.atlas.image
+    expect(solid.stackUvs?.length).toBe((solid.positions.length / 3) * 6)
+    /** The alpha at the centroid of triangle `t` on layer `layer` (0 is `uvs`, 1–3 are `stackUvs`). */
+    const alpha = (t: number, layer: number): number => {
+      let u = 0
+      let v = 0
+      for (let k = 0; k < 3; k++) {
+        const vertex = solid.indices[t * 3 + k]
+        const uv = layer === 0 ? solid.uvs.subarray(vertex * 2, vertex * 2 + 2) : (solid.stackUvs as Float32Array).subarray(vertex * 6 + (layer - 1) * 2, vertex * 6 + layer * 2)
+        u += uv[0] / 3
+        v += uv[1] / 3
+      }
+      return data[(Math.floor((1 - v) * height) * width + Math.floor(u * width)) * 4 + 3]
+    }
+    const tops = (x: number, y: number): number[] => {
+      const out: number[] = []
+      for (let t = 0; t < solid.triangleCount; t++) {
+        const a = readAddress(solid.faceAddr, t, 'ground')
+        if (a.kind === SURFACE_TOP && a.x === x && a.y === y) out.push(t)
+      }
+      return out
+    }
+    // The path cell draws something on its second layer; a far cell draws nothing there, and nobody draws on the top two.
+    expect(tops(2, 2).some((t) => alpha(t, 1) > 0)).toBe(true)
+    expect(tops(5, 5).every((t) => alpha(t, 1) === 0)).toBe(true)
+    for (const t of tops(2, 2)) {
+      expect(alpha(t, 0)).toBe(255)
+      expect(alpha(t, 2)).toBe(0)
+      expect(alpha(t, 3)).toBe(0)
+    }
+  })
+
+  it('draws the fallback on the first layer of a face with nothing on it, and nothing for its neighbours', () => {
+    const doc = createMap(6, 6)
+    const g = ground(doc)
+    g.paint.faces[faceKey(2, 2, 0, FACE_TOP)] = [null, null, null, null]
+    const look = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet()], 0x123456)
+    const { solid, missing } = meshTerrainChunk(g, '0,0', look)
+    const [u0, v0, u1, v1] = look.atlas.uv(look.atlas.fallbackTile(), -1)
+    for (let t = 0; t < solid.triangleCount; t++) {
+      const a = readAddress(solid.faceAddr, t, 'ground')
+      if (a.kind !== SURFACE_TOP || a.x !== 2 || a.y !== 2) continue
+      const vertex = solid.indices[t * 3]
+      expect(solid.uvs[vertex * 2]).toBeGreaterThanOrEqual(u0 - 1e-6)
+      expect(solid.uvs[vertex * 2]).toBeLessThanOrEqual(u1 + 1e-6)
+      expect(solid.uvs[vertex * 2 + 1]).toBeGreaterThanOrEqual(v0 - 1e-6)
+      expect(solid.uvs[vertex * 2 + 1]).toBeLessThanOrEqual(v1 + 1e-6)
+    }
+    // Grass around the hole meets nothing there, which its edge set draws: nothing is missing.
+    expect(missing).toEqual([])
   })
 })
 
@@ -439,19 +501,21 @@ describe('walls beside slopes', () => {
 })
 
 describe('a material nothing is tagged with', () => {
-  it('draws as its colour rather than as a hole', () => {
-    // A material no longer points at a sheet, so what used to be "its sheet is not loaded" is now the only
-    // way a material can have no art: no tile anywhere is tagged with it. Moss is such a material.
+  it('draws the fallback: nothing is made up for art nobody drew', () => {
+    // A material no longer points at a sheet, so the only way it can have no art is that no tile anywhere is
+    // tagged with it. Moss is such a material. It used to draw its swatch; with nothing composited
+    // (ruling of 2026-09-18) a corner no tile answers is the fallback, and it is on the list to author.
     const materials = [{ id: 0, name: 'Grass', color: 0x6aa84f, archetype: 'floor' as const }, { id: 9, name: 'Moss', color: 0x336633, archetype: 'floor' as const }]
-    const look = createTerrainLook(materials, [placeholderSet()])
+    const look = createTerrainLook(materials, [placeholderSet()], 0x102030)
     const moss = tagOf(9)
     const answer = look.atlas.tileFor([moss, moss, moss, moss])
-    expect(answer.composite).toBe(true)
+    expect(answer.missing).toBe(true)
+    expect(answer.combo).toBe('Moss')
     const [u0, v0] = look.atlas.uv(answer.tile, 0)
     const { width, height, data } = look.atlas.image
     const x = Math.floor(u0 * width) + 1
     const y = Math.floor((1 - v0) * height) - 1
     const at = (y * width + x) * 4
-    expect([data[at], data[at + 1], data[at + 2], data[at + 3]]).toEqual([0x33, 0x66, 0x33, 255])
+    expect([data[at], data[at + 1], data[at + 2], data[at + 3]]).toEqual([0x10, 0x20, 0x30, 255])
   })
 })

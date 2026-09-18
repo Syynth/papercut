@@ -9,13 +9,15 @@ const PREFS_KEY = 'papercut:prefs'
 export interface EditorPrefs {
   /** The grid on when a project opens. */
   showGrid: boolean
-  /** The composited-corner marks on when a project opens. */
+  /** The marks on corners still to author on when a project opens. */
   showMissing: boolean
+  /** The colour a face with nothing on it, and a corner no tile answers, is drawn. */
+  fallback: number
   /** How the free editor camera projects when a project opens. */
   projection: 'perspective' | 'orthographic'
 }
 
-export const DEFAULT_PREFS: EditorPrefs = { showGrid: true, showMissing: false, projection: 'perspective' }
+export const DEFAULT_PREFS: EditorPrefs = { showGrid: true, showMissing: false, fallback: 0xff00ff, projection: 'perspective' }
 
 export function loadPrefs(): EditorPrefs {
   try {
@@ -24,6 +26,7 @@ export function loadPrefs(): EditorPrefs {
     return {
       showGrid: typeof raw.showGrid === 'boolean' ? raw.showGrid : DEFAULT_PREFS.showGrid,
       showMissing: typeof raw.showMissing === 'boolean' ? raw.showMissing : DEFAULT_PREFS.showMissing,
+      fallback: typeof raw.fallback === 'number' && Number.isInteger(raw.fallback) && raw.fallback >= 0 && raw.fallback <= 0xffffff ? raw.fallback : DEFAULT_PREFS.fallback,
       projection: raw.projection === 'orthographic' ? 'orthographic' : 'perspective',
     }
   } catch {

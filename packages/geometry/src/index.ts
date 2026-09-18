@@ -40,10 +40,10 @@ export type { BlockShape, Convention, LayoutBlock, LayoutSpec, LayoutTile } from
 export { renderTemplate } from './template'
 export type { Template, TemplateMaterial, TemplateOptions } from './template'
 export type { GridCells, Remapped } from './grid'
-export { TerrainAtlas, UNPAINTED, UNPAINTED_COLOR } from './atlas'
+export { DEFAULT_FALLBACK, TerrainAtlas } from './atlas'
 export { createTerrainLook } from './look'
 export type { TerrainLook } from './look'
-export type { AtlasTile, CompositeReport, CornerKeys, LoadedSet } from './atlas'
+export type { AtlasOptions, AtlasTile, CornerKeys, LoadedSet, MissingReport } from './atlas'
 
 export { meshTerrainChunk } from './terrain'
 export type { MeshBuffers, TerrainChunkMesh } from './terrain'
