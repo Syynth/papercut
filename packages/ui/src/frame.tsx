@@ -507,12 +507,91 @@ export function Hint({ kbd, children }: { kbd?: string; children: ReactNode }) {
 
 // --- viewport overlays ---------------------------------------------------------
 
-export function Overlay({ at, children }: { at: 'top-left' | 'top-center' | 'bottom-center' | 'bottom-right' | 'right'; children: ReactNode }) {
+export function Overlay({ at, children }: { at: 'top-left' | 'top-center' | 'bottom-left' | 'bottom-center' | 'bottom-right' | 'right'; children: ReactNode }) {
   return <div className={`ui-overlay is-${at}`}>{children}</div>
 }
 
 export function Pill({ warn, children }: { warn?: boolean; children: ReactNode }) {
   return <span className={`ui-pill ${warn ? 'is-warn' : ''}`}>{children}</span>
+}
+
+// --- material layers -------------------------------------------------------------
+
+/** One row of the Material Layers widget. */
+export interface MaterialLayerRow {
+  /** What the open map holds on this layer, in words: "Grass · Sand", or "empty". */
+  readonly summary: string
+  /** The first material's swatch, or `null` for an empty layer. */
+  readonly swatch: string | null
+  readonly visible: boolean
+}
+
+/**
+ * The Material Layers widget (ruling of 2026-09-18): a collapsing panel in a
+ * corner of the stage. Open, it lists the four layers topmost first; clicking
+ * a row makes it the one painting goes to, and each row's eye hides it from
+ * the view without changing anything saved. Collapsed, it still names the
+ * active layer and shows the stack as four marks, the active one lit and the
+ * hidden ones hollow. Layers are numbered from 1 here, bottom first; `active`
+ * and the callbacks count from 0.
+ */
+export function MaterialLayers({
+  rows,
+  active,
+  open,
+  onOpen,
+  onSelect,
+  onToggle,
+}: {
+  rows: readonly MaterialLayerRow[]
+  active: number
+  open: boolean
+  onOpen: (open: boolean) => void
+  onSelect: (layer: number) => void
+  onToggle: (layer: number) => void
+}) {
+  const order = rows.map((_, layer) => layer).reverse()
+  return (
+    <div className={`ui-mlayers ${open ? 'is-open' : ''}`}>
+      <button type="button" className="ui-mlayers-head" aria-expanded={open} onClick={() => onOpen(!open)}>
+        <span className="ui-mlayers-chevron">{open ? '▾' : '▸'}</span>
+        <span className="ui-mlayers-title">Material layers</span>
+        {open ? null : (
+          <span className="ui-mlayers-active">
+            Layer {active + 1} · {rows[active]?.summary}
+          </span>
+        )}
+        <span className="ui-mlayers-dots" aria-hidden>
+          {order.map((layer) => (
+            <span key={layer} className={`ui-mlayers-dot ${layer === active ? 'is-active' : ''} ${rows[layer].visible ? '' : 'is-hidden'}`} />
+          ))}
+        </span>
+      </button>
+      {open ? (
+        <div className="ui-mlayers-rows">
+          {order.map((layer) => {
+            const row = rows[layer]
+            return (
+              <div key={layer} className={`ui-mlayers-row ${layer === active ? 'is-active' : ''} ${row.visible ? '' : 'is-hidden'}`}>
+                <button type="button" className="ui-mlayers-eye" aria-label={`${row.visible ? 'Hide' : 'Show'} material layer ${layer + 1}`} aria-pressed={!row.visible} onClick={() => onToggle(layer)}>
+                  <Icon name={row.visible ? 'eye' : 'eyeOff'} size={15} />
+                </button>
+                <button type="button" className="ui-mlayers-pick" aria-pressed={layer === active} onClick={() => onSelect(layer)}>
+                  <span className="ui-mlayers-n ui-num">{layer + 1}</span>
+                  {row.swatch ? <span className="ui-mlayers-swatch" style={{ background: row.swatch }} /> : null}
+                  <span className="ui-mlayers-summary">
+                    {row.summary}
+                    {row.visible ? '' : ' · hidden'}
+                    {layer === active ? ' · painting here' : ''}
+                  </span>
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      ) : null}
+    </div>
+  )
 }
 
 // --- layer view ----------------------------------------------------------------
@@ -529,7 +608,7 @@ export function LayerRange({
   lo,
   hi,
   onChange,
-  title = 'Layers',
+  title = 'Z layers',
 }: {
   max: number
   lo: number
@@ -580,8 +659,8 @@ export function LayerRange({
           <i>{layer}</i>
         </div>
       ))}
-      <button type="button" className="ui-layers-handle" data-layer={hi} style={{ top: y(hi) }} onPointerDown={grab('hi')} aria-label={`Top of the layer view: ${hi}`} />
-      <button type="button" className="ui-layers-handle" data-layer={lo} style={{ top: y(lo) }} onPointerDown={grab('lo')} aria-label={`Bottom of the layer view: ${lo}`} />
+      <button type="button" className="ui-layers-handle" data-layer={hi} style={{ top: y(hi) }} onPointerDown={grab('hi')} aria-label={`Top of the Z layer view: ${hi}`} />
+      <button type="button" className="ui-layers-handle" data-layer={lo} style={{ top: y(lo) }} onPointerDown={grab('lo')} aria-label={`Bottom of the Z layer view: ${lo}`} />
       <span className="ui-layers-cap">{title.toUpperCase()}</span>
     </div>
   )

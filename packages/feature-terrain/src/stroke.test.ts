@@ -53,6 +53,7 @@ const defaults: TerrainParams = {
   strokeShape: 'brush',
   brush: { size: 1, shape: 'square' },
   material: 0,
+  materialLayer: 0,
   tint: 0xffffff,
   // One half-tile per pass here, so a raise reads as +1 throughout the file; the tool's default is a whole cube.
   strength: 1,
@@ -199,6 +200,25 @@ describe('the terrain tool contract', () => {
     expect(handler?.end(sample(cliff))).toEqual([])
     expect(current().rampRun).toBeNull()
     expect(rampDirAt(ground(doc), 2, 2)).toBe(NO_RAMP)
+  })
+
+  it('paints, empties and picks up the active material layer, leaving the others', () => {
+    const doc = createMap(8, 8)
+    // (1,1)'s top holds grass on its first layer, from the new map, and path on its third.
+    ground(doc).paint.faces[faceKey(1, 1, 0, FACE_TOP)] = ['m:0', null, 'm:4', null]
+    const { deps, current } = stub(doc, { terrainMode: 'paint', paintVerb: 'material', material: 1, materialLayer: 1 })
+    const paint = terrainContract(deps).stroke(sample(top(1, 1)))?.begin(sample(top(1, 1)))
+    expect(paint).toEqual([{ t: 'voxelPaint', id: 'ground', layer: 'faces', key: faceKey(1, 1, 0, FACE_TOP), value: ['m:0', 'm:1', 'm:4', null] }])
+    // Shift empties the active layer only.
+    deps.setParams({ materialLayer: 2 })
+    const erase = terrainContract(deps).stroke(sample(top(1, 1), { shift: true }))?.begin(sample(top(1, 1), { shift: true }))
+    expect(erase).toEqual([{ t: 'voxelPaint', id: 'ground', layer: 'faces', key: faceKey(1, 1, 0, FACE_TOP), value: ['m:0', null, null, null] }])
+    // Alt picks up what the active layer holds, and nothing where it is empty.
+    terrainContract(deps).stroke(sample(top(1, 1), { alt: true }))?.begin(sample(top(1, 1), { alt: true }))
+    expect(current().material).toBe(4)
+    deps.setParams({ materialLayer: 3, material: 2 })
+    terrainContract(deps).stroke(sample(top(1, 1), { alt: true }))?.begin(sample(top(1, 1), { alt: true }))
+    expect(current().material).toBe(2)
   })
 
   it('alt picks a material up instead of editing, and only on the press', () => {

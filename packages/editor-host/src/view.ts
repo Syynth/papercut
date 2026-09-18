@@ -36,6 +36,10 @@ const viewSettings = z
     showMissing: z.boolean().exactOptional(),
     /** The colour, 0xRRGGBB, a face with nothing on it and a corner no tile answers are drawn: magenta unless set. */
     fallback: z.int().min(0).max(0xffffff).exactOptional(),
+    /** Which material layers the stage draws, bottom first: hiding one changes the view, never the map. */
+    materialLayersShown: z.tuple([z.boolean(), z.boolean(), z.boolean(), z.boolean()]).exactOptional(),
+    /** Whether the Material Layers widget is open on the stage, or collapsed to its header. */
+    materialLayersOpen: z.boolean().exactOptional(),
     gameCamera: z.boolean().exactOptional(),
     /** How the editor camera projects while free: the view cube's second click flips it. The game's rig has its own. */
     projection: z.enum(['perspective', 'orthographic']).exactOptional(),
@@ -111,7 +115,7 @@ export const viewLogic = setup({
   },
 }).createMachine({
   id: 'view',
-  context: { showGrid: true, showMissing: false, fallback: 0xff00ff, gameCamera: false, projection: 'perspective', inspector: 'properties', layers: null, levelOpen: false, notice: null, settings: null, dialog: null, selection: null, selectedObjectId: null },
+  context: { showGrid: true, showMissing: false, fallback: 0xff00ff, materialLayersShown: [true, true, true, true], materialLayersOpen: true, gameCamera: false, projection: 'perspective', inspector: 'properties', layers: null, levelOpen: false, notice: null, settings: null, dialog: null, selection: null, selectedObjectId: null },
   initial: 'ready',
   states: {
     ready: {
