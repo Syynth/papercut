@@ -507,8 +507,15 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
           <Select value={material.archetype} options={archetypes().map((a) => ({ value: a.id, label: a.title }))} onChange={(id) => change({ archetype: id })} />
         </Field>
       </div>
-      <Field label="Art">
+      <Field label="Art" hint="Top faces, and the sides too unless the next one says otherwise">
         <Select value={refKey(material.top)} options={terrains} onChange={(key) => change({ top: parseRef(key) })} />
+      </Field>
+      <Field label="Side art" hint="The vertical faces this material cuts. The wall archetype will replace this.">
+        <Select
+          value={material.side ? refKey(material.side) : 'same'}
+          options={[{ value: 'same', label: 'Same as the top' }, ...terrains]}
+          onChange={(key) => change({ side: key === 'same' ? undefined : parseRef(key) })}
+        />
       </Field>
 
       <div className="ui-k">Meets</div>
