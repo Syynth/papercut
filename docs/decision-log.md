@@ -637,3 +637,27 @@ Each entry:
 - **SCOPE:** minor/local
 - **WHAT:** The settings modal is the window inset by a fixed margin, the same size whatever is open. A form section caps its own content at a readable width inside the big pane and left-aligns it against the rail; an editor section — Images, Terrain sets — fills the pane. Settings stays a modal over the editor; it does not become a second OS window.
 - **WHY:** Sizing the modal to its section made it jump under the pointer on every switch, since the sections differ enormously — a four-field form against a tagger over a 592 × 960 sheet. A second OS window would need the host's actors, so either the state is duplicated across windows or every dispatch becomes IPC, which is a large change for a settings panel and does not exist at all in the browser build.
+
+## A material fills an archetype's slots, and the archetype is per face
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model
+- **SCOPE:** architectural
+- **WHAT:** A material is a property of a voxel's FACE, not the whole voxel. Each kind of face has its own vocabulary of slots — an ARCHETYPE — and a material owes art for its archetype's slots. The set is fixed and internal for now: floor (the fifteen corner masks of the dual grid), wall (named parts in elevation, with convex and concave seams that mitre when left empty), ramp (run, head, foot, side, at a tile one cell wide and √2 tall). Corner tagging is the FLOOR archetype's vocabulary, not every material's. Above this sits an artist-facing concept, a block that can be placed and knows how to set materials, so the archetype never has to be handled directly.
+- **WHY:** Different geometry needs different concepts, and treating the sixteen-tile corner model as universal forced wall and slope art into a shape it does not have. Fifteen slots is the floor's number, seven the wall's, four the ramp's. Putting the material on the face rather than the voxel is what makes that possible, and a higher-level block keeps the vocabulary from being tedious to work with.
+
+## Transitions exist in every archetype, not only the floor
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model
+- **SCOPE:** architectural (follows "A material fills an archetype's slots", same day)
+- **WHAT:** A transition is two to four materials meeting, and it fills the SAME slot vocabulary as a single material does. Transitions therefore exist in EVERY archetype, not only the floor. A run of wall whose base shows grass creeping up the rock is a wall transition; a wall built of two materials has one between them. Vertical transitions are associated with the geometry they sit on and have miters. Same shape of thing as a material, different subject.
+- **WHY:** The corner model made transitions look like a floor idea, which is wrong. What varies between a material and a transition is only how many materials the art is of; what art is owed is the archetype's business either way.
+
+## The materials screen shows the patch a material draws, and what it meets
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui
+- **SCOPE:** moderate
+- **WHAT:** The Materials screen shows a material as the patch it actually draws — a blob of it run through its archetype's slots and blitted from the real sheet, in the orientation the archetype calls for — beside the raw slot strip, with everything it meets listed to the side. The Meets list is grouped by the archetype each pairing is drawn in, and each group says how many slots that archetype owes. Selecting a pairing swaps the preview to the two materials together. A corner nothing is drawn for shows as a hole in the patch rather than being filled in.
+- **WHY:** A swatch cannot tell you whether a material is finished; an assembled patch can, and a hole in it is the fastest way to see a slot nobody drew. Grouping Meets by archetype is what says how much art each pairing is asking for, since a floor pairing owes fifteen slots and a wall pairing seven.
