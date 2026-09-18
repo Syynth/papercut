@@ -172,7 +172,7 @@ export function normaliseMaterials(raw: unknown): MaterialDef[] {
       id,
       name: typeof m.name === 'string' ? m.name : `Material ${index + 1}`,
       color: typeof m.color === 'number' ? m.color : 0x808080,
-      role: m.role === 'top' || m.role === 'wall' ? m.role : 'any',
+      archetype: m.archetype === 'wall' || m.archetype === 'ramp' ? m.archetype : 'floor',
       top: { sheet: top.sheet, terrain: top.terrain },
       ...(side && typeof side.sheet === 'string' && typeof side.terrain === 'string' ? { side: { sheet: side.sheet, terrain: side.terrain } } : {}),
     }

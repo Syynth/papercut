@@ -157,7 +157,7 @@ export function TerrainBar(props: TerrainPanelProps) {
           <BarDivider />
           {params.paintVerb === 'material'
             ? props.materials.map((material) => (
-                <Chip key={material.id} title={`${material.name} · ${material.role}`} swatch={cssColor(material.color)} active={material.id === params.material} onClick={() => set({ material: material.id })} />
+                <Chip key={material.id} title={`${material.name} · ${material.archetype}`} swatch={cssColor(material.color)} active={material.id === params.material} onClick={() => set({ material: material.id })} />
               ))
             : null}
           <BarDivider />

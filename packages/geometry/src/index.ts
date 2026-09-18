@@ -16,6 +16,7 @@ export {
   CORNER_BITS,
   TerrainSetError,
   addTerrain,
+  assemble,
   cornerAt,
   createTerrainSet,
   edgeCoverage,
@@ -29,8 +30,10 @@ export {
   terrainOf,
   terrainSetFrom,
 } from './terrainset'
-export type { CornerTags, Tag, TerrainDef, TerrainSet } from './terrainset'
+export type { CornerTags, PatchCorner, Tag, TerrainDef, TerrainSet } from './terrainset'
 export { cutGrid, fitsOf, gridCells, remapTags } from './grid'
+export { RAMP_RISE, archetypeOf, archetypes, maskKind, requiredSlots, slotSize } from './archetype'
+export type { Archetype, Slot } from './archetype'
 export { CORNER_BLOCKS, conventionOf, conventions, layoutTags, terrainFromLayout } from './layout'
 export type { Convention, LayoutBlock, LayoutSpec, LayoutTile } from './layout'
 export { renderTemplate } from './template'

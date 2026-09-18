@@ -145,7 +145,7 @@ describe('the document commands, routed to the document actor', () => {
     expect(ground(host.reader.doc).voxels.material).toEqual(voxels)
     expect(materialById(project().materials, voxels[0])?.name).toBe(materialById(before, voxels[0])?.name)
     // A material that names no terrain is not a material.
-    expect(dispatch('project.materials.set', { materials: [{ id: 9, name: 'X', color: 0, role: 'any' }] })).toMatchObject({ ok: false, kind: 'invalid-args' })
+    expect(dispatch('project.materials.set', { materials: [{ id: 9, name: 'X', color: 0, archetype: 'any' }] })).toMatchObject({ ok: false, kind: 'invalid-args' })
     // And two materials may not share an id: a voxel names its material by it.
     expect(dispatch('project.materials.set', { materials: [before[0], { ...before[1], id: before[0].id }] })).toMatchObject({ ok: false, kind: 'invalid-args' })
   })

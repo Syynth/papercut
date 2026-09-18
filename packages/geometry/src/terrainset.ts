@@ -168,3 +168,37 @@ export function pairAuthored(set: TerrainSet, a: string, b: string): boolean {
   for (let mask = 1; mask < 15; mask++) if (exactTile(set, templateTags(mask, a, b)) === null && exactTile(set, templateTags(mask, b, a)) === null) return false
   return true
 }
+
+/** One corner of an assembled patch: where it sits, what meets there, and the tile that draws it. */
+export interface PatchCorner {
+  column: number
+  row: number
+  corners: CornerTags
+  /** The tile tagged exactly so, or `null` when nothing is — which is what the atlas would composite. */
+  tile: number | null
+}
+
+/**
+ * Lay a patch of CELLS out through the dual grid and say which tile each corner needs.
+ *
+ * The editor's preview is this: give it a shape drawn in terrain ids and it answers with the tiles
+ * a map would actually use, so what the artist sees is their own art assembled rather than a swatch
+ * of the material's colour. A corner nothing is tagged for comes back `null`, which is precisely the
+ * hole the atlas fills by compositing — so an incomplete set shows its gaps instead of hiding them.
+ *
+ * `cells` is row-major and may hold `null` for nothing. The corner grid is one larger in each
+ * direction, because corners sit between cells and around the outside.
+ */
+export function assemble(set: TerrainSet, cells: ReadonlyArray<ReadonlyArray<Tag>>): PatchCorner[] {
+  const rows = cells.length
+  const columns = rows === 0 ? 0 : cells[0].length
+  const at = (r: number, c: number): Tag => (r < 0 || c < 0 || r >= rows || c >= columns ? null : (cells[r][c] ?? null))
+  const out: PatchCorner[] = []
+  for (let r = 0; r <= rows; r++) {
+    for (let c = 0; c <= columns; c++) {
+      const corners: CornerTags = [at(r - 1, c - 1), at(r - 1, c), at(r, c - 1), at(r, c)]
+      out.push({ column: c, row: r, corners, tile: corners.every((t) => t === null) ? null : exactTile(set, corners) })
+    }
+  }
+  return out
+}
