@@ -17,7 +17,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 
 import { AIR, PLACEHOLDER_SHEET, materialById, nextMaterialId, type MaterialDef, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage, type TerrainRef } from '@papercut/document'
 import { useDocumentSelector, useHost, useProject, type SettingsSection } from '@papercut/editor-host'
-import { archetypeOf, archetypes, assemble, exactTile, requiredSlots, templateTags, terrainKey, type Archetype, type LoadedSet, type Tag } from '@papercut/geometry'
+import { CORNER_BITS, archetypeOf, archetypes, assemble, exactTile, requiredSlots, templateTags, terrainKey, type Archetype, type LoadedSet, type PatchCorner, type Tag } from '@papercut/geometry'
 import { Action, Actions, ColorInput, Dialog, Field, Item, Library, LibraryGroup, List, Note, Section, Select, Status, TextInput } from '@papercut/ui'
 
 import { run } from './commands'
@@ -151,20 +151,36 @@ const cellsOf = (shape: readonly string[], first: string, second: string | null)
   shape.map((row) => [...row].map((ch) => (ch === '1' ? first : ch === '2' ? second : null)))
 
 /**
+ * Which of the archetype's slots a corner of the patch is: the bits of the
+ * corner that are THIS material, which is exactly how `coverageOf` asked for
+ * its tile. `null` for a corner that is none of it — the inside of the other
+ * material's island — because that is the other material's art, not a slot of
+ * this one.
+ */
+function slotAt(corner: PatchCorner, mine: string): string | null {
+  const mask = CORNER_BITS.reduce((m, bit, i) => (corner.corners[i] === mine ? m | bit : m), 0)
+  return mask === 0 ? null : `mask:${mask}`
+}
+
+/**
  * The patch, on a canvas: one tile blitted per corner, and a cross-hatch where nothing is tagged
  * so a gap reads as a gap. Scaled by whole numbers, because this is pixel art.
+ *
+ * Hovering a corner names the slot it came from, and a named slot lights every
+ * corner drawn with it, so the strip and the patch point at each other. The
+ * light is the rest of the patch going dark rather than the matches going
+ * bright, because at one tile in forty the bright version is the harder read.
  */
-function PatchPreview({ loaded, cells, scale }: { loaded: LoadedSet; cells: Tag[][]; scale: number }) {
+function PatchPreview({ loaded, corners, columns, rows, scale, mine, lit, onLight }: { loaded: LoadedSet; corners: readonly PatchCorner[]; columns: number; rows: number; scale: number; mine: string; lit: string | null; onLight: (slot: string | null) => void }) {
   const ref = useRef<HTMLCanvasElement>(null)
-  const corners = useMemo(() => assemble(loaded.set, cells), [loaded, cells])
+
   useEffect(() => {
     const canvas = ref.current
     if (!canvas) return
     const t = loaded.set.tile
-    const columns = (cells[0]?.length ?? 0) + 1
-    const rows = cells.length + 1
-    const w = columns * t * scale
-    const h = rows * t * scale
+    const step = t * scale
+    const w = columns * step
+    const h = rows * step
     if (canvas.width !== w || canvas.height !== h) {
       canvas.width = w
       canvas.height = h
@@ -174,30 +190,58 @@ function PatchPreview({ loaded, cells, scale }: { loaded: LoadedSet; cells: Tag[
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, w, h)
     const source = tileCanvas(loaded)
-    for (const corner of corners) {
-      const dx = corner.column * t * scale
-      const dy = corner.row * t * scale
+
+    const paint = (corner: PatchCorner): void => {
+      const dx = corner.column * step
+      const dy = corner.row * step
       if (corner.tile === null) {
-        if (corner.corners.every((c) => c === null)) continue
+        if (corner.corners.every((c) => c === null)) return
         // A corner the set has no tile for: the atlas would composite it, so show it as missing.
         ctx.fillStyle = 'rgba(229, 99, 111, 0.22)'
-        ctx.fillRect(dx, dy, t * scale, t * scale)
+        ctx.fillRect(dx, dy, step, step)
         ctx.strokeStyle = 'rgba(229, 99, 111, 0.85)'
         ctx.lineWidth = 1
         ctx.beginPath()
         ctx.moveTo(dx + 2, dy + 2)
-        ctx.lineTo(dx + t * scale - 2, dy + t * scale - 2)
-        ctx.moveTo(dx + t * scale - 2, dy + 2)
-        ctx.lineTo(dx + 2, dy + t * scale - 2)
+        ctx.lineTo(dx + step - 2, dy + step - 2)
+        ctx.moveTo(dx + step - 2, dy + 2)
+        ctx.lineTo(dx + 2, dy + step - 2)
         ctx.stroke()
-        continue
+        return
       }
       const sx = (corner.tile % loaded.set.columns) * t
       const sy = Math.floor(corner.tile / loaded.set.columns) * t
-      ctx.drawImage(source, sx, sy, t, t, dx, dy, t * scale, t * scale)
+      ctx.drawImage(source, sx, sy, t, t, dx, dy, step, step)
     }
-  }, [loaded, cells, corners, scale])
-  return <canvas ref={ref} className="ui-patch" />
+
+    for (const corner of corners) paint(corner)
+    if (!lit) return
+
+    // Everything goes under a veil, then the slot's own corners come back up through it.
+    ctx.fillStyle = 'rgba(15, 17, 21, 0.68)'
+    ctx.fillRect(0, 0, w, h)
+    for (const corner of corners) {
+      if (slotAt(corner, mine) !== lit) continue
+      paint(corner)
+      ctx.strokeStyle = '#e9a23b'
+      ctx.lineWidth = 2
+      ctx.strokeRect(corner.column * step + 1, corner.row * step + 1, step - 2, step - 2)
+    }
+  }, [loaded, corners, scale, columns, rows, mine, lit])
+
+  const at = (event: { clientX: number; clientY: number }): string | null => {
+    const canvas = ref.current
+    if (!canvas) return null
+    const box = canvas.getBoundingClientRect()
+    if (box.width === 0) return null
+    const step = loaded.set.tile * scale
+    const column = Math.floor(((event.clientX - box.left) * (canvas.width / box.width)) / step)
+    const row = Math.floor(((event.clientY - box.top) * (canvas.height / box.height)) / step)
+    const corner = corners[row * columns + column]
+    return corner && corner.column === column && corner.row === row ? slotAt(corner, mine) : null
+  }
+
+  return <canvas ref={ref} className="ui-patch" onPointerMove={(event) => onLight(at(event))} onPointerLeave={() => onLight(null)} />
 }
 
 /** The sheet as a canvas, once per image, so a patch is blits rather than a hundred data URLs. */
@@ -210,11 +254,11 @@ function tileCanvas(loaded: LoadedSet): HTMLCanvasElement {
   return canvas
 }
 
-/** One of an archetype's slots, with the tile that fills it or an empty frame. */
-function SlotTile({ loaded, tile, title }: { loaded: LoadedSet | undefined; tile: number | null; title: string }) {
+/** One of an archetype's slots, with the tile that fills it or an empty frame. Hovering it lights its corners in the patch. */
+function SlotTile({ loaded, tile, title, lit, onLight }: { loaded: LoadedSet | undefined; tile: number | null; title: string; lit: boolean; onLight: () => void }) {
   const url = loaded && tile !== null ? tileUrl(loaded, tile) : undefined
   return (
-    <span className={`ui-slot ${url ? '' : 'is-empty'}`} title={title}>
+    <span className={`ui-slot ${url ? '' : 'is-empty'} ${lit ? 'is-lit' : ''}`} title={title} onPointerEnter={onLight}>
       {url ? <img src={url} alt="" /> : null}
     </span>
   )
@@ -264,6 +308,8 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
   const currentMap = host.children.project.getSnapshot().context.map
   const mapsUsing = (id: number): number => summaries.filter((s) => (s.path === currentMap ? (counts[id] ?? 0) > 0 : s.materials.has(id))).length
   const [meeting, setMeeting] = useState<number | null>(null)
+  // The slot the pointer is over, in the strip or in the patch; each lights the other.
+  const [lit, setLit] = useState<string | null>(null)
   const [deleting, setDeleting] = useState<{ from: MaterialDef; to: number } | null>(null)
   const notify = (notice: string): void => void run(host, 'view.set', { notice })
 
@@ -294,6 +340,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
     commit([...materials, fresh])
     onSelect(id)
     setMeeting(null)
+    setLit(null)
   }
   const remove = (): void => {
     if (!material || materials.length <= 1) return
@@ -337,6 +384,10 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
     [material, other],
   )
   const crossSheet = Boolean(other && material && other.top.sheet !== material.top.sheet)
+  // Assembled here rather than in the preview, because the strip's readout counts them too.
+  const corners = useMemo(() => (cover?.set ? assemble(cover.set.set, cells) : []), [cover?.set, cells])
+  const litSlot = lit === null ? undefined : previewArchetype.slots.find((s) => s.id === lit)
+  const litCount = lit === null || !material ? 0 : corners.filter((c) => slotAt(c, material.top.terrain) === lit).length
 
   if (!material) return <Note>No materials.</Note>
 
@@ -353,7 +404,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
       ) : null}
       <span className="ui-library-soon">{previewArchetype.title}</span>
       <span className="ui-tagger-grow" />
-      {other ? <Action title="Back to the material" onClick={() => setMeeting(null)} /> : null}
+      {other ? <Action title="Back to the material" onClick={() => { setMeeting(null); setLit(null) }} /> : null}
     </>
   )
 
@@ -369,7 +420,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
               {mine.map((m) => (
                 <div key={m.id} className={`ui-tagger-item ${m.id === active ? 'is-active' : ''}`}>
                   <span className="ui-tagger-swatch" style={{ background: cssColor(m.color), cursor: 'default' }} />
-                  <button type="button" className="ui-tagger-name" onClick={() => { onSelect(m.id); setMeeting(null) }}>
+                  <button type="button" className="ui-tagger-name" onClick={() => { onSelect(m.id); setMeeting(null); setLit(null) }}>
                     {m.name}
                   </button>
                   <span className="ui-library-dot is-muted" title={`used in ${mapsUsing(m.id)} maps`} />
@@ -391,20 +442,45 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
       {cover?.set ? (
         <>
           <div style={{ display: 'grid', gap: 8, justifyItems: 'start' }}>
-            <PatchPreview loaded={cover.set} cells={cells} scale={cover.set.set.tile <= 16 ? 3 : 1} />
+            <PatchPreview
+              loaded={cover.set}
+              corners={corners}
+              columns={(cells[0]?.length ?? 0) + 1}
+              rows={cells.length + 1}
+              scale={cover.set.set.tile <= 16 ? 3 : 1}
+              mine={material.top.terrain}
+              lit={lit}
+              onLight={setLit}
+            />
             <span className="ui-hint-line">
               {other ? 'how the two draw where they meet' : 'how it draws — the slots, assembled'}
             </span>
           </div>
-          <div style={{ display: 'grid', gap: 8, justifyItems: 'start' }}>
+          <div style={{ display: 'grid', gap: 8, justifyItems: 'start' }} onPointerLeave={() => setLit(null)}>
             <div className="ui-slots">
               {previewArchetype.slots.map((slot) => (
-                <SlotTile key={slot.id} loaded={cover.set} tile={cover.tiles.get(slot.id) ?? null} title={`${slot.name}${slot.note ? ` — ${slot.note}` : ''}${slot.optional ? ' (mitred when empty)' : ''}`} />
+                <SlotTile
+                  key={slot.id}
+                  loaded={cover.set}
+                  tile={cover.tiles.get(slot.id) ?? null}
+                  title={`${slot.name}${slot.note ? ` — ${slot.note}` : ''}${slot.optional ? ' (mitred when empty)' : ''}`}
+                  lit={lit === slot.id}
+                  onLight={() => setLit(slot.id)}
+                />
               ))}
             </div>
             <span className="ui-hint-line">
-              {previewArchetype.slots.length} slots · {cover.filled} of {cover.required} drawn
-              {previewArchetype.slots.some((s) => s.optional) ? ' · seams mitred when empty' : ''}
+              {litSlot ? (
+                <>
+                  {litSlot.name}
+                  {litSlot.note ? ` · ${litSlot.note}` : ''} · {litCount} {litCount === 1 ? 'corner' : 'corners'} of the patch
+                </>
+              ) : (
+                <>
+                  {previewArchetype.slots.length} slots · {cover.filled} of {cover.required} drawn
+                  {previewArchetype.slots.some((s) => s.optional) ? ' · seams mitred when empty' : ''}
+                </>
+              )}
             </span>
           </div>
         </>
@@ -447,7 +523,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
             {rows.map((m) => (
               <div key={m.other.id} className={`ui-tagger-item ${meeting === m.other.id ? 'is-active' : ''}`}>
                 <span className="ui-tagger-swatch" style={{ background: cssColor(m.other.color), cursor: 'default' }} />
-                <button type="button" className="ui-tagger-name" onClick={() => setMeeting(meeting === m.other.id ? null : m.other.id)}>
+                <button type="button" className="ui-tagger-name" onClick={() => { setMeeting(meeting === m.other.id ? null : m.other.id); setLit(null) }}>
                   {m.other.name}
                 </button>
                 <Status tone={m.crossSheet ? 'warn' : m.filled === m.required ? 'ok' : m.filled === 0 ? 'muted' : 'warn'}>

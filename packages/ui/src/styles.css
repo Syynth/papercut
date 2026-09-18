@@ -2443,17 +2443,18 @@ body {
 .ui-library-stage .ui-patch {
   display: block;
   margin: 0;
+  /* Never scaled by a fraction: the stage scrolls instead, because this is pixel art. */
   image-rendering: pixelated;
   border: 1px solid var(--ui-line);
   border-radius: 3px;
   background: #0f1115;
-  max-width: 100%;
 }
 .ui-slots {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  max-width: 560px;
+  /* Wide enough for a floor's fifteen masks in one row; narrower panes wrap. */
+  max-width: 664px;
 }
 .ui-slot {
   width: 40px;
@@ -2480,4 +2481,11 @@ body {
   font-size: 11.5px;
   line-height: 1.5;
   color: var(--ui-ink-3);
+}
+.ui-slot.is-lit {
+  border-color: var(--ui-accent);
+  box-shadow: 0 0 0 1px var(--ui-accent);
+}
+.ui-patch {
+  cursor: crosshair;
 }
