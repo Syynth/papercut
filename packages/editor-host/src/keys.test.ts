@@ -66,8 +66,8 @@ describe('the default keymap', () => {
     // editor's own bindings rather than a fixture's.
     expect(hit(live, 'ctrl+z')).toEqual({ kind: 'none' })
 
-    // The layer-1 voxel of cell 0 on the 8×8 fixture, air until now: one material patch stands the column a cube taller.
-    live.children.document.send({ type: 'patch', label: 'Raise', patches: [{ t: 'voxel', id: 'ground', field: 'material', index: 64, value: 0 }] })
+    // The layer-1 voxel of cell 0 on the 8×8 fixture, air until now: one shape patch stands the column a cube taller.
+    live.children.document.send({ type: 'patch', label: 'Raise', patches: [{ t: 'voxel', id: 'ground', field: 'shape', index: 64, value: 0 }] })
 
     expect(hit(live, 'ctrl+z')).toMatchObject({ command: 'undo' })
     expect(hit(live, 'meta+z')).toMatchObject({ command: 'undo' })

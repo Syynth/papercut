@@ -7,7 +7,8 @@ import {
   columnHeights,
   createMap,
   faceKey,
-  materialAt,
+  topLayersAt,
+  layersOf,
   paintTint,
   patchAddress,
   raise,
@@ -165,7 +166,7 @@ describe('the terrain commands, dispatched through the host', () => {
     expect(g().water[cellIndex(size, 1, 1)]).toBe(5)
 
     expect(dispatch('terrain.material', { structure: 'ground', cells: [[1, 1]], material: 1 })).toEqual({ ok: true })
-    expect(materialAt(g(), 1, 1)).toBe(1)
+    expect(topLayersAt(g(), 1, 1)).toEqual(layersOf(1))
 
     // Smoothing moves a column toward the mean of its neighbours by at most
     // `strength`: every neighbour of (1,1) is at 2, so it comes down one.
@@ -173,13 +174,15 @@ describe('the terrain commands, dispatched through the host', () => {
     expect(topHeight(g(), 1, 1)).toBe(3)
     expect(g().water[cellIndex(size, 1, 1)]).toBe(5)
 
-    // A face override holds a material, keyed by voxel and side: the bottom
-    // cube's west face here. `null` clears it, and the label says which.
+    // A face holds material layers, keyed by voxel and side: the bottom
+    // cube's west face here. `null` empties a layer, and the label says which.
     expect(dispatch('terrain.face', { structure: 'ground', faces: [{ x: 1, z: 1, y: 0, dir: 2 }], material: 2 })).toEqual({ ok: true })
-    expect(ground(host.reader.doc).paint.faces[faceKey(1, 1, 0, 2)]).toBe(2)
+    expect(ground(host.reader.doc).paint.faces[faceKey(1, 1, 0, 2)]).toEqual(layersOf(2))
     expect(host.reader.undoLabel()).toBe('Paint face')
+    expect(dispatch('terrain.face', { structure: 'ground', faces: [{ x: 1, z: 1, y: 0, dir: 2 }], material: 3, layer: 1 })).toEqual({ ok: true })
+    expect(ground(host.reader.doc).paint.faces[faceKey(1, 1, 0, 2)]).toEqual(['m:2', 'm:3', null, null])
     expect(dispatch('terrain.face', { structure: 'ground', faces: [{ x: 1, z: 1, y: 0, dir: 2 }], material: null })).toEqual({ ok: true })
-    expect(ground(host.reader.doc).paint.faces[faceKey(1, 1, 0, 2)]).toBeUndefined()
+    expect(ground(host.reader.doc).paint.faces[faceKey(1, 1, 0, 2)]).toEqual([null, 'm:3', null, null])
     expect(host.reader.undoLabel()).toBe('Clear face')
 
     expect(dispatch('terrain.tint', { structure: 'ground', cells: [[1, 1]], tint: 0x00ff00 })).toEqual({ ok: true })
@@ -218,9 +221,11 @@ describe('the tool contract, which a declaration cannot carry', () => {
     expect(dispatch('terrain.params', { brush: { size: 3, shape: 'square' } })).toEqual({ ok: true })
     const patches = handler?.begin({ pick: { surface: top, point: null, objectId: null }, modifiers: { shift: false, alt: false, ctrl: false } })
     // Nine cells, each one cube up (the default strength) from a whole cube:
-    // the new top voxel's material, per cell; its shape is already a block.
-    expect(patches).toHaveLength(9)
-    expect(new Set(patches?.map((patch) => (patch.t === 'voxel' ? patch.index % (8 * 8) : -1))).size).toBe(9)
+    // one new block per cell, then the paint that moves with the surface.
+    const shapes = patches?.filter((patch) => patch.t === 'voxel') ?? []
+    expect(shapes).toHaveLength(9)
+    expect(new Set(shapes.map((patch) => patch.index % (8 * 8))).size).toBe(9)
+    expect(patches?.some((patch) => patch.t === 'voxelPaint')).toBe(true)
 
     // And it applied nothing: a handler answers with patches, and the stroke
     // actor is what sends them to the document (#13).
@@ -257,12 +262,13 @@ function pressAt(x: number, y: number, extra: Partial<PointerPress> = {}): Point
  * that went slab, block, slab, block over four half-tiles is back where it
  * began, so it is not one of them.
  */
-function changedAddresses(before: Record<'material' | 'shape' | 'water', number[]>, sent: Patch[]): Set<string> {
+function changedAddresses(before: { shape: number[]; water: number[]; faces: Record<string, unknown> }, sent: Patch[]): Set<string> {
   const last = new Map<string, Patch>()
   for (const patch of sent) last.set(patchAddress(patch), patch)
   const changed = new Set<string>()
   for (const [address, patch] of last) {
     if (patch.t === 'voxel' && patch.value !== before[patch.field][patch.index]) changed.add(address)
+    if (patch.t === 'voxelPaint' && patch.layer === 'faces' && JSON.stringify(patch.value) !== JSON.stringify(before.faces[patch.key])) changed.add(address)
   }
   return changed
 }
@@ -288,7 +294,7 @@ describe('a terrain stroke, from the pointer to the document', () => {
     dispatch('terrain.params', { brush: { size: 3, shape: 'square' }, strength: 1 })
     const doc = host.reader.doc
     const before = columnHeights(ground(doc))
-    const arrays = { material: ground(doc).voxels.material.slice(), shape: ground(doc).voxels.shape.slice(), water: ground(doc).water.slice() }
+    const arrays = { shape: ground(doc).voxels.shape.slice(), water: ground(doc).water.slice(), faces: structuredClone(ground(doc).paint.faces) as Record<string, unknown> }
     const at = (x: number, y: number) => topHeight(ground(doc), x, y)
     // What the document actor received, off the system's inspector (v6's
     // `Actor.send` is a getter and cannot be spied on). Matched by the id the

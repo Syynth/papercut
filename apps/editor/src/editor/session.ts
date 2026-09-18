@@ -15,7 +15,7 @@
  * hand the viewport the images. Nothing in an actor touches a file.
  */
 
-import { AIR, MAPS_DIR, PROJECT_FILE, createMap, plainGrid, serialize, serializeProject, sheetName, type Grid, type ImageEntry, type ImageKind, type MapDoc, type Patch, type ReadonlyMapDoc, type RgbaImage } from '@papercut/document'
+import { MAPS_DIR, PROJECT_FILE, createMap, slotMaterial, slotOf, plainGrid, serialize, serializeProject, sheetName, type Grid, type ImageEntry, type ImageKind, type MapDoc, type MaterialLayers, type Patch, type ReadonlyMapDoc, type RgbaImage } from '@papercut/document'
 import type { Host } from '@papercut/editor-host'
 import { createSampleMap, generatePlaceholderTerrainSet } from '@papercut/fixtures'
 import { conventionOf, remapTags, renderTemplate, terrainOf, type LoadedSet, type TerrainSet } from '@papercut/geometry'
@@ -112,8 +112,12 @@ export function summarise(path: string, doc: ReadonlyMapDoc): MapSummary {
       width = Math.max(width, s.size.width)
       height = Math.max(height, s.size.height)
     }
-    for (const m of s.voxels.material) if (m !== AIR) materials.add(m)
-    for (const m of Object.values(s.paint.faces)) materials.add(m)
+    for (const stack of Object.values(s.paint.faces)) {
+      for (const slot of stack) {
+        const m = slotMaterial(slot)
+        if (m !== null) materials.add(m)
+      }
+    }
   }
   return { path, name: doc.name, width, height, materials }
 }
@@ -594,6 +598,12 @@ export async function revealInFolder(host: Host, path: string): Promise<void> {
   await reveal.reveal(joinPath(folder, path))
 }
 
+/** A face's layers with every `from` swapped for `to`, or `null` when none held it. */
+function repainted(stack: Readonly<MaterialLayers>, from: number, to: number): MaterialLayers | null {
+  if (!stack.some((slot) => slotMaterial(slot) === from)) return null
+  return stack.map((slot) => (slotMaterial(slot) === from ? slotOf(to) : slot)) as MaterialLayers
+}
+
 /**
  * Take a material out of the library, repainting everything that uses it — in the open map through the document,
  * in every other map through its file — as `to`. The one edit that touches every map, so it is one call.
@@ -608,10 +618,10 @@ export async function repaintAndDeleteMaterial(host: Host, session: Session, fro
   for (const id of doc.structureOrder) {
     const s = doc.structures[id]
     if (!s || s.kind !== 'voxel') continue
-    s.voxels.material.forEach((m, index) => {
-      if (m === from) patches.push({ t: 'voxel', id, field: 'material', index, value: to })
-    })
-    for (const [key, m] of Object.entries(s.paint.faces)) if (m === from) patches.push({ t: 'voxelPaint', id, layer: 'faces', key, value: to })
+    for (const [key, stack] of Object.entries(s.paint.faces)) {
+      const next = repainted(stack, from, to)
+      if (next) patches.push({ t: 'voxelPaint', id, layer: 'faces', key, value: next })
+    }
   }
   if (patches.length > 0) host.children.document.send({ type: 'patch', label: 'Repaint material', patches })
   // Every other map: read, repaint, write.
@@ -627,15 +637,10 @@ export async function repaintAndDeleteMaterial(host: Host, session: Session, fro
     for (const id of other.structureOrder) {
       const s = other.structures[id]
       if (!s || s.kind !== 'voxel') continue
-      s.voxels.material.forEach((m, index) => {
-        if (m === from) {
-          s.voxels.material[index] = to
-          touched = true
-        }
-      })
-      for (const key of Object.keys(s.paint.faces)) {
-        if (s.paint.faces[key] === from) {
-          s.paint.faces[key] = to
+      for (const [key, stack] of Object.entries(s.paint.faces)) {
+        const next = repainted(stack, from, to)
+        if (next) {
+          s.paint.faces[key] = next
           touched = true
         }
       }

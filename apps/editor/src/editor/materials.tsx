@@ -15,7 +15,7 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
-import { AIR, materialById, nextMaterialId, tagOf, type MaterialDef, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage, type Tag } from '@papercut/document'
+import { materialById, slotMaterial, nextMaterialId, tagOf, type MaterialDef, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage, type Tag } from '@papercut/document'
 import { useDocumentSelector, useHost, useProject, type SettingsSection } from '@papercut/editor-host'
 import { CORNER_BITS, archetypeOf, archetypes, arrangements, exactTile, templateTags, type Archetype, type CornerTags, type LoadedSet } from '@papercut/geometry'
 import { Action, Actions, ColorInput, Dialog, Field, Item, Library, LibraryGroup, List, Note, Section, Select, Status, TextInput } from '@papercut/ui'
@@ -71,14 +71,15 @@ export function swatchFor(sets: readonly LoadedSet[], material: number): string 
 const cssColor = (color: number): string => `#${color.toString(16).padStart(6, '0')}`
 const materialsOf = (project: ReadonlyProjectDoc): readonly MaterialDef[] => project.materials
 
-/** How many voxels and face overrides of the open map use each material, by id. Walks every voxel, so it is selected settled. */
+/** How many faces of the open map hold each material on any material layer, by id. Walks every face, so it is selected settled. */
 function usage(doc: ReadonlyMapDoc): Record<number, number> {
   const counts: Record<number, number> = {}
   for (const id of doc.structureOrder) {
     const s = doc.structures[id]
     if (!s || s.kind !== 'voxel') continue
-    for (const m of s.voxels.material) if (m !== AIR) counts[m] = (counts[m] ?? 0) + 1
-    for (const m of Object.values(s.paint.faces)) counts[m] = (counts[m] ?? 0) + 1
+    for (const stack of Object.values(s.paint.faces)) {
+      for (const m of new Set(stack.map(slotMaterial))) if (m !== null) counts[m] = (counts[m] ?? 0) + 1
+    }
   }
   return counts
 }
@@ -88,7 +89,7 @@ const sameCounts = (a: Record<number, number>, b: Record<number, number>): boole
   return keys.length === Object.keys(b).length && keys.every((k) => a[Number(k)] === b[Number(k)])
 }
 
-/** The inspector's picker. `active` is the active material's ID, what the brush paints and what a voxel stores — never a position in the list. */
+/** The inspector's picker. `active` is the active material's ID, what the brush paints and what a face's layers hold — never a position in the list. */
 export function MaterialsPicker({ active, sets }: { active: number; sets: readonly LoadedSet[] }) {
   const host = useHost()
   const materials = useProject(materialsOf)
@@ -381,7 +382,6 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
   const change = (changes: Partial<MaterialDef>): void => {
     if (!material) return
     const next = { ...material, ...changes }
-    if (next.side === undefined) delete next.side
     commit(materials.map((m) => (m.id === active ? next : m)))
   }
   const move = (to: number): void => {
@@ -568,13 +568,6 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
           <Select value={material.archetype} options={archetypes().map((a) => ({ value: a.id, label: a.title }))} onChange={(id) => change({ archetype: id })} />
         </Field>
       </div>
-      <Field label="Cliffs" hint="What a voxel of this cuts its vertical faces with. Not art indirection: another material, on another face.">
-        <Select
-          value={material.side === undefined ? 'same' : String(material.side)}
-          options={[{ value: 'same', label: 'Made of this one' }, ...materials.filter((m) => m.id !== material.id).map((m) => ({ value: String(m.id), label: m.name }))]}
-          onChange={(key) => change({ side: key === 'same' ? undefined : Number(key) })}
-        />
-      </Field>
 
       <div className="ui-k">Meets</div>
       {archetypes().map((a) => {

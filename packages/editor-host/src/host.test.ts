@@ -1,4 +1,4 @@
-import { FORMAT_VERSION, HALF, addObject, createDocument, createMap, createProject, serializeProject, defaultFacing, frameOf, groundHeight, materialById, raise, removeObject, serialize, tagOf, topHeight, type MapDoc, type MapObject, type Patch, type ProjectDoc, type ReadonlyMapDoc, type SurfaceAddress, type SurfaceKind, type Tag, type VoxelStructure } from '@papercut/document'
+import { FORMAT_VERSION, HALF, addObject, createDocument, createMap, createProject, serializeProject, defaultFacing, frameOf, groundHeight, materialById, raise, slotMaterial, removeObject, serialize, tagOf, topHeight, type MapDoc, type MapObject, type Patch, type ProjectDoc, type ReadonlyMapDoc, type SurfaceAddress, type SurfaceKind, type Tag, type VoxelStructure } from '@papercut/document'
 import { commands, defineFeature, dispose, provideFeature, type HotHandle, reserveOwner, tools as toolDeclarations } from '@papercut/registry'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { SimulatedClock, setup as setupMachine, types, type AnyActorRef } from 'xstate'
@@ -130,28 +130,27 @@ describe('the document commands, routed to the document actor', () => {
     expect(host.reader.undoLabel()).toBe('Add object')
   })
 
-  it('replaces the project\'s material list whole, so a reorder is one change and no voxel changes', () => {
+  it('replaces the project\'s material list whole, so a reorder is one change and no face changes', () => {
     const { host, dispatch } = makeHost()
     const project = () => host.children.project.getSnapshot().context.project
     const before = project().materials
     const reordered = [...before].reverse()
-    const voxels = ground(host.reader.doc).voxels.material.slice()
+    const faces: unknown = JSON.parse(JSON.stringify(ground(host.reader.doc).paint.faces))
     const undo = host.reader.undoLabel()
     expect(dispatch('project.materials.set', { materials: reordered })).toEqual({ ok: true })
     expect(project().materials.map((m) => m.id)).toEqual(reordered.map((m) => m.id))
     // A project setting, not a document edit: nothing lands on the undo stack.
     expect(host.reader.undoLabel()).toBe(undo)
-    // The list's order is only its priority: a voxel names its material by id, so no voxel changed what it is made of.
-    expect(ground(host.reader.doc).voxels.material).toEqual(voxels)
-    expect(materialById(project().materials, voxels[0])?.name).toBe(materialById(before, voxels[0])?.name)
+    // The list's order is only its priority: a face names its material by id, so no face changed what it is made of.
+    expect(ground(host.reader.doc).paint.faces).toEqual(faces)
+    const first = slotMaterial(ground(host.reader.doc).paint.faces['0,0,0,4'][0]) ?? -1
+    expect(materialById(project().materials, first)?.name).toBe(materialById(before, first)?.name)
     // A material owes the slots of an archetype papercut ships, so one naming anything else is not a material.
     expect(dispatch('project.materials.set', { materials: [{ id: 9, name: 'X', color: 0, archetype: 'any' }] })).toMatchObject({ ok: false, kind: 'invalid-args' })
     // And two materials may not share an id: a voxel names its material by it.
     expect(dispatch('project.materials.set', { materials: [before[0], { ...before[1], id: before[0].id }] })).toMatchObject({ ok: false, kind: 'invalid-args' })
-    // `side` is another material by id (ruling of 2026-09-17), so one naming an id the list does not hold would
-    // send the mesher looking for art that cannot exist, and is refused here rather than at the cliff.
-    expect(dispatch('project.materials.set', { materials: [{ id: 9, name: 'X', color: 0, archetype: 'floor', side: 11 }] })).toMatchObject({ ok: false, kind: 'invalid-args' })
-    expect(dispatch('project.materials.set', { materials: [{ id: 9, name: 'X', color: 0, archetype: 'floor', side: 9 }] })).toEqual({ ok: true })
+    // A material has no `side` any more (ruling of 2026-09-18): each face carries its own material layers.
+    expect(dispatch('project.materials.set', { materials: [{ id: 9, name: 'X', color: 0, archetype: 'floor', side: 9 }] })).toMatchObject({ ok: false, kind: 'invalid-args' })
   })
 
   it('holds the project the app opened, and takes its settings and lists as commands', () => {

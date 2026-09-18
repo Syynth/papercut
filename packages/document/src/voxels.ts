@@ -2,8 +2,8 @@
  * Voxels: the ground as cubes, and everything derived from a column.
  *
  * A voxel volume is a box of cubes, one tile on every side, `layers` deep
- * along y. A voxel is `AIR` or a material plus a shape. Nothing stores a
- * height: the top of a column is the highest voxel that is not air, and its
+ * along y. A voxel is a shape, or `AIR`; what it looks like lives on its
+ * faces (`paint.ts`). Nothing stores a height: the top of a column is the highest voxel that is not air, and its
  * shape says how tall that voxel is and whether it slopes. Every height the
  * rest of the editor reads — `heightAt`, `cornerHeights`, the layer view's
  * cap — is derived from here, in half-tiles, so a cube is two and a slab is
@@ -19,8 +19,8 @@
  * imports it.
  */
 
-import { AIR, DIR_VECTORS, NO_RAMP, SHAPE_BLOCK, SHAPE_HALF_RAMP, SHAPE_HALF_RAMP_UP, SHAPE_RAMP, SHAPE_SLAB, cellIndex, inBounds, type MapSize } from './document'
-import { FACE_BOTTOM, FACE_TOP } from './paint'
+import { AIR, DIR_VECTORS, NO_RAMP, SHAPE_BLOCK, SHAPE_HALF_RAMP, SHAPE_HALF_RAMP_UP, SHAPE_RAMP, SHAPE_SLAB, cellIndex, inBounds, layersOf, type DeepReadonly, type MapSize, type MaterialLayers } from './document'
+import { FACE_BOTTOM, FACE_TOP, faceKey } from './paint'
 import type { ReadonlyVoxel, VoxelStructure } from './structure'
 
 export interface VoxelBox {
@@ -79,11 +79,11 @@ export function shapeLowHeight(shape: number): number {
   return shape >= SHAPE_HALF_RAMP_UP && shape < SHAPE_HALF_RAMP_UP + 4 ? 1 : 0
 }
 
-/** The layer of the column's top voxel, or -1 for an empty column. */
+/** The layer of the column's top voxel, or -1 for an empty column, whose top is the bedrock floor. */
 export function columnTopAt(voxel: ReadonlyVoxel, x: number, z: number): number {
   const { width, height } = voxel.size
-  const material = voxel.voxels.material
-  for (let y = voxel.layers - 1; y >= 0; y--) if (material[(y * height + z) * width + x] !== AIR) return y
+  const shape = voxel.voxels.shape
+  for (let y = voxel.layers - 1; y >= 0; y--) if (shape[(y * height + z) * width + x] !== AIR) return y
   return -1
 }
 
@@ -118,12 +118,11 @@ export function heightAt(voxel: ReadonlyVoxel, x: number, z: number): number {
   return topHeight(voxel, clampX(voxel, x), clampZ(voxel, z))
 }
 
-/** The top voxel's material, clamped at the edges; the first material for an empty column. */
-export function materialAt(voxel: ReadonlyVoxel, x: number, z: number): number {
+/** The column's top face's material layers, clamped at the edges; `undefined` when that face is unpainted. */
+export function topLayersAt(voxel: ReadonlyVoxel, x: number, z: number): DeepReadonly<MaterialLayers> | undefined {
   const cx = clampX(voxel, x)
   const cz = clampZ(voxel, z)
-  const y = columnTopAt(voxel, cx, cz)
-  return y < 0 ? 0 : voxel.voxels.material[voxelIndex(voxel, cx, cz, y)]
+  return voxel.paint.faces[faceKey(cx, cz, columnTopAt(voxel, cx, cz), FACE_TOP)]
 }
 
 /** The direction the column's top descends toward, or NO_RAMP. */
@@ -131,10 +130,10 @@ export function rampDirAt(voxel: ReadonlyVoxel, x: number, z: number): number {
   return shapeRampDir(topShapeAt(voxel, x, z))
 }
 
-/** The voxel at (x, z, y), or AIR off the volume. */
+/** The shape of the voxel at (x, z, y), or AIR off the volume. */
 export function voxelAt(voxel: ReadonlyVoxel, x: number, z: number, y: number): number {
   if (!inBounds(voxel.size, x, z) || y < 0 || y >= voxel.layers) return AIR
-  return voxel.voxels.material[voxelIndex(voxel, x, z, y)]
+  return voxel.voxels.shape[voxelIndex(voxel, x, z, y)]
 }
 
 /**
@@ -158,17 +157,87 @@ export function columnHeights(voxel: ReadonlyVoxel): number[] {
 }
 
 /**
- * Stand a column at `height` half-tiles by writing the arrays directly, in
- * `material`: for building a map before it has a store — a fixture, a test.
- * An edit goes through `columnPatches` in `ops.ts` and the document actor.
+ * Every face of one column that can draw, and so carries material layers:
+ * each top with air above it — on an empty column, the bedrock floor at
+ * `y = -1` — each exposed bottom, and each side whose neighbour at that
+ * layer is not a full block. That last is wider than `faceExposed` on
+ * purpose: a ramp or a slab beside a voxel leaves part of its side showing,
+ * and the mesher draws that part. What `reconcileFaces` in `ops.ts` compares
+ * before and after an edit, and what `settleFaces` keeps.
  */
-export function fillColumn(voxel: VoxelStructure, x: number, z: number, height: number, material = 0, topShape?: number): void {
-  const shapes = columnShapes(voxel.layers, height, topShape)
+export function exposedFacesOf(voxel: ReadonlyVoxel, x: number, z: number): string[] {
+  const out: string[] = []
+  if (columnTopAt(voxel, x, z) < 0) out.push(faceKey(x, z, -1, FACE_TOP))
   for (let y = 0; y < voxel.layers; y++) {
-    const index = voxelIndex(voxel, x, z, y)
-    voxel.voxels.material[index] = shapes[y] === AIR ? AIR : material
-    voxel.voxels.shape[index] = shapes[y] === AIR ? SHAPE_BLOCK : shapes[y]
+    if (voxelAt(voxel, x, z, y) === AIR) continue
+    for (let dir = 0; dir < 4; dir++) {
+      const [dx, dz] = DIR_VECTORS[dir]
+      if (voxelAt(voxel, x + dx, z + dz, y) !== SHAPE_BLOCK) out.push(faceKey(x, z, y, dir))
+    }
+    if (faceExposed(voxel, x, z, y, FACE_TOP)) out.push(faceKey(x, z, y, FACE_TOP))
+    if (faceExposed(voxel, x, z, y, FACE_BOTTOM)) out.push(faceKey(x, z, y, FACE_BOTTOM))
   }
+  return out
+}
+
+/** How `fillColumn` paints the column it stands: its top, its sides (the top's material when absent), and a sloped top shape. */
+export interface ColumnFill {
+  material: number
+  sides?: number
+  shape?: number
+}
+
+/**
+ * Stand a column at `height` half-tiles by writing the volume directly: for
+ * building a map before it has a store — a fixture, a test. It paints the
+ * column's top and every side of every voxel it holds, hidden or not, and
+ * any side of a neighbour it uncovers that has no paint; call `settleFaces`
+ * once the volume is built to drop the faces nothing can see.
+ * An edit goes through `columnPatches` and `reconcileFaces` in `ops.ts`
+ * instead, and the document actor.
+ */
+export function fillColumn(voxel: VoxelStructure, x: number, z: number, height: number, fill: ColumnFill = { material: 0 }): void {
+  const shapes = columnShapes(voxel.layers, height, fill.shape)
+  for (let y = -1; y < voxel.layers; y++) for (let dir = 0; dir < 6; dir++) delete voxel.paint.faces[faceKey(x, z, y, dir)]
+  let top = -1
+  for (let y = 0; y < voxel.layers; y++) {
+    voxel.voxels.shape[voxelIndex(voxel, x, z, y)] = shapes[y]
+    if (shapes[y] === AIR) continue
+    top = y
+    for (let dir = 0; dir < 4; dir++) voxel.paint.faces[faceKey(x, z, y, dir)] = layersOf(fill.sides ?? fill.material)
+  }
+  voxel.paint.faces[faceKey(x, z, top, FACE_TOP)] = layersOf(fill.material)
+  // A neighbour's side this column no longer covers shows now: it takes the neighbour's top, so a hole is not magenta.
+  for (let dir = 0; dir < 4; dir++) {
+    const [dx, dz] = DIR_VECTORS[dir]
+    const nx = x + dx
+    const nz = z + dz
+    if (!inBounds(voxel.size, nx, nz)) continue
+    const theirs = voxel.paint.faces[faceKey(nx, nz, columnTopAt(voxel, nx, nz), FACE_TOP)] ?? layersOf(fill.material)
+    for (let y = 0; y < voxel.layers; y++) {
+      const key = faceKey(nx, nz, y, (dir + 2) % 4)
+      if (voxelAt(voxel, nx, nz, y) !== AIR && shapes[y] !== SHAPE_BLOCK && !voxel.paint.faces[key]) voxel.paint.faces[key] = [...theirs]
+    }
+  }
+}
+
+/**
+ * Bring a hand-built volume's paint in line with its faces: drop the stack of
+ * every face nothing can see, and give every face that can be seen and has
+ * none `material` on its first layer — or leave it unpainted, when no
+ * material is given.
+ */
+export function settleFaces(voxel: VoxelStructure, material?: number): void {
+  const faces: Record<string, MaterialLayers> = {}
+  for (let z = 0; z < voxel.size.height; z++) {
+    for (let x = 0; x < voxel.size.width; x++) {
+      for (const key of exposedFacesOf(voxel, x, z)) {
+        const stack = voxel.paint.faces[key] ?? (material === undefined ? undefined : layersOf(material))
+        if (stack) faces[key] = stack
+      }
+    }
+  }
+  voxel.paint.faces = faces
 }
 
 /**

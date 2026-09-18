@@ -38,8 +38,6 @@ const materialDef = z
     name: z.string().min(1),
     color: z.int().min(0).max(0xffffff),
     archetype: z.enum(['floor', 'wall', 'ramp']),
-    /** Another material by id: what a voxel of this one cuts its cliffs with. */
-    side: z.int().min(0).exactOptional(),
   })
   .strict()
 /** The whole list, replaced: its order is the materials' priority, so a reorder is as much an edit as a rename. */
@@ -47,7 +45,6 @@ const materialsSet = z
   .object({ materials: z.array(materialDef).min(1) })
   .strict()
   .refine(({ materials }) => new Set(materials.map((m) => m.id)).size === materials.length, { message: 'material ids must be unique' })
-  .refine(({ materials }) => materials.every((m) => m.side === undefined || materials.some((o) => o.id === m.side)), { message: 'a side names a material the project does not have' })
 
 const axes = z.object({ x: z.int().min(0), y: z.int().min(0) }).strict()
 const grid = z.object({ tile: z.int().min(1), margin: axes, spacing: axes }).strict()

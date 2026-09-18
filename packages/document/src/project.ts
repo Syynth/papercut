@@ -198,11 +198,8 @@ export function normaliseMaterials(raw: unknown): MaterialDef[] {
       name: typeof m.name === 'string' ? m.name : `Material ${index + 1}`,
       color: typeof m.color === 'number' ? m.color : 0x808080,
       archetype: m.archetype === 'wall' || m.archetype === 'ramp' ? m.archetype : 'floor',
-      ...(typeof m.side === 'number' && Number.isInteger(m.side) && m.side >= 0 ? { side: m.side } : {}),
     }
   })
-  // A side naming a material the project does not have would send the mesher looking for art that cannot exist.
-  for (const m of out) if (m.side !== undefined && !ids.has(m.side)) throw new LoadError(`Material ${m.id} cuts its sides with material ${m.side}, which the project does not have.`)
   return out
 }
 

@@ -8,11 +8,11 @@
  */
 
 import type { Patch } from './edits'
-import { AIR, DEFAULT_LAYERS, DIR_VECTORS, NO_RAMP, NO_WATER, SHAPE_BLOCK, SHAPE_HALF_RAMP, SHAPE_SLAB, cellIndex, inBounds, newId, worldHeight, type DeepReadonly, type MapObject, type ReadonlyMapDoc } from './document'
-import { faceKey, tintKey } from './paint'
+import { DEFAULT_LAYERS, DIR_VECTORS, MATERIAL_LAYERS, NO_RAMP, NO_WATER, SHAPE_BLOCK, SHAPE_HALF_RAMP, SHAPE_SLAB, cellIndex, inBounds, newId, slotOf, worldHeight, type DeepReadonly, type MapObject, type MaterialLayers, type ReadonlyMapDoc } from './document'
+import { FACE_BOTTOM, FACE_TOP, faceKey, parseFaceKey, tintKey } from './paint'
 import { descendantsOf, type Placement, type ProfilePoint, type QuarterTurn, type ReadonlySketch, type ReadonlyVoxel, type SketchStructure, type Structure } from './structure'
 import { frameOf, groundHeight, toLocal, type Frame } from './terrain'
-import { columnShapes, columnTopAt, halfRampShape, halfRampUpShape, materialAt, maxHeightOf, rampDirAt, rampShape, topHeight, voxelIndex } from './voxels'
+import { columnShapes, columnTopAt, exposedFacesOf, halfRampShape, halfRampUpShape, maxHeightOf, rampDirAt, rampShape, topHeight, topLayersAt, voxelIndex } from './voxels'
 
 export type BrushShape = 'square' | 'circle'
 
@@ -53,11 +53,12 @@ export function rectCells(voxel: ReadonlyVoxel, ax: number, ay: number, bx: numb
   return cells
 }
 
-/** Flood fill over cells of the same top material and height, capped so a runaway fill stays interactive. */
+/** Flood fill over cells whose tops hold the same material layers at the same height, capped so a runaway fill stays interactive. */
 export function fillCells(voxel: ReadonlyVoxel, sx: number, sy: number, limit = 4096): Cell[] {
   if (!inBounds(voxel.size, sx, sy)) return []
   const seed = cellIndex(voxel.size, sx, sy)
-  const material = materialAt(voxel, sx, sy)
+  const stackOf = (x: number, y: number) => JSON.stringify(topLayersAt(voxel, x, y) ?? null)
+  const material = stackOf(sx, sy)
   const height = topHeight(voxel, sx, sy)
   const seen = new Set<number>([seed])
   const out: Cell[] = []
@@ -71,7 +72,7 @@ export function fillCells(voxel: ReadonlyVoxel, sx: number, sy: number, limit = 
       if (!inBounds(voxel.size, nx, ny)) continue
       const index = cellIndex(voxel.size, nx, ny)
       if (seen.has(index)) continue
-      if (materialAt(voxel, nx, ny) !== material) continue
+      if (stackOf(nx, ny) !== material) continue
       if (topHeight(voxel, nx, ny) !== height) continue
       seen.add(index)
       queue.push([nx, ny])
@@ -87,37 +88,118 @@ export const MIN_HEIGHT = 0
 export const MAX_HEIGHT = DEFAULT_LAYERS * 2
 
 /**
- * The patches that stand one column's top at `height` half-tiles. Voxels the
- * column gains take its top voxel's material (the first material when it was
- * empty); voxels it keeps become blocks where a slab or a ramp would now be
- * buried; voxels above the new top are cleared. `topShape` puts a sloped
- * shape on the top voxel, for a ramp cell. Water at or below the new top
- * drains (ruling of 2026-09-12).
+ * The shape patches that stand one column's top at `height` half-tiles:
+ * voxels it gains become blocks, voxels it keeps become blocks where a slab
+ * or a ramp would now be buried, voxels above the new top become air.
+ * `topShape` puts a sloped shape on the top voxel, for a ramp cell. Water at
+ * or below the new top drains (ruling of 2026-09-12).
+ *
+ * This moves no paint. A sculpt runs its column patches through
+ * `reconcileFaces`, which gives the faces that appear their stacks and takes
+ * them off the faces that go.
  */
 export function columnPatches(voxel: ReadonlyVoxel, x: number, z: number, height: number, topShape?: number): Patch[] {
   const clamped = Math.min(maxHeightOf(voxel), Math.max(MIN_HEIGHT, height))
   const wanted = columnShapes(voxel.layers, clamped, topShape)
-  const fill = materialAt(voxel, x, z)
   const patches: Patch[] = []
   for (let y = 0; y < voxel.layers; y++) {
     const index = voxelIndex(voxel, x, z, y)
-    const material = voxel.voxels.material[index]
-    const want = wanted[y]
-    if (want === AIR) {
-      // Air keeps no shape: cleared voxels go back to blocks, so a raise undone by a lower nets to nothing.
-      if (material !== AIR) patches.push({ t: 'voxel', id: voxel.id, field: 'material', index, value: AIR })
-      if (voxel.voxels.shape[index] !== SHAPE_BLOCK) patches.push({ t: 'voxel', id: voxel.id, field: 'shape', index, value: SHAPE_BLOCK })
-      continue
-    }
-    if (material === AIR) patches.push({ t: 'voxel', id: voxel.id, field: 'material', index, value: fill })
-    if (voxel.voxels.shape[index] !== want) patches.push({ t: 'voxel', id: voxel.id, field: 'shape', index, value: want })
+    if (voxel.voxels.shape[index] !== wanted[y]) patches.push({ t: 'voxel', id: voxel.id, field: 'shape', index, value: wanted[y] })
   }
   return [...patches, ...drainedBy(voxel, cellIndex(voxel.size, x, z), clamped)]
 }
 
+/**
+ * The paint patches that keep faces and stacks in step across a set of
+ * pending shape patches: a face that stops drawing loses its stack, a face
+ * that starts gets one. There is no dormant paint (ruling of 2026-09-18).
+ *
+ * Until the sculpt tools are redone, a stack moves with the surface: a
+ * column's new top takes its old top's stack (or a neighbour's top, when it
+ * had none); a new side takes the stack of the same side below it, above it,
+ * or beside it along the wall, else any side of its column at that layer,
+ * else the column's old top. Faces are settled bottom up, so a cliff raised
+ * several layers carries its stack all the way. A face with nothing to copy
+ * stays unpainted and draws the fallback.
+ */
+export function reconcileFaces(voxel: ReadonlyVoxel, pending: readonly Patch[]): Patch[] {
+  const { width, height } = voxel.size
+  const shape = voxel.voxels.shape.slice()
+  const columns = new Set<number>()
+  for (const patch of pending) {
+    if (patch.t !== 'voxel' || patch.id !== voxel.id || patch.field !== 'shape') continue
+    shape[patch.index] = patch.value
+    columns.add(patch.index % (width * height))
+  }
+  if (columns.size === 0) return []
+  const after: ReadonlyVoxel = { ...voxel, voxels: { shape } }
+  const touched = new Set<number>()
+  for (const column of columns) {
+    const x = column % width
+    const z = Math.floor(column / width)
+    touched.add(column)
+    for (const [dx, dz] of DIR_VECTORS) if (inBounds(voxel.size, x + dx, z + dz)) touched.add(column + dz * width + dx)
+  }
+
+  const removed: string[] = []
+  const added: { x: number; z: number; y: number; dir: number }[] = []
+  for (const column of touched) {
+    const x = column % width
+    const z = Math.floor(column / width)
+    const before = new Set(exposedFacesOf(voxel, x, z))
+    const now = exposedFacesOf(after, x, z)
+    const nowSet = new Set(now)
+    for (const key of before) if (!nowSet.has(key)) removed.push(key)
+    for (const key of now) if (!before.has(key)) added.push(parseFaceKey(key))
+  }
+
+  // Writes so far win over the record, and a face on its way out still lends its stack.
+  const written = new Map<string, MaterialLayers | undefined>()
+  const read = (x: number, z: number, y: number, dir: number): DeepReadonly<MaterialLayers> | undefined => {
+    const key = faceKey(x, z, y, dir)
+    return written.has(key) ? written.get(key) : voxel.paint.faces[key]
+  }
+  const oldTop = (x: number, z: number) => read(x, z, columnTopAt(voxel, x, z), FACE_TOP)
+  const source = ({ x, z, y, dir }: { x: number; z: number; y: number; dir: number }): DeepReadonly<MaterialLayers> | undefined => {
+    if (dir === FACE_TOP) {
+      const own = oldTop(x, z)
+      if (own) return own
+      for (const [dx, dz] of DIR_VECTORS) {
+        if (!inBounds(voxel.size, x + dx, z + dz)) continue
+        const theirs = oldTop(x + dx, z + dz)
+        if (theirs) return theirs
+      }
+      return undefined
+    }
+    if (dir === FACE_BOTTOM) return oldTop(x, z)
+    const along = [(dir + 1) % 4, (dir + 3) % 4].map((d) => DIR_VECTORS[d])
+    return (
+      read(x, z, y - 1, dir) ??
+      read(x, z, y + 1, dir) ??
+      along.map(([dx, dz]) => read(x + dx, z + dz, y, dir)).find(Boolean) ??
+      [0, 1, 2, 3].map((d) => read(x, z, y, d)).find(Boolean) ??
+      oldTop(x, z)
+    )
+  }
+
+  added.sort((a, b) => a.y - b.y)
+  for (const face of added) {
+    const stack = source(face)
+    if (stack) written.set(faceKey(face.x, face.z, face.y, face.dir), [...stack] as MaterialLayers)
+  }
+  for (const key of removed) written.set(key, undefined)
+  const patches: Patch[] = []
+  for (const [key, value] of written) if (value !== undefined || voxel.paint.faces[key] !== undefined) patches.push({ t: 'voxelPaint', id: voxel.id, layer: 'faces', key, value })
+  return patches
+}
+
+/** Shape patches with the paint that keeps up with them and the objects that stand on them. */
+function sculpted(doc: ReadonlyMapDoc, voxel: ReadonlyVoxel, cells: Cell[], shapes: Patch[]): Patch[] {
+  return [...shapes, ...reconcileFaces(voxel, shapes), ...regroundObjects(doc, voxel, cells, shapes)]
+}
+
 export function raise(doc: ReadonlyMapDoc, voxel: ReadonlyVoxel, cells: Cell[], delta: number): Patch[] {
-  const patches = cells.flatMap(([x, y]) => columnPatches(voxel, x, y, topHeight(voxel, x, y) + delta))
-  return [...patches, ...regroundObjects(doc, voxel, cells, patches)]
+  return sculpted(doc, voxel, cells, cells.flatMap(([x, y]) => columnPatches(voxel, x, y, topHeight(voxel, x, y) + delta)))
 }
 
 /** Water cannot sit at or below the terrain under it (ruling of 2026-09-12): a column raised to its water line drains. */
@@ -127,8 +209,7 @@ function drainedBy(voxel: ReadonlyVoxel, index: number, height: number): Patch[]
 }
 
 export function flatten(doc: ReadonlyMapDoc, voxel: ReadonlyVoxel, cells: Cell[], height: number): Patch[] {
-  const patches = cells.flatMap(([x, y]) => columnPatches(voxel, x, y, height))
-  return [...patches, ...regroundObjects(doc, voxel, cells, patches)]
+  return sculpted(doc, voxel, cells, cells.flatMap(([x, y]) => columnPatches(voxel, x, y, height)))
 }
 
 /** Each column moves toward the mean of its in-bounds neighbours' tops by at most `strength` half-tiles. */
@@ -146,18 +227,17 @@ export function smooth(doc: ReadonlyMapDoc, voxel: ReadonlyVoxel, cells: Cell[],
     const step = Math.max(-strength, Math.min(strength, Math.round(sum / count) - current))
     return step === 0 ? [] : columnPatches(voxel, x, y, current + step)
   })
-  return [...patches, ...regroundObjects(doc, voxel, cells, patches)]
+  return sculpted(doc, voxel, cells, patches)
 }
 
-/** The top voxel's material; an empty column has no top to paint. */
-export function setMaterial(voxel: ReadonlyVoxel, cells: Cell[], material: number): Patch[] {
-  const patches: Patch[] = []
-  for (const [x, y] of cells) {
-    const top = columnTopAt(voxel, x, y)
-    if (top < 0) continue
-    patches.push({ t: 'voxel', id: voxel.id, field: 'material', index: voxelIndex(voxel, x, y, top), value: material })
-  }
-  return patches
+/** Put `material` on material layer `layer` of each column's top face — the floor, for an empty column; `null` empties that layer. */
+export function setMaterial(voxel: ReadonlyVoxel, cells: Cell[], material: number | null, layer = 0): Patch[] {
+  return paintFace(
+    voxel,
+    cells.map(([x, z]) => ({ x, z, y: columnTopAt(voxel, x, z), dir: FACE_TOP })),
+    material,
+    layer,
+  )
 }
 
 /** The cliff edge a ramp is cut from: the cell whose side `dir` stands above its neighbour. */
@@ -236,8 +316,7 @@ export function rampRun(doc: ReadonlyMapDoc, voxel: ReadonlyVoxel, edge: RampEdg
   const plan = rampPlan(voxel, edge)
   if (!plan || run !== plan.length || rampRunBlocked(voxel, edge) !== null) return []
   const cells: Cell[] = plan.map((step) => [step.x, step.z])
-  const patches = plan.flatMap((step) => columnPatches(voxel, step.x, step.z, step.height, step.shape))
-  return [...patches, ...regroundObjects(doc, voxel, cells, patches)]
+  return sculpted(doc, voxel, cells, plan.flatMap((step) => columnPatches(voxel, step.x, step.z, step.height, step.shape)))
 }
 
 /**
@@ -275,7 +354,7 @@ export function clearRampRun(doc: ReadonlyMapDoc, voxel: ReadonlyVoxel, x: numbe
       queue.push([nx, nz])
     }
   }
-  return [...patches, ...regroundObjects(doc, voxel, cells, patches)]
+  return sculpted(doc, voxel, cells, patches)
 }
 
 /** Water at or below the terrain is not a state (ruling of 2026-09-12): such cells are left alone. */
@@ -299,9 +378,21 @@ export interface FaceRef {
   dir: number
 }
 
-/** Draw these faces with `material` instead of their voxel's own; `undefined` clears the override. */
-export function paintFace(voxel: ReadonlyVoxel, faces: readonly FaceRef[], material: number | undefined): Patch[] {
-  return faces.map((face) => ({ t: 'voxelPaint', id: voxel.id, layer: 'faces', key: faceKey(face.x, face.z, face.y, face.dir), value: material }))
+/**
+ * Put `material` on material layer `layer` of each face, keeping its other
+ * layers; `null` empties that layer. A face with no stack yet gets one.
+ */
+export function paintFace(voxel: ReadonlyVoxel, faces: readonly FaceRef[], material: number | null, layer = 0): Patch[] {
+  const slot = material === null ? null : slotOf(material)
+  const patches: Patch[] = []
+  for (const face of faces) {
+    const key = faceKey(face.x, face.z, face.y, face.dir)
+    const stack = [...(voxel.paint.faces[key] ?? new Array(MATERIAL_LAYERS).fill(null))] as MaterialLayers
+    if (stack[layer] === slot) continue
+    stack[layer] = slot
+    patches.push({ t: 'voxelPaint', id: voxel.id, layer: 'faces', key, value: stack })
+  }
+  return patches
 }
 
 export function paintTint(voxel: ReadonlyVoxel, cells: Cell[], color: number | undefined): Patch[] {
@@ -357,19 +448,17 @@ function cloneObject(object: DeepReadonly<MapObject>): MapObject {
 export function regroundObjects(doc: ReadonlyMapDoc, voxel: ReadonlyVoxel, cells: Cell[], pending: Patch[]): Patch[] {
   if (doc.objectOrder.length === 0) return []
   const touched = new Set(cells.map(([x, y]) => `${x},${y}`))
-  const overrides: Record<'material' | 'shape', Map<number, number>> = { material: new Map(), shape: new Map() }
-  for (const patch of pending) {
-    if (patch.t !== 'voxel' || patch.id !== voxel.id || patch.field === 'water') continue
-    overrides[patch.field].set(patch.index, patch.value)
-  }
-  if (overrides.material.size === 0 && overrides.shape.size === 0) return []
-  const material = voxel.voxels.material.slice()
   const shape = voxel.voxels.shape.slice()
-  for (const [index, value] of overrides.material) material[index] = value
-  for (const [index, value] of overrides.shape) shape[index] = value
+  let changed = false
+  for (const patch of pending) {
+    if (patch.t !== 'voxel' || patch.id !== voxel.id || patch.field !== 'shape') continue
+    shape[patch.index] = patch.value
+    changed = true
+  }
+  if (!changed) return []
   const after: ReadonlyMapDoc = {
     ...doc,
-    structures: { ...doc.structures, [voxel.id]: { ...voxel, voxels: { material, shape } } },
+    structures: { ...doc.structures, [voxel.id]: { ...voxel, voxels: { shape } } },
   }
   const patches: Patch[] = []
   for (const id of doc.objectOrder) {

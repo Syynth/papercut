@@ -58,8 +58,8 @@ function hilly(width: number, height: number): MapDoc {
       const h =
         4 +
         Math.round(3 * Math.sin(x * 0.22) + 3 * Math.cos(y * 0.19) + 2 * Math.sin((x + y) * 0.11))
-      // The whole column takes the material: a voxel carries its own, and fillColumn writes them all.
-      fillColumn(ground(doc), x, y, Math.max(0, h), (x + y) % 4)
+      // Every face of the column takes the material: fillColumn paints them all.
+      fillColumn(ground(doc), x, y, Math.max(0, h), { material: (x + y) % 4 })
     }
   }
   return doc

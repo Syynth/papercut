@@ -40,7 +40,7 @@ export type { BlockShape, Convention, LayoutBlock, LayoutSpec, LayoutTile } from
 export { renderTemplate } from './template'
 export type { Template, TemplateMaterial, TemplateOptions } from './template'
 export type { GridCells, Remapped } from './grid'
-export { TerrainAtlas } from './atlas'
+export { TerrainAtlas, UNPAINTED, UNPAINTED_COLOR } from './atlas'
 export { createTerrainLook } from './look'
 export type { TerrainLook } from './look'
 export type { AtlasTile, CompositeReport, CornerKeys, LoadedSet } from './atlas'

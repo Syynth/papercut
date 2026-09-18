@@ -87,7 +87,7 @@ export interface DocumentSelectOptions<T> {
   readonly equal?: Compare<T>
   /**
    * Hold the last value while a stroke is open, and select again when it
-   * closes: for work that walks the whole map (coverage, dormant paint) and
+   * closes: for work that walks the whole map (coverage, unpainted faces) and
    * is not worth redoing on every brush tick.
    */
   readonly settled?: boolean

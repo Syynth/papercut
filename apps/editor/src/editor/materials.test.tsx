@@ -134,15 +134,10 @@ describe('the materials screen', () => {
     expect(text()).toContain('cliffs.png')
   })
 
-  it("keeps the cliff material editable, because the mesher still draws vertical faces with it", () => {
+  it('has no cliff material to edit: a face says what it is made of itself', () => {
     const sets = ground([[0, null]])
     mount(() => <MaterialsSettings session={session()} selected={0} onSelect={() => undefined} sets={sets} />)
-
-    // Grass ships cutting its cliffs with Dirt, and the look reads that for every vertical face, so
-    // a screen with no control for it strands live data.
-    expect(text()).toContain('Cliffs')
-    const options = [...window.document.querySelectorAll('select')].flatMap((s) => [...s.options].map((o) => o.label))
-    expect(options).toContain('Made of this one')
+    expect(text()).not.toContain('Cliffs')
   })
 
   it('lights an arrangement from the strip and says how much of the patch it draws', () => {

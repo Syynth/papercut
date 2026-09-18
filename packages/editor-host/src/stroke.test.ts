@@ -1,5 +1,5 @@
 import {
-  SHAPE_BLOCK,
+  AIR,
   SHAPE_SLAB,
   brushCells,
   cellIndex,
@@ -82,15 +82,16 @@ function raiseContract(deps: StrokeDeps): ToolContract<StrokeSample, Patch> {
 }
 
 /** The voxel arrays as they stand, copied, so a stroke's net effect can be judged against them. */
-function snapshot(voxel: VoxelStructure): Record<'material' | 'shape' | 'water', number[]> {
-  return { material: voxel.voxels.material.slice(), shape: voxel.voxels.shape.slice(), water: voxel.water.slice() }
+function snapshot(voxel: VoxelStructure): { shape: number[]; water: number[]; faces: Record<string, unknown> } {
+  return { shape: voxel.voxels.shape.slice(), water: voxel.water.slice(), faces: JSON.parse(JSON.stringify(voxel.paint.faces)) as Record<string, unknown> }
 }
 
 /**
  * The addresses an Edit should hold once a stroke's ticks are compacted: each
  * one the last tick left at a value other than the one it started with. An
- * address is one voxel's field, and a shape that went slab, block, slab, block
- * over four half-tiles is back where it began, so it is not one of them.
+ * address is one voxel's field or one face's paint, and a shape that went slab,
+ * block, slab, block over four half-tiles is back where it began, so it is not
+ * one of them.
  */
 function changedAddresses(before: ReturnType<typeof snapshot>, sent: Patch[]): Set<string> {
   const last = new Map<string, Patch>()
@@ -98,6 +99,7 @@ function changedAddresses(before: ReturnType<typeof snapshot>, sent: Patch[]): S
   const changed = new Set<string>()
   for (const [address, patch] of last) {
     if (patch.t === 'voxel' && patch.value !== before[patch.field][patch.index]) changed.add(address)
+    if (patch.t === 'voxelPaint' && patch.layer === 'faces' && JSON.stringify(patch.value) !== JSON.stringify(before.faces[patch.key])) changed.add(address)
   }
   return changed
 }
@@ -241,7 +243,8 @@ describe('the stroke actor', () => {
     const mine = edit.patches.find((patch) => patch.t === 'voxel' && patch.field === 'shape' && patch.index === index)
     const inverse = edit.inverse.find((patch) => patch.t === 'voxel' && patch.field === 'shape' && patch.index === index)
     expect(mine?.value).toBe(SHAPE_SLAB)
-    expect(inverse?.value).toBe(SHAPE_BLOCK)
+    // It was air before the stroke, and air is a shape.
+    expect(inverse?.value).toBe(AIR)
     document.send({ type: 'undo' })
     expect(topHeight(ground(doc), 3, 3)).toBe(before)
   })
@@ -250,8 +253,8 @@ describe('the stroke actor', () => {
     const { reader, start, patchEvents, record } = rig(withBrush(1))
     // Both cells stand on a slab, so a half-tile up and back down writes the
     // one voxel's shape twice and leaves the column exactly as it was. (From
-    // a whole cube the way up adds a voxel and the way down clears it to
-    // air, and the slab shape it was given stays written on the air.)
+    // a whole cube the way up adds a voxel, and the faces it uncovers and
+    // covers again take their paint from their neighbours.)
     fillColumn(ground(reader.doc), 2, 2, 3)
     fillColumn(ground(reader.doc), 3, 2, 3)
     const stroke = start(sample(2, 2))
@@ -293,8 +296,8 @@ describe('the stroke actor', () => {
     const { start, patchEvents } = rig(withBrush(1))
     const stroke = start(sample(0, 0))
     stroke.send({ type: 'end', sample: sample(0, 0) })
-    // A half-tile up from a cube: the new top voxel's material comes first, then its shape.
+    // A half-tile up from a cube: the new top voxel's shape comes first, then the paint that follows it.
     const patch: Patch | undefined = patchEvents()[0]?.patches[0]
-    expect(patch).toMatchObject({ t: 'voxel', id: 'ground', field: 'material' })
+    expect(patch).toMatchObject({ t: 'voxel', id: 'ground', field: 'shape' })
   })
 })

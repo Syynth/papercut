@@ -16,7 +16,7 @@
  * mesher in `geometry`, the scene in `runtime`, the tools in a `feature-*`.
  */
 
-import type { DeepReadonly, MapSize, PaintLayers, VoxelData } from './document'
+import type { DeepReadonly, MapSize, SurfacePaint, VoxelData } from './document'
 
 /** A quarter-turn count: 0 east, 1 south, 2 west, 3 north. Voxel kinds turn in quarters or every cell-based tool breaks. */
 export type QuarterTurn = 0 | 1 | 2 | 3
@@ -54,7 +54,7 @@ export interface VoxelStructure extends StructureBase {
   voxels: VoxelData
   /** Water surface per column in half-tiles, or NO_WATER; interim until the Water tool makes water a structure. */
   water: number[]
-  paint: PaintLayers
+  paint: SurfacePaint
 }
 
 /** One point of a sketch's outline: a corner keeps its exact position and angle; a smooth point is rounded. */

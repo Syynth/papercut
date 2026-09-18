@@ -11,6 +11,7 @@ import {
   MAX_LAYERS,
   SHAPE_COUNT,
   FORMAT_VERSION,
+  MATERIAL_LAYERS,
   createMap,
   defaultCameraRig,
   defaultFacing,
@@ -23,6 +24,11 @@ import { DEFAULT_WALL_PROFILE } from './ops'
 import { defaultSurfaceMaterials, type SketchStructure, type Structure, type VoxelStructure } from './structure'
 
 export class LoadError extends Error {}
+
+/** `x,z,y,dir`: a column, a layer from the bedrock's -1 up, and a side 0–5. */
+const FACE_KEY = /^\d+,\d+,-?\d+,[0-5]$/
+/** A material layer's slot as the format spells it; `t:<gid>` is reserved and not read yet. */
+const SLOT = /^m:\d+$/
 
 export function serialize(doc: ReadonlyMapDoc): string {
   return JSON.stringify(doc, null, 2)
@@ -64,23 +70,26 @@ function normaliseStructure(raw: Record<string, unknown>, id: string): Structure
     if (typeof layers !== 'number' || !Number.isInteger(layers) || layers < 1) throw new LoadError(`Structure ${id} has no layers.`)
     if (layers > MAX_LAYERS) throw new LoadError(`Structure ${id} has ${layers} layers; a volume holds at most ${MAX_LAYERS}.`)
     const voxels = must(raw.voxels as VoxelStructure['voxels'], `Structure ${id} has no voxels.`)
-    for (const field of ['material', 'shape'] as const) {
-      const arr = voxels[field]
-      if (!Array.isArray(arr) || arr.length !== count * layers) {
-        throw new LoadError(`${id}.voxels.${field} should hold ${count * layers} entries, found ${Array.isArray(arr) ? arr.length : 'none'}.`)
-      }
-      // Every entry is a whole number in range: a material id or AIR, a shape the mesher knows.
-      const low = field === 'material' ? AIR : 0
-      const high = field === 'material' ? Number.MAX_SAFE_INTEGER : SHAPE_COUNT - 1
-      const bad = (arr as unknown[]).findIndex((v) => typeof v !== 'number' || !Number.isInteger(v) || v < low || v > high)
-      if (bad >= 0) throw new LoadError(`${id}.voxels.${field}[${bad}] is ${String((arr as unknown[])[bad])}, which is not a ${field}.`)
+    const shape = voxels.shape
+    if (!Array.isArray(shape) || shape.length !== count * layers) {
+      throw new LoadError(`${id}.voxels.shape should hold ${count * layers} entries, found ${Array.isArray(shape) ? shape.length : 'none'}.`)
     }
+    // Every entry is a whole number in range: AIR, or a shape the mesher knows.
+    const bad = (shape as unknown[]).findIndex((v) => typeof v !== 'number' || !Number.isInteger(v) || v < AIR || v > SHAPE_COUNT - 1)
+    if (bad >= 0) throw new LoadError(`${id}.voxels.shape[${bad}] is ${String((shape as unknown[])[bad])}, which is not a shape.`)
     const water = raw.water
     if (!Array.isArray(water) || water.length !== count) {
       throw new LoadError(`${id}.water should hold ${count} entries, found ${Array.isArray(water) ? water.length : 'none'}.`)
     }
     const paint = (raw.paint ?? {}) as Partial<VoxelStructure['paint']>
-    return { ...base, kind: 'voxel', size, layers, voxels, water: water as number[], paint: { faces: paint.faces ?? {}, tint: paint.tint ?? {} } }
+    const faces = paint.faces ?? {}
+    for (const [key, stack] of Object.entries(faces)) {
+      if (!FACE_KEY.test(key)) throw new LoadError(`${id}.paint.faces has a key "${key}", which does not name a face.`)
+      if (!Array.isArray(stack) || stack.length !== MATERIAL_LAYERS || !stack.every((slot) => slot === null || (typeof slot === 'string' && SLOT.test(slot)))) {
+        throw new LoadError(`${id}.paint.faces["${key}"] should be ${MATERIAL_LAYERS} material layers, each "m:<id>" or null.`)
+      }
+    }
+    return { ...base, kind: 'voxel', size, layers, voxels: { shape }, water: water as number[], paint: { faces, tint: paint.tint ?? {} } }
   }
   if (raw.kind === 'sketch') {
     const wall = (raw.wall ?? {}) as Partial<SketchStructure['wall']>

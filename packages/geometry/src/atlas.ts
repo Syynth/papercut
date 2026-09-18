@@ -43,6 +43,15 @@ export interface LoadedSet {
   source?: RgbaImage
 }
 
+/**
+ * The tag a face draws when it holds no material: one nobody painted, or one
+ * whose material the project does not have. It names no material, so it
+ * never matches a sheet's tile; a corner of nothing but it is flat
+ * `UNPAINTED_COLOR`, and one where it meets a material composes with it.
+ */
+export const UNPAINTED = 'unpainted'
+export const UNPAINTED_COLOR = 0xff00ff
+
 /** The four tags at a corner, in `CornerTags` order; `null` is nothing. */
 export type CornerKeys = CornerTags
 
@@ -190,6 +199,8 @@ export class TerrainAtlas {
   private resolve(keys: CornerKeys): AtlasTile {
     const tags = [...new Set(keys.filter((k): k is string => k !== null))]
     if (tags.length === 0) return { tile: this.blankTile(), composite: false }
+    // A face nobody painted is not a transition to draw: it is flat magenta, and stays out of the report.
+    if (tags.length === 1 && tags[0] === UNPAINTED) return { tile: this.unpaintedTile(), composite: false }
     // Wherever it was drawn. A tag names a material, so nothing about a corner is local to a sheet.
     const found = this.authored.get(cornerKey(keys))
     if (found) return { tile: this.sheetTile(found.loaded, found.index), composite: false }
@@ -211,6 +222,15 @@ export class TerrainAtlas {
   }
 
   private blank: number | null = null
+  private unpainted: number | null = null
+
+  private unpaintedTile(): number {
+    if (this.unpainted === null) {
+      this.unpainted = this.allocate()
+      this.fill(this.unpainted, 15, UNPAINTED_COLOR)
+    }
+    return this.unpainted
+  }
 
   private blankTile(): number {
     if (this.blank === null) this.blank = this.allocate()

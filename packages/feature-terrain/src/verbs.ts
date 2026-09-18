@@ -12,15 +12,15 @@
  */
 
 import {
-  AIR,
   DIR_VECTORS,
+  FACE_TOP,
   SURFACE_CLIFF,
   SURFACE_TOP,
   brushCells,
-  facePaint,
+  columnTopAt,
+  faceLayers,
   fillCells,
   flatten,
-  materialAt,
   smooth,
   paintFace,
   paintTint,
@@ -28,9 +28,9 @@ import {
   rectCells,
   setMaterial,
   setWater,
+  slotMaterial,
   tintPaint,
   topHeight,
-  voxelAt,
   type Brush,
   type Cell,
   type FaceRef,
@@ -157,13 +157,15 @@ function faceOf(address: SurfaceAddress, x: number, z: number): FaceRef {
   return { x, z, y: Math.floor(address.level / 2), dir: address.dir }
 }
 
-/** The material a band is drawn with: its face override, else the voxel's own (the column's top, should the band sit in a slab's air). */
-function bandMaterial(voxel: ReadonlyVoxel, address: SurfaceAddress): number {
-  const face = faceOf(address, address.x, address.y)
-  const override = facePaint(voxel.paint, face.x, face.z, face.y, face.dir)
-  if (override !== undefined) return override
-  const material = voxelAt(voxel, face.x, face.z, face.y)
-  return material === AIR ? materialAt(voxel, address.x, address.y) : material
+/** The face a surface address is on: a band's voxel side, or the column's top. */
+function surfaceFace(voxel: ReadonlyVoxel, address: SurfaceAddress): FaceRef {
+  if (address.kind === SURFACE_CLIFF) return faceOf(address, address.x, address.y)
+  return { x: address.x, z: address.y, y: columnTopAt(voxel, address.x, address.y), dir: FACE_TOP }
+}
+
+/** The material on a face's first material layer, or `null` for an empty or unpainted one. */
+function faceMaterial(voxel: ReadonlyVoxel, face: FaceRef): number | null {
+  return slotMaterial(faceLayers(voxel.paint, face.x, face.z, face.y, face.dir)?.[0])
 }
 
 /**
@@ -178,8 +180,9 @@ export function eyedrop(voxel: ReadonlyVoxel, params: TerrainParams, address: Su
     const tint = tintPaint(voxel.paint, address.x, address.y)
     return tint === undefined ? {} : { tint }
   }
-  // A band answers with what it is drawn with; a top with the column's top voxel.
-  return { material: address.kind === SURFACE_CLIFF ? bandMaterial(voxel, address) : materialAt(voxel, address.x, address.y) }
+  // A face answers with what its first material layer holds; an empty one picks up nothing.
+  const material = faceMaterial(voxel, surfaceFace(voxel, address))
+  return material === null ? {} : { material }
 }
 
 /** The cells a ramp drag covers: `run` cells back from the edge, away from the side it descends toward. */
@@ -228,10 +231,10 @@ export function sculptPatches(
 
 /**
  * One paint tick, by the same rule. The Material brush is one brush for
- * every face (spec §4): on a top it sets the column's top voxel's material;
- * on a cliff band it sets that face's override, and shift clears it back to
- * the voxel's own. A brush wider than one cell walks the same level along
- * the same face.
+ * every face (spec §4): it puts the material on the face's first material
+ * layer — the column's top on a top, that voxel's side on a cliff band — and
+ * shift empties that layer. A brush wider than one cell walks the same level
+ * along the same face.
  */
 export function paintPatches(voxel: ReadonlyVoxel, params: TerrainParams, address: SurfaceAddress, cells: Cell[], modifiers: TerrainModifiers): Patch[] {
   const erase = modifiers.shift
@@ -240,9 +243,9 @@ export function paintPatches(voxel: ReadonlyVoxel, params: TerrainParams, addres
       if (address.kind === SURFACE_CLIFF) {
         // Along the face only: an east or west face runs along z, a south or north one along x.
         const faces = cells.filter(([x, y]) => (address.dir % 2 === 0 ? x === address.x : y === address.y)).map(([x, y]) => faceOf(address, x, y))
-        return paintFace(voxel, faces, erase ? undefined : params.material)
+        return paintFace(voxel, faces, erase ? null : params.material)
       }
-      if (address.kind === SURFACE_TOP) return erase ? [] : setMaterial(voxel, cells, params.material)
+      if (address.kind === SURFACE_TOP) return setMaterial(voxel, cells, erase ? null : params.material)
       return []
     case 'tint':
       return paintTint(voxel, cells, erase ? undefined : params.tint)

@@ -14,6 +14,7 @@
 import {
   DEFAULT_MATERIALS,
   DIR_VECTORS,
+  FACE_TOP,
   cellIndex,
   columnTopAt,
   MAPS_DIR,
@@ -24,8 +25,10 @@ import {
   faceKey,
   fillColumn,
   groundHeight,
+  layersOf,
   newId,
   rampShape,
+  settleFaces,
   tintKey,
   topHeight,
   voxelIndex,
@@ -102,8 +105,9 @@ export function createSampleMap(width = 36, height = 36): MapDoc {
       let h = Math.round(rolling + ridge * (1 - distance) - river * 2.4)
       h = Math.max(0, Math.min(18, h))
 
-      // Material follows height: sand low, grass mid, stone high. Every voxel of a column takes it.
-      fillColumn(ground, x, y, h, h <= 1 ? material('Sand') : h >= 8 ? material('Stone') : hash(x, y, 1) > 0.88 ? material('Dirt') : material('Grass'))
+      // Material follows height: sand low, grass mid, stone high. Grass, sand and path are cut from dirt at a cliff; stone and dirt are themselves.
+      const top = h <= 1 ? material('Sand') : h >= 8 ? material('Stone') : hash(x, y, 1) > 0.88 ? material('Dirt') : material('Grass')
+      fillColumn(ground, x, y, h, { material: top, sides: top === material('Stone') ? top : material('Dirt') })
 
       // Water pools in the river bed.
       if (h <= 1) ground.water[index] = 2
@@ -133,14 +137,15 @@ export function createSampleMap(width = 36, height = 36): MapDoc {
     const [x, y, dir] = stepDowns[i]
     ground.voxels.shape[voxelIndex(ground, x, y, columnTopAt(ground, x, y))] = rampShape(dir)
   }
+  settleFaces(ground)
 
   // --- paint -----------------------------------------------------------------
-  // A worn path across the grass: the top voxel's material, which is what the
-  // Material brush sets, so the transition tiles around it are the dual grid's.
+  // A worn path across the grass: the top face's first material layer, which
+  // is what the Material brush sets, so the transition tiles around it are the dual grid's.
   const path = (x: number, y: number) => {
     if (x < 0 || x >= width || y < 0 || y >= height) return
     const top = columnTopAt(ground, x, y)
-    if (top >= 0) ground.voxels.material[voxelIndex(ground, x, y, top)] = material('Path')
+    if (top >= 0) ground.paint.faces[faceKey(x, y, top, FACE_TOP)] = layersOf(material('Path'))
   }
   for (let step = 0; step < 22; step++) {
     const x = Math.round(4 + step)
@@ -149,13 +154,13 @@ export function createSampleMap(width = 36, height = 36): MapDoc {
     if (hash(x, y, 7) > 0.6) path(x, y - 1)
   }
 
-  // A band of stone painted onto one cliff face — a face override on the
-  // voxel one below the top, at a fixed layer — so sculpting nearby
-  // demonstrates that the paint stays put.
+  // A band of stone painted onto one cliff face — the south side of the
+  // voxel one below the top, where it shows.
   for (let x = 0; x < width; x++) {
     const z = Math.round(centreY - 8)
     const top = columnTopAt(ground, x, z)
-    if (top >= 2) ground.paint.faces[faceKey(x, z, top - 1, 1)] = material('Stone')
+    const key = faceKey(x, z, top - 1, 1)
+    if (top >= 2 && ground.paint.faces[key]) ground.paint.faces[key] = layersOf(material('Stone'))
   }
 
   // A cool tint in the river bed, quantised per cell rather than blended.

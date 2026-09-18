@@ -1,18 +1,18 @@
 /**
  * The status bar: what the pointer and modifiers do under the current tool,
- * and the readouts — the hovered surface, dormant paint, the layer range, the
+ * and the readouts — the hovered surface, unpainted faces, the layer range, the
  * camera, frame stats, and what undo would undo.
  *
  * Each readout is its own component selecting its own value, because they
  * change at very different rates: the hovered surface at pointer rate, the
- * camera while orbiting, the stats twice a second, dormant paint once per
+ * camera while orbiting, the stats twice a second, unpainted faces once per
  * edit. Before, all of them were the whole editor's state, and each of those
  * changes re-rendered everything.
  */
 
 import { useMemo, useSyncExternalStore } from 'react'
 
-import { SURFACE_CLIFF, SURFACE_SKETCH_CAP, SURFACE_SKETCH_WALL, countDormant, describeSurface, faceExposed, parseFaceKey, type ReadonlyMapDoc } from '@papercut/document'
+import { SURFACE_CLIFF, SURFACE_SKETCH_CAP, SURFACE_SKETCH_WALL, describeSurface, exposedFacesOf, type ReadonlyMapDoc } from '@papercut/document'
 import { sameSurface, useDocumentSelector, useHost, useToolsSelector, useViewSelector, useViewportSelector } from '@papercut/editor-host'
 import { Hint, StatusHints, StatusRight } from '@papercut/ui'
 
@@ -99,18 +99,17 @@ export function hintsFor(params: EditorParams): ReadonlyArray<{ kbd?: string; te
 }
 
 /**
- * Painted work that geometry currently hides, summed over every voxel volume. It walks every painted address, so it is
- * selected settled: counted once a stroke closes, not on every tick of it.
+ * Faces that can be seen and hold no material layers, summed over every voxel volume: what draws the fallback. It
+ * walks every column, so it is selected settled: counted once a stroke closes, not on every tick of it.
  */
-function dormantPaint(doc: ReadonlyMapDoc): number {
+function unpaintedFaces(doc: ReadonlyMapDoc): number {
   let total = 0
   for (const id of doc.structureOrder) {
     const voxel = doc.structures[id]
     if (!voxel || voxel.kind !== 'voxel') continue
-    total += countDormant(voxel.paint, (key) => {
-      const { x, z, y, dir } = parseFaceKey(key)
-      return faceExposed(voxel, x, z, y, dir)
-    })
+    for (let z = 0; z < voxel.size.height; z++) {
+      for (let x = 0; x < voxel.size.width; x++) for (const key of exposedFacesOf(voxel, x, z)) if (!voxel.paint.faces[key]) total += 1
+    }
   }
   return total
 }
@@ -121,7 +120,7 @@ export function StatusBar() {
       <Hints />
       <StatusRight>
         <HoverReadout />
-        <DormantPaint />
+        <UnpaintedFaces />
         <MissingTransitions />
         <LayersReadout />
         <CameraReadout />
@@ -166,9 +165,9 @@ function HoverReadout() {
   )
 }
 
-function DormantPaint() {
-  const dormant = useDocumentSelector(dormantPaint, { equal: Object.is, settled: true })
-  return <span title="Painted work that is currently hidden by geometry, and would come back">dormant paint {dormant}</span>
+function UnpaintedFaces() {
+  const unpainted = useDocumentSelector(unpaintedFaces, { equal: Object.is, settled: true })
+  return <span title="Faces that show and hold no material: they draw the fallback">unpainted {unpainted}</span>
 }
 
 /** Corners the atlas had to compose because no tile is authored for them: the artist's list of transitions to draw (spec §3). */
