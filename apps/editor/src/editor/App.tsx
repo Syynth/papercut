@@ -36,8 +36,10 @@ import { TopBar } from './top'
  * image library with its import and relink dialogs, the tagger, the material
  * library, the keymap table — and none of it is reachable until the modal is
  * opened, so it is a chunk of its own rather than a third of the entry
- * bundle (#29's 500 kB ceiling). Nothing waits for it: the fallback is
- * nothing, and the modal renders when it arrives.
+ * bundle. Not for first paint, which reads from local disk: an installed app
+ * fetches its UI bundle file by content hash, so a change on either side of
+ * this boundary re-ships only its own chunk. Nothing waits for it: the
+ * fallback is nothing, and the modal renders when it arrives.
  */
 const ProjectSettings = lazy(async () => ({ default: (await import('./settings')).ProjectSettings }))
 

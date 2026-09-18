@@ -1,24 +1,34 @@
 /**
- * Fails when a built JS chunk exceeds the 500 kB ceiling #29 exists to
- * enforce. Vite/rolldown's own chunk-size message (see
- * apps/editor/vite.config.ts's manual-chunking comment) is only ever a
- * warning — it never fails the process, so the bundle can regrow past 500 kB
- * with an all-green gate. This turns that warning into a real failure by
- * re-measuring the already-built output on disk.
+ * Fails when a built JS chunk exceeds the ceiling. Vite/rolldown's own
+ * chunk-size message (see apps/editor/vite.config.ts's manual-chunking
+ * comment) is only ever a warning — it never fails the process, so the bundle
+ * can regrow with an all-green gate. This turns that warning into a real
+ * failure by re-measuring the already-built output on disk.
  *
  *   node scripts/check-bundle-size.mjs [dist-dir] [limit-bytes]
  *
  * Must run after `vite build`, not instead of it — it only reads output that
  * already exists; it does not build anything itself.
+ *
+ * What this is FOR (ruled 2026-09-17): not first paint. The editor loads from
+ * local disk over `app://` in the desktop shell. It is a tripwire for an
+ * accidental import dragging a library into the entry chunk, which costs on
+ * the two paths the bundle really travels: the Pages site people try the
+ * editor on, and the updater, which fetches an installed app's UI bundle from
+ * that same deploy file by file and skips whatever hash it already has.
  */
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-// Matches the warning this replaces: Vite's default `chunkSizeWarningLimit`
-// is 500 (kB, decimal — 1000 bytes), the same convention
-// apps/editor/vite.config.ts's `maxSize: 350_000` already uses.
-export const DEFAULT_LIMIT_BYTES = 500_000
+// A number chosen for this app, not Vite's default `chunkSizeWarningLimit` of
+// 500 kB, which is a heuristic about one script blocking first paint over a
+// mobile connection and describes nothing papercut does. kB decimal (1000
+// bytes), the same convention apps/editor/vite.config.ts's `maxSize: 350_000`
+// already uses. Raising it costs about 75 kB gzipped on a cold Pages visit and
+// on a UI update; below that the ceiling was shaping the code rather than
+// catching anything.
+export const DEFAULT_LIMIT_BYTES = 750_000
 
 /**
  * @typedef {{ file: string, bytes: number }} ChunkSize
@@ -76,7 +86,7 @@ function main() {
   const offenders = oversizedChunks(jsChunkSizes(distDir), limit)
   if (offenders.length === 0) return
   for (const { file, bytes } of offenders) {
-    console.error(`${file}: ${bytes} bytes exceeds the ${limit}-byte chunk ceiling (#29)`)
+    console.error(`${file}: ${bytes} bytes exceeds the ${limit}-byte chunk ceiling`)
   }
   process.exitCode = 1
 }
