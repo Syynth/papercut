@@ -36,7 +36,7 @@ function countingWriter(): { writer: DocumentWriter; reader: DocumentReader; cal
 
 const ground = (doc: MapDoc | ReadonlyMapDoc): VoxelStructure => doc.structures.ground as VoxelStructure
 // Never applied to a real store: the counting writer only counts, so the id and the voxel are nominal.
-const onePatch = (index: number) => [{ t: 'voxel' as const, id: 'g', field: 'material' as const, index, value: 5 }]
+const onePatch = (index: number) => [{ t: 'voxel' as const, id: 'g', field: 'shape' as const, index, value: 5 }]
 
 /**
  * The standing guard #22 asked for. On xstate 6.0.0-alpha.53 a transition
@@ -214,9 +214,9 @@ describe('the read and write paths', () => {
     const doc: ReadonlyMapDoc = createMap(2, 2)
     const g = structureOf(doc, 'ground', 'voxel') as ReadonlyVoxel
     // @ts-expect-error indexed assignment
-    g.voxels.material[0] = 1
+    g.voxels.shape[0] = 1
     // @ts-expect-error record assignment
-    g.paint.faces['0,0,0,4'] = 1
+    g.paint.faces['0,0,0,4'] = ['m:1', null, null, null]
     // @ts-expect-error array mutation
     doc.objectOrder.push('x')
     // @ts-expect-error property replacement

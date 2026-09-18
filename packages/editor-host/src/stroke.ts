@@ -82,7 +82,8 @@ function compacted(compaction: Map<string, Compacted>): { patches: Patch[]; inve
   const patches: Patch[] = []
   const inverse: Patch[] = []
   for (const { first, last } of compaction.values()) {
-    if (first.value === last.value) continue
+    // A face's material layers are an array, so equal is equal content, not the same array.
+    if (first.value === last.value || JSON.stringify(first.value) === JSON.stringify(last.value)) continue
     patches.push(last)
     inverse.push(first)
   }

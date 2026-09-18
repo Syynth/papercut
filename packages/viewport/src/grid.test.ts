@@ -1,7 +1,7 @@
 import type * as THREE from 'three'
 import { describe, expect, it } from 'vitest'
 
-import { NO_RAMP, createMap, createSketch, createVoxel, fillColumn, materialAt, rampDirAt, rampShape, topHeight, type MapDoc, type VoxelStructure } from '@papercut/document'
+import { NO_RAMP, createMap, createSketch, createVoxel, fillColumn, rampDirAt, slotMaterial, topLayersAt, rampShape, topHeight, type MapDoc, type VoxelStructure } from '@papercut/document'
 
 import { TerrainGrid } from './grid'
 
@@ -38,7 +38,7 @@ describe('the terrain grid', () => {
     const g = ground(doc)
     fillColumn(g, 2, 3, 10)
     // A ramp is the top voxel's shape: the column keeps its height and material, its top slopes east.
-    fillColumn(g, 4, 3, topHeight(g, 4, 3), materialAt(g, 4, 3), rampShape(0))
+    fillColumn(g, 4, 3, topHeight(g, 4, 3), { material: slotMaterial(topLayersAt(g, 4, 3)?.[0]) ?? 0, shape: rampShape(0) })
     grid.update(doc, ['ground/0,0'], [])
 
     expect(grid.chunkLines('ground', '0,0')).toBe(left)

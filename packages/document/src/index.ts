@@ -16,6 +16,7 @@ export {
   HALF,
   NO_RAMP,
   NO_WATER,
+  MATERIAL_LAYERS,
   PLACEHOLDER_SHEET,
   PRESET_REFERENCE_SPAN,
   SHAPE_BLOCK,
@@ -29,10 +30,13 @@ export {
   defaultCameraRig,
   defaultFacing,
   inBounds,
+  layersOf,
   makeAtmosphere,
   materialById,
   newId,
   nextMaterialId,
+  slotMaterial,
+  slotOf,
   worldHeight,
 } from './document'
 export {
@@ -47,7 +51,9 @@ export {
   isHalfRampShape,
   isRampShape,
   isSlopedShape,
-  materialAt,
+  exposedFacesOf,
+  settleFaces,
+  topLayersAt,
   maxHeightOf,
   rampDirAt,
   rampShape,
@@ -59,7 +65,7 @@ export {
   voxelAt,
   voxelIndex,
 } from './voxels'
-export type { VoxelBox } from './voxels'
+export type { ColumnFill, VoxelBox } from './voxels'
 export type {
   Atmosphere,
   BackdropCard,
@@ -76,7 +82,9 @@ export type {
   MapObject,
   MapSize,
   MaterialDef,
-  PaintLayers,
+  MaterialLayers,
+  Slot,
+  SurfacePaint,
   ReadonlyMapDoc,
   VoxelData,
 } from './document'
@@ -133,6 +141,7 @@ export {
   rampRunBlocked,
   rampRunLength,
   rectCells,
+  reconcileFaces,
   regroundObjects,
   removeObject,
   removeStructure,
@@ -146,10 +155,10 @@ export {
   updateSketchPoint,
 } from './ops'
 export type { Brush, BrushShape, Cell, FaceRef, RampEdge, RampStep, SketchChanges } from './ops'
-export { FACE_BOTTOM, FACE_TOP, countDormant, faceKey, facePaint, parseFaceKey, tintKey, tintPaint } from './paint'
+export { FACE_BOTTOM, FACE_TOP, faceKey, faceLayers, parseFaceKey, tintKey, tintPaint } from './paint'
 export type { DocumentReader } from './store'
 export { applyPatches, inversePatch, patchAddress } from './edits'
-export type { Patch, SketchField, SketchPatch, StrokeRecord, StructureMetaPatch } from './edits'
+export type { PaintPatch, Patch, SketchField, SketchPatch, StrokeRecord, StructureMetaPatch } from './edits'
 export { createDocument } from './actor'
 export type { DocumentActorLogic, DocumentEvent, DocumentSource } from './actor'
 export { DOCUMENT_OWNER, documentKeys } from './commands'

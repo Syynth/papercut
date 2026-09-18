@@ -34,7 +34,6 @@
 
 import {
   type ReadonlyVoxel,
-  AIR,
   CORNER_OFFSETS,
   DIR_VECTORS,
   FACE_TOP,
@@ -46,12 +45,11 @@ import {
   chunkBounds,
   cornerHeights,
   encodeExtra,
-  facePaint,
+  faceLayers,
   inBounds,
-  materialAt,
+  slotMaterial,
   tintPaint,
   topHeight,
-  voxelAt,
   type Tag,
 } from '@papercut/document'
 
@@ -219,9 +217,8 @@ class Cells {
     if (info) return info
     const corners = cornerHeights(this.voxel, x, y)
     const top = topHeight(this.voxel, x, y)
-    // An empty column draws the floor in the first material; an override left on a voxel that is gone stays dormant.
-    const override = top === 0 ? undefined : facePaint(this.voxel.paint, x, y, Math.ceil(top / 2) - 1, FACE_TOP)
-    info = { corners, top, topKey: this.look.keyOf(override ?? materialAt(this.voxel, x, y), false) }
+    // The top face is the top voxel's; an empty column's is the bedrock floor's, at layer -1.
+    info = { corners, top, topKey: this.faceKey(x, y, Math.ceil(top / 2) - 1, FACE_TOP) }
     this.cells.set(key, info)
     return info
   }
@@ -237,28 +234,26 @@ class Cells {
     return this.at(x, y).corners[CORNER_AT[vx - x][vy - y]]
   }
 
-  /** The terrain a band of a side is drawn with: an override on that voxel's side, else its material's side terrain. */
+  /** The terrain a band of a side is drawn with: the face of the voxel the band belongs to. */
   bandKey(x: number, y: number, dir: number, level: number): Tag {
     const key = ((y * this.voxel.size.width + x) * 4 + dir) * 256 + level
     const known = this.bands.get(key)
     if (known !== undefined) return known
-    const layer = Math.floor(level / 2)
-    const override = facePaint(this.voxel.paint, x, y, layer, dir)
-    let answer: Tag
-    if (override !== undefined) answer = this.look.keyOf(override, true)
-    else {
-      const material = voxelAt(this.voxel, x, y, layer)
-      answer = this.look.keyOf(material === AIR ? materialAt(this.voxel, x, y) : material, true)
-    }
+    const answer = this.faceKey(x, y, Math.floor(level / 2), dir)
     this.bands.set(key, answer)
     return answer
+  }
+
+  /** A face's tag: its first material layer's, until the layers above it are drawn (stage two of the material layers work). */
+  private faceKey(x: number, y: number, layer: number, dir: number): Tag {
+    return this.look.keyOf(slotMaterial(faceLayers(this.voxel.paint, x, y, layer, dir)?.[0]))
   }
 }
 
 interface CellInfo {
   readonly corners: readonly [number, number, number, number]
   readonly top: number
-  /** The terrain the top is drawn with: an override on the top face, else the top voxel's material's top terrain. */
+  /** The terrain the top is drawn with: its top face's. */
   readonly topKey: Tag
 }
 

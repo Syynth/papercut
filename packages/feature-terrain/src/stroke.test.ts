@@ -1,4 +1,5 @@
 import {
+  FACE_TOP,
   NO_RAMP,
   SHAPE_BLOCK,
   SURFACE_CLIFF,
@@ -6,6 +7,7 @@ import {
   createMap,
   faceKey,
   fillColumn,
+  layersOf,
   rampDirAt,
   rampShape,
   topHeight,
@@ -129,8 +131,8 @@ describe('a sculpt stroke steers by the press plane, with a dead zone', () => {
     // The plane says (1,1) still; the pick says (3,3). Paint follows the pick.
     const patches = handler?.move(planeSample(1.5, 1.5, top(3, 3)))
     expect(patches).toHaveLength(1)
-    // The top voxel of a one-cube column is on the first layer.
-    expect(patches?.[0]).toMatchObject({ t: 'voxel', id: 'ground', field: 'material', index: voxelIndex(ground(doc), 3, 3, 0), value: 1 })
+    // The top face of a one-cube column is on the first layer.
+    expect(patches?.[0]).toMatchObject({ t: 'voxelPaint', id: 'ground', layer: 'faces', key: faceKey(3, 3, 0, FACE_TOP), value: layersOf(1) })
   })
 })
 
@@ -201,10 +203,10 @@ describe('the terrain tool contract', () => {
 
   it('alt picks a material up instead of editing, and only on the press', () => {
     const doc = createMap(8, 8)
-    // (2,2) stands two cubes tall; its upper cube's west face carries an
-    // override, which is what a band is drawn with and so what alt picks up.
+    // (2,2) stands two cubes tall; its upper cube's west face holds a
+    // material, which is what a band is drawn with and so what alt picks up.
     fillColumn(ground(doc), 2, 2, 4)
-    ground(doc).paint.faces[faceKey(2, 2, 1, 2)] = 2
+    ground(doc).paint.faces[faceKey(2, 2, 1, 2)] = layersOf(2)
     const band: SurfaceAddress = { structure: 'ground', x: 2, y: 2, kind: SURFACE_CLIFF, dir: 2, level: 2 }
     const { deps, current } = stub(doc, { terrainMode: 'paint', paintVerb: 'material' })
     const handler = terrainContract(deps).stroke(sample(band, { alt: true }))
@@ -213,9 +215,9 @@ describe('the terrain tool contract', () => {
     expect(current().material).toBe(2)
 
     // A move with alt still held changes nothing further: the eyedropper is a
-    // click, not a drag. (3,3)'s top voxel is a different material, and it
+    // click, not a drag. (3,3)'s top is a different material, and it
     // stays unpicked.
-    fillColumn(ground(doc), 3, 3, 2, 3)
+    fillColumn(ground(doc), 3, 3, 2, { material: 3 })
     expect(handler?.move(sample(top(3, 3), { alt: true }))).toEqual([])
     expect(current().material).toBe(2)
   })
@@ -239,7 +241,7 @@ describe('the terrain tool contract', () => {
 
   it('removes the run under a clicked ramp top', () => {
     const doc = createMap(8, 8)
-    fillColumn(ground(doc), 2, 2, 4, 0, rampShape(3))
+    fillColumn(ground(doc), 2, 2, 4, { material: 0, shape: rampShape(3) })
     expect(rampDirAt(ground(doc), 2, 2)).toBe(3)
     const { deps } = stub(doc, { sculptVerb: 'ramp' })
     const handler = terrainContract(deps).stroke(sample(top(2, 2)))

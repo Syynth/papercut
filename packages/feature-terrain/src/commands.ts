@@ -17,6 +17,7 @@
 
 import {
   structureOf,
+  MATERIAL_LAYERS,
   MAX_HEIGHT,
   MIN_HEIGHT,
   clearRampRun,
@@ -54,8 +55,10 @@ const smoothArgs = z.object({ structure, cells, strength: z.int().min(1).max(MAX
 const rampArgs = z.object({ structure, edge: z.object({ x: z.int().min(0), z: z.int().min(0), dir: z.int().min(0).max(3) }).strict(), run: z.int().min(1) }).strict()
 const rampClearArgs = z.object({ structure, cell }).strict()
 const waterArgs = z.object({ structure, cells, level: z.int().min(MIN_HEIGHT).max(MAX_HEIGHT).nullable() }).strict()
-const materialArgs = z.object({ structure, cells, material: z.int().min(0) }).strict()
-const faceArgs = z.object({ structure, faces: z.array(face).min(1), material: z.int().min(0).nullable() }).strict()
+/** Which of a face's material layers a paint command writes; the first when not said. */
+const layer = z.int().min(0).max(MATERIAL_LAYERS - 1).optional()
+const materialArgs = z.object({ structure, cells, material: z.int().min(0).nullable(), layer }).strict()
+const faceArgs = z.object({ structure, faces: z.array(face).min(1), material: z.int().min(0).nullable(), layer }).strict()
 const tintArgs = z.object({ structure, cells, tint: z.int().min(0).max(0xffffff).nullable() }).strict()
 
 /**
@@ -147,12 +150,12 @@ export function terrainEdit(doc: ReadonlyMapDoc, id: string, args: unknown): Ter
       return { label: level === null ? 'Remove water' : 'Carve water', patches: setWater(voxel, cells, level) }
     }
     case 'terrain.material': {
-      const { cells, material } = args as z.infer<typeof materialArgs>
-      return { label: 'Set material', patches: setMaterial(voxel, cells, material) }
+      const { cells, material, layer } = args as z.infer<typeof materialArgs>
+      return { label: material === null ? 'Clear material' : 'Set material', patches: setMaterial(voxel, cells, material, layer) }
     }
     case 'terrain.face': {
-      const { faces, material } = args as z.infer<typeof faceArgs>
-      return { label: material === null ? 'Clear face' : 'Paint face', patches: paintFace(voxel, faces, material ?? undefined) }
+      const { faces, material, layer } = args as z.infer<typeof faceArgs>
+      return { label: material === null ? 'Clear face' : 'Paint face', patches: paintFace(voxel, faces, material, layer) }
     }
     case 'terrain.tint': {
       const { cells, tint } = args as z.infer<typeof tintArgs>

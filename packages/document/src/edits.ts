@@ -20,10 +20,10 @@
  * slot, and the per-address compaction (#11) collapses it to first/last.
  */
 
-import type { MapDoc, MapObject, ReadonlyMapDoc } from './document'
+import type { MapDoc, MapObject, MaterialLayers, ReadonlyMapDoc } from './document'
 import type { SketchStructure, Structure, StructureBase, VoxelStructure } from './structure'
 
-export type TerrainField = 'material' | 'shape' | 'water'
+export type TerrainField = 'shape' | 'water'
 export type PaintLayer = 'faces' | 'tint'
 export type DocField = 'name' | 'camera' | 'atmosphere' | 'surfaceMaterials'
 export type SketchField = 'points' | 'closed' | 'layers' | 'wall' | 'lip' | 'capMaterial' | 'wallMaterial'
@@ -31,11 +31,15 @@ export type StructureMetaField = 'name' | 'parent' | 'placement'
 
 /** One field of one sketch, typed by the field: `{ field: 'layers', value: number }`, never `value: unknown`. */
 export type SketchPatch = { [K in SketchField]: { t: 'sketch'; id: string; field: K; value: SketchStructure[K] } }[SketchField]
+/** One face's material layers, or one cell's tint; `undefined` removes the entry. */
+export type PaintPatch =
+  | { t: 'voxelPaint'; id: string; layer: 'faces'; key: string; value: MaterialLayers | undefined }
+  | { t: 'voxelPaint'; id: string; layer: 'tint'; key: string; value: number | undefined }
 export type StructureMetaPatch = { [K in StructureMetaField]: { t: 'structure.meta'; id: string; field: K; value: StructureBase[K] } }[StructureMetaField]
 
 export type Patch =
   | { t: 'voxel'; id: string; field: TerrainField; index: number; value: number }
-  | { t: 'voxelPaint'; id: string; layer: PaintLayer; key: string; value: number | undefined }
+  | PaintPatch
   | SketchPatch
   | { t: 'structure'; id: string; value: Structure | undefined }
   | StructureMetaPatch
@@ -88,7 +92,7 @@ function voxelOf(doc: ReadonlyMapDoc | MapDoc, id: string): VoxelStructure {
   return s as VoxelStructure
 }
 
-/** The flat array a voxel field is: per voxel for material and shape, per column for water. */
+/** The flat array a voxel field is: per voxel for shape, per column for water. */
 function voxelField(voxel: VoxelStructure, field: TerrainField): number[] {
   return field === 'water' ? voxel.water : voxel.voxels[field]
 }
@@ -121,7 +125,7 @@ export function inversePatch(doc: ReadonlyMapDoc, patch: Patch): Patch {
     case 'voxel':
       return { t: 'voxel', id: patch.id, field: patch.field, index: patch.index, value: voxelField(voxelOf(doc, patch.id), patch.field)[patch.index] }
     case 'voxelPaint':
-      return { t: 'voxelPaint', id: patch.id, layer: patch.layer, key: patch.key, value: voxelOf(doc, patch.id).paint[patch.layer][patch.key] }
+      return { ...patch, value: keep(voxelOf(doc, patch.id).paint[patch.layer][patch.key]) } as PaintPatch
     case 'sketch':
       return { t: 'sketch', id: patch.id, field: patch.field, value: keep(sketchOf(doc, patch.id)[patch.field]) } as SketchPatch
     case 'structure':
@@ -147,9 +151,12 @@ function applyPatch(doc: MapDoc, patch: Patch): Patch {
       voxelField(voxelOf(doc, patch.id), patch.field)[patch.index] = patch.value
       break
     case 'voxelPaint': {
-      const layer = voxelOf(doc, patch.id).paint[patch.layer]
-      if (patch.value === undefined) delete layer[patch.key]
-      else layer[patch.key] = patch.value
+      const paint = voxelOf(doc, patch.id).paint
+      if (patch.layer === 'faces') {
+        if (patch.value === undefined) delete paint.faces[patch.key]
+        else paint.faces[patch.key] = [...patch.value]
+      } else if (patch.value === undefined) delete paint.tint[patch.key]
+      else paint.tint[patch.key] = patch.value
       break
     }
     case 'sketch':
@@ -206,7 +213,7 @@ export function pruneNoops(doc: MapDoc, patches: Patch[]): Patch[] {
       case 'voxel':
         return voxelField(voxelOf(doc, patch.id), patch.field)[patch.index] !== patch.value
       case 'voxelPaint':
-        return voxelOf(doc, patch.id).paint[patch.layer][patch.key] !== patch.value
+        return !same(voxelOf(doc, patch.id).paint[patch.layer][patch.key], patch.value)
       case 'sketch':
         return !same(sketchOf(doc, patch.id)[patch.field], patch.value)
       case 'structure':

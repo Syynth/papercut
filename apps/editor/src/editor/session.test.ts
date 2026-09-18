@@ -6,7 +6,7 @@
 
 import { beforeEach, describe, expect, it } from 'vitest'
 
-import { createDocument, createMap, deserialize, raise, type VoxelStructure } from '@papercut/document'
+import { createDocument, createMap, deserialize, layersOf, raise, type VoxelStructure } from '@papercut/document'
 import { createHost, type Host } from '@papercut/editor-host'
 import { generatePlaceholderTerrainSet } from '@papercut/fixtures'
 import { MemoryFs, createProjectFolder, rawImageCodec } from '@papercut/project'
@@ -87,10 +87,10 @@ describe('the map summaries and repainting', () => {
     const session = makeSession()
     await createProjectAt(host, session, { folder: '/p/many', name: 'Many', texelDensity: 4 })
     const ground = host.reader.doc.structures.ground as VoxelStructure
-    host.children.document.send({ type: 'patch', label: 'Paint', patches: [{ t: 'voxel', id: ground.id, field: 'material', index: 0, value: 4 }] })
+    host.children.document.send({ type: 'patch', label: 'Paint', patches: [{ t: 'voxelPaint', id: ground.id, layer: 'faces', key: '0,0,0,4', value: layersOf(4) }] })
     await newMapIn(host, session, 'Second', 8, 6)
     const second = host.reader.doc.structures.ground as VoxelStructure
-    host.children.document.send({ type: 'patch', label: 'Paint', patches: [{ t: 'voxel', id: second.id, field: 'material', index: 3, value: 4 }] })
+    host.children.document.send({ type: 'patch', label: 'Paint', patches: [{ t: 'voxelPaint', id: second.id, layer: 'faces', key: '3,0,0,4', value: layersOf(4) }] })
     const summaries = () => session.summaries.get().map((s) => ({ path: s.path, size: `${s.width}×${s.height}`, uses4: s.materials.has(4) }))
     // A summary is what the FILE says: the first map was saved when the second opened; the second's paint is not saved yet.
     expect(summaries()).toEqual([
@@ -99,9 +99,9 @@ describe('the map summaries and repainting', () => {
     ])
     await repaintAndDeleteMaterial(host, session, 4, 1)
     expect(host.children.project.getSnapshot().context.project.materials.map((m) => m.id)).toEqual([0, 1, 2, 3])
-    expect(second.voxels.material[3]).toBe(1)
+    expect(second.paint.faces['3,0,0,4']).toEqual(layersOf(1))
     const first = deserialize(await session.fs.readTextFile('/p/many/maps/many.map.json'))
-    expect((first.structures.ground as VoxelStructure).voxels.material[0]).toBe(1)
+    expect((first.structures.ground as VoxelStructure).paint.faces['0,0,0,4']).toEqual(layersOf(1))
     expect(summaries().every((s) => !s.uses4)).toBe(true)
   })
 })
@@ -120,7 +120,7 @@ describe('switching and saving', () => {
     await createProjectAt(host, session, { folder: '/p/two', name: 'Two', texelDensity: 4 })
     expect(location(host).folder).toBe('/p/two')
     const saved = deserialize(await session.fs.readTextFile('/p/one/maps/one.map.json'))
-    expect((saved.structures.ground as VoxelStructure).voxels.material.some((m) => m !== -1)).toBe(true)
+    expect((saved.structures.ground as VoxelStructure).voxels.shape.filter((m) => m !== -1).length).toBeGreaterThan(32 * 32)
   })
 
   it('keeps the project open when closing cannot save it', async () => {

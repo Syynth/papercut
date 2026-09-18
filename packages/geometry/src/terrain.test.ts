@@ -9,10 +9,11 @@ import {
   PLACEHOLDER_SHEET,
   cornerHeights,
   createMap,
-  faceExposed,
   faceKey,
   fillColumn,
-  materialAt,
+  layersOf,
+  slotMaterial,
+  topLayersAt,
   rampShape,
   readAddress,
   tagOf,
@@ -25,7 +26,7 @@ import {
   type VoxelStructure,
 } from '@papercut/document'
 import { type LoadedSet } from './atlas'
-import { createTerrainLook } from './look'
+import { createTerrainLook, type TerrainLook } from './look'
 import { meshTerrainChunk, type MeshBuffers, type TerrainChunkMesh } from './terrain'
 import { createTerrainSet, stampTemplate } from './terrainset'
 
@@ -87,53 +88,52 @@ function setHeight(doc: MapDoc, x: number, y: number, h: number): void {
 /** Make a column's top voxel a full ramp descending toward `dir`, keeping its height and material. */
 function setRamp(doc: MapDoc, x: number, y: number, dir: number): void {
   const g = ground(doc)
-  fillColumn(g, x, y, topHeight(g, x, y), materialAt(g, x, y), rampShape(dir))
+  fillColumn(g, x, y, topHeight(g, x, y), { material: slotMaterial(topLayersAt(g, x, y)?.[0]) ?? 0, shape: rampShape(dir) })
 }
 
-describe('paint survives sculpt', () => {
-  it('keeps a face override dormant when the cliff is lowered, and restores it', () => {
+/** The RGBA at the centroid of every triangle of cell (x, y)'s band at `level` on side `dir`. */
+function bandTexels(chunk: TerrainChunkMesh, look: TerrainLook, x: number, y: number, dir: number, level: number): number[][] {
+  const { solid } = chunk
+  const { width, height, data } = look.atlas.image
+  const out: number[][] = []
+  for (let t = 0; t < solid.triangleCount; t++) {
+    const address = readAddress(solid.faceAddr, t, 'ground')
+    if (address.kind !== SURFACE_CLIFF || address.x !== x || address.y !== y || address.dir !== dir || address.level !== level) continue
+    let u = 0
+    let v = 0
+    for (let k = 0; k < 3; k++) {
+      const vertex = solid.indices[t * 3 + k]
+      u += solid.uvs[vertex * 2] / 3
+      v += solid.uvs[vertex * 2 + 1] / 3
+    }
+    const at = (Math.floor((1 - v) * height) * width + Math.floor(u * width)) * 4
+    out.push([data[at], data[at + 1], data[at + 2], data[at + 3]])
+  }
+  return out
+}
+
+describe('what a face is drawn with', () => {
+  it('draws a face with its first material layer, and one nobody painted as flat magenta', () => {
     // Built directly, and no store at all: this is a fact about the mesher and
-    // the paint addressing, and a test may construct a document (#10). The
-    // write path is an actor in another package now — reaching for one here
-    // would only re-test that actor.
+    // the paint addressing, and a test may construct a document (#10).
     const doc = createMap(8, 8)
     setHeight(doc, 3, 3, 8)
+    const look = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet()])
+    const magenta = (rgba: number[]): boolean => rgba[0] === 0xff && rgba[1] === 0 && rgba[2] === 0xff && rgba[3] === 255
 
-    // Override the east side of the column's top voxel (layer 3, whose bands are levels 6 and 7) with stone.
+    // The east side of the column's top voxel: layer 3, whose bands are levels 6 and 7.
     const key = faceKey(3, 3, 3, 0)
-    ground(doc).paint.faces[key] = 2
-    expect(ground(doc).paint.faces[key]).toBe(2)
-    expect(faceExposed(ground(doc), 3, 3, 3, 0)).toBe(true)
+    ground(doc).paint.faces[key] = layersOf(2)
+    const painted = bandTexels(meshTerrainChunk(ground(doc), '0,0', look), look, 3, 3, 0, 6)
+    expect(painted.length).toBeGreaterThan(0)
+    expect(painted.some(magenta)).toBe(false)
 
-    // Sculpt the cliff down below that voxel. The face stops existing and stops being meshed.
-    setHeight(doc, 3, 3, 4)
-    expect(faceExposed(ground(doc), 3, 3, 3, 0)).toBe(false)
-    const lowered = mesh(doc, '0,0')
-    const levels = new Set<number>()
-    for (let tri = 0; tri < lowered.solid.triangleCount; tri++) {
-      const address = readAddress(lowered.solid.faceAddr, tri, 'ground')
-      if (address.kind === SURFACE_CLIFF && address.x === 3 && address.y === 3) {
-        levels.add(address.level)
-      }
-    }
-    expect(levels.has(6)).toBe(false)
-
-    // The paint is still there. Nothing garbage-collected it.
-    expect(ground(doc).paint.faces[key]).toBe(2)
-
-    // Raise it back and the artist's work reappears at the same address.
-    setHeight(doc, 3, 3, 8)
-    expect(faceExposed(ground(doc), 3, 3, 3, 0)).toBe(true)
-    const restored = mesh(doc, '0,0')
-    let found = false
-    for (let tri = 0; tri < restored.solid.triangleCount; tri++) {
-      const address = readAddress(restored.solid.faceAddr, tri, 'ground')
-      if (address.kind === SURFACE_CLIFF && address.x === 3 && address.y === 3 && address.level === 6) {
-        found = true
-      }
-    }
-    expect(found).toBe(true)
-    expect(ground(doc).paint.faces[key]).toBe(2)
+    // Geometry does not ask paint whether to exist: the face still draws, as the fallback. Every east
+    // face of the column goes, so the band's corners meet nothing painted above or below it either.
+    for (let y = 0; y < 4; y++) delete ground(doc).paint.faces[faceKey(3, 3, y, 0)]
+    const bare = bandTexels(meshTerrainChunk(ground(doc), '0,0', look), look, 3, 3, 0, 6)
+    expect(bare.length).toBe(painted.length)
+    expect(bare.every(magenta)).toBe(true)
   })
 })
 
@@ -304,7 +304,7 @@ describe('walls are watertight', () => {
         const h = Math.floor(next() * 10)
         const dir = next() < 0.35 ? Math.floor(next() * 4) : NO_RAMP
         if (dir === NO_RAMP) fillColumn(g, x, y, h)
-        else fillColumn(g, x, y, Math.max(2, h - (h % 2)), 0, rampShape(dir))
+        else fillColumn(g, x, y, Math.max(2, h - (h % 2)), { material: 0, shape: rampShape(dir) })
       }
     }
     return doc

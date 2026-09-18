@@ -7,10 +7,11 @@
  * find a fallback colour the same way. All of that existed to cross a join
  * that no longer exists.
  *
- * What is left is the one thing that was never indirection: a voxel's SIDES
- * are made of a different material from its top when `side` says so, because
- * a material belongs to a face rather than to a voxel. Grass-topped dirt is
- * grass whose sides are dirt.
+ * What is left is almost nothing: a face's material layers name materials
+ * directly (ruling of 2026-09-18), so a face's tag is its material's. A
+ * voxel's sides used to be cut from another material by `side`; now each
+ * face carries its own layers, and a face nobody painted, or a material the
+ * project does not have, draws `UNPAINTED`.
  *
  * The look owns the atlas, whose priority order is the map's material order,
  * so a change to the materials or to the loaded sets is a new look and a
@@ -19,18 +20,17 @@
 
 import { materialOfTag, tagOf, type MaterialDef, type Tag } from '@papercut/document'
 
-import { TerrainAtlas, type LoadedSet } from './atlas'
+import { TerrainAtlas, UNPAINTED, type LoadedSet } from './atlas'
 
 export interface TerrainLook {
   readonly atlas: TerrainAtlas
-  /** The tag a face of a material is drawn with: its side material's tag on a side, its own otherwise; `null` for an id the map does not have. */
-  keyOf(material: number, side: boolean): Tag
+  /** The tag a face holding `material` is drawn with; `UNPAINTED` for none, or for an id the project does not have. */
+  keyOf(material: number | null): Tag
 }
 
 export function createTerrainLook(materials: readonly MaterialDef[], sets: readonly LoadedSet[]): TerrainLook {
   const byId = new Map(materials.map((m, index) => [m.id, index]))
-  const top = materials.map((m) => tagOf(m.id))
-  const side = materials.map((m) => tagOf(m.side ?? m.id))
+  const tags = materials.map((m) => tagOf(m.id))
   /** A tag's material, however the tag is slotted; `undefined` for one the map does not have. */
   const indexOf = (key: Tag): number | undefined => {
     const id = materialOfTag(key)
@@ -49,9 +49,9 @@ export function createTerrainLook(materials: readonly MaterialDef[], sets: reado
         return index === undefined ? String(key) : materials[index].name
       },
     ),
-    keyOf: (material, isSide) => {
-      const index = byId.get(material)
-      return index === undefined ? null : isSide ? side[index] : top[index]
+    keyOf: (material) => {
+      const index = material === null ? undefined : byId.get(material)
+      return index === undefined ? UNPAINTED : tags[index]
     },
   }
 }

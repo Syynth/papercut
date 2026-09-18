@@ -169,6 +169,15 @@ async function readout() {
   )
 }
 
+/** The root volume's face paint, keyed by face: what a step's before and after are compared on. */
+async function faceRecord() {
+  return page.evaluate(() => {
+    const doc = window.__host.reader.doc
+    const ground = /** @type {import('@papercut/document').VoxelStructure} */ (doc.structures[doc.structureOrder[0]])
+    return /** @type {Record<string, unknown>} */ (JSON.parse(JSON.stringify(ground.paint.faces)))
+  })
+}
+
 async function statusBar() {
   return page.evaluate(() =>
     [...document.querySelectorAll('.status span')].map((s) => s.textContent.trim()),
@@ -201,7 +210,7 @@ async function counts() {
     const ground = /** @type {import('@papercut/document').VoxelStructure} */ (doc.structures[doc.structureOrder[0]])
     // The column tops, derived the way `topHeight` derives them: the page has the raw document, not the helpers.
     const { width, height } = ground.size
-    // The material the paint step brushes on; a top's material is its top voxel's.
+    // The material the paint step brushes on; a top's material is its top face's first material layer.
     const path = window.__host.children.project.getSnapshot().context.project.materials.find((m) => m.name === 'Path')?.id ?? -1
     let ramps = 0
     let heightSum = 0
@@ -210,10 +219,10 @@ async function counts() {
       for (let x = 0; x < width; x++) {
         for (let layer = ground.layers - 1; layer >= 0; layer--) {
           const i = (layer * height + y) * width + x
-          if (ground.voxels.material[i] === -1) continue
           const shape = ground.voxels.shape[i]
+          if (shape === -1) continue
           if (shape >= 2) ramps += 1
-          if (ground.voxels.material[i] === path) pathCells += 1
+          if (ground.paint.faces[`${x},${y},${layer},4`]?.[0] === `m:${path}`) pathCells += 1
           heightSum += layer * 2 + (shape === 1 || (shape >= 6 && shape < 10) ? 1 : 2)
           break
         }
@@ -299,8 +308,8 @@ async function faceCamera(distance = 10, pitch = 10) {
     const columnTop = (x, y) => {
       for (let layer = ground.layers - 1; layer >= 0; layer--) {
         const i = (layer * height + y) * width + x
-        if (ground.voxels.material[i] === -1) continue
         const shape = ground.voxels.shape[i]
+        if (shape === -1) continue
         return layer * 2 + (shape === 1 || (shape >= 6 && shape < 10) ? 1 : 2)
       }
       return 0
@@ -452,7 +461,7 @@ await shot(
   'The tint brush, quantised per cell — deliberately not smooth splatting, which looks mushy next to pixel art.',
 )
 
-// ------------------------------------------- 6. paint survives sculpt (the point)
+// ------------------------------------------- 6. a face's paint moves with the surface
 const cliff = await faceCamera(9, 8)
 await clickText('Material', '.left')
 await shot(
@@ -462,9 +471,10 @@ await shot(
 )
 
 // Paint bands of that face through the UI: on a side band the Material brush
-// sets a face override rather than the voxel's own material. Find the face
-// first, then walk up and down from it, checking the status bar still reports
-// a cliff before each click so no stroke lands on a terrain top by accident.
+// sets that face's first material layer. Find the face first, then walk up and
+// down from it, checking the status bar still reports a cliff before each
+// click so no stroke lands on a terrain top by accident.
+const facesBefore = await faceRecord()
 const cliffPixel = await findCliffPixel()
 if (!cliffPixel) throw new Error('no cliff face visible to paint')
 for (const dy of [-30, -10, 0, 10, 30]) {
@@ -477,13 +487,14 @@ for (const dy of [-30, -10, 0, 10, 30]) {
   await sleep(200)
 }
 
-const painted = (await counts()).faces
-if (painted === 0) {
+const facesPainted = await faceRecord()
+const painted = Object.keys(facesPainted).filter((key) => JSON.stringify(facesPainted[key]) !== JSON.stringify(facesBefore[key]))
+if (painted.length === 0) {
   throw new Error('cliff painting did not land on any cliff face — captions would be wrong')
 }
 await shot(
   'cliff-painted',
-  `Cliff bands painted one at a time — ${painted} face overrides. Each is keyed by voxel and side, never by a triangle, and holds a material rather than a tile.`,
+  `Cliff bands painted one at a time — ${painted.length} faces. Each is keyed by voxel and side, never by a triangle, and holds four material layers rather than a tile.`,
 )
 
 // Now sculpt the cliff away.
@@ -494,24 +505,25 @@ await page.evaluate(
   (c) => window.__host.dispatch('terrain.flatten', { structure: window.__host.reader.doc.structureOrder[0], cells: [[c.x, c.y]], height: c.bottom }),
   cliff,
 )
-const dormantLine = (await statusBar())[2]
-const dormantCount = Number(dormantLine.replace(/\D+/g, ''))
-if (dormantCount === 0) {
-  throw new Error(`expected dormant paint after lowering, status bar said "${dormantLine}"`)
+const facesLowered = await faceRecord()
+const gone = painted.filter((key) => !(key in facesLowered))
+if (gone.length === 0) {
+  throw new Error('expected lowering the cliff to take the paint off the faces it removed')
 }
+const unpaintedLine = (await statusBar())[2]
 await shot(
   'cliff-lowered',
-  `Sculpting the cliff down. The overridden faces are gone from the mesh, and the status bar counts them as dormant rather than deleted — "${dormantLine}".`,
+  `Sculpting the cliff down. ${gone.length} painted faces went with the geometry: no paint is kept for faces that do not exist. The faces the edit uncovered took their neighbours' layers — "${unpaintedLine}".`,
 )
 
 await page.evaluate(() => window.__host.dispatch('undo'))
-await expect(
-  'paint came back with the geometry',
-  () => Object.keys(/** @type {import('@papercut/document').VoxelStructure} */ (window.__host.reader.doc.structures[window.__host.reader.doc.structureOrder[0]]).paint.faces).length > 0,
-)
+const facesRestored = await faceRecord()
+if (!painted.every((key) => JSON.stringify(facesRestored[key]) === JSON.stringify(facesPainted[key]))) {
+  throw new Error('undo did not bring the painted faces back as they were')
+}
 await shot(
   'cliff-restored',
-  'Raising it back brings every overridden face with it, because nothing ever garbage-collected the paint.',
+  'Undo brings the cliff back with every painted face as it was: the sculpt recorded the paint it removed.',
 )
 
 // ---------------------------------------------------------------- 7. objects

@@ -1,15 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
 import { applyPatches, History, inversePatch, patchAddress, type Patch, type StrokeRecord } from './edits'
-import { createMap, defaultFacing, NO_RAMP, type MapDoc, type MapObject, type ReadonlyMapDoc } from './document'
+import { createMap, defaultFacing, layersOf, NO_RAMP, SHAPE_BLOCK, SHAPE_SLAB, type MapDoc, type MapObject, type ReadonlyMapDoc } from './document'
 import { childrenOf, descendantsOf, outlineOf, type VoxelStructure } from './structure'
 import { deserialize, LoadError, serialize } from './io'
 import { PROJECT_FORMAT_VERSION, createProject, parseProject, serializeProject, sheetName, stemOf, tagOf } from './project'
-import { addObject, addSketchPoint, addStructure, brushCells, clearRampRun, closeSketch, columnPatches, createSketch, deleteSketchPoint, fillCells, flatten, paintFace, placeStructureOnto, raise, rampPlan, rampRun, rampRunBlocked, rampRunLength, removeObject, removeStructure, reparentStructure, setSketch, updateObject } from './ops'
-import { FACE_TOP, countDormant, faceKey, parseFaceKey } from './paint'
+import { addObject, addSketchPoint, addStructure, brushCells, clearRampRun, closeSketch, columnPatches, createSketch, deleteSketchPoint, fillCells, flatten, paintFace, placeStructureOnto, raise, rampPlan, rampRun, rampRunBlocked, rampRunLength, removeObject, removeStructure, reparentStructure, setMaterial, setSketch, updateObject } from './ops'
+import { FACE_TOP, faceKey } from './paint'
 import { EditorStore } from './store'
 import { cornerHeights, frameOf, groundHeight, structureAt } from './terrain'
-import { columnHeights, columnTopAt, faceExposed, fillColumn, halfRampShape, halfRampUpShape, materialAt, rampDirAt, rampShape, topHeight, voxelIndex } from './voxels'
+import { columnHeights, columnTopAt, exposedFacesOf, fillColumn, halfRampShape, halfRampUpShape, rampDirAt, rampShape, settleFaces, topHeight, topLayersAt, voxelIndex } from './voxels'
 
 function objectAt(id: string, x: number, z: number): MapObject {
   return {
@@ -62,17 +62,17 @@ describe('edits', () => {
 
   it('inverts repeated writes to one address in the right order', () => {
     const doc = createMap(4, 4)
-    fillColumn(ground(doc), 0, 0, 2, 1)
-    const index = voxelIndex(ground(doc), 0, 0, 0)
+    fillColumn(ground(doc), 0, 0, 2, { material: 1 })
+    const key = faceKey(0, 0, 0, FACE_TOP)
 
     const inverse = applyPatches(doc, [
-      { t: 'voxel', id: ground(doc).id, field: 'material', index, value: 2 },
-      { t: 'voxel', id: ground(doc).id, field: 'material', index, value: 3 },
+      { t: 'voxelPaint', id: ground(doc).id, layer: 'faces', key, value: layersOf(2) },
+      { t: 'voxelPaint', id: ground(doc).id, layer: 'faces', key, value: layersOf(3) },
     ])
-    expect(materialAt(ground(doc), 0, 0)).toBe(3)
+    expect(topLayersAt(ground(doc), 0, 0)).toEqual(layersOf(3))
 
     applyPatches(doc, inverse)
-    expect(materialAt(ground(doc), 0, 0)).toBe(1)
+    expect(topLayersAt(ground(doc), 0, 0)).toEqual(layersOf(1))
   })
 
   it('undoes and redoes through the history', () => {
@@ -91,26 +91,29 @@ describe('edits', () => {
 
 describe('patch addresses and inverses', () => {
   it('keys a patch by the slot it writes, and nothing else', () => {
-    expect(patchAddress({ t: 'voxel', id: 'g', field: 'material', index: 7, value: 1 })).toBe(patchAddress({ t: 'voxel', id: 'g', field: 'material', index: 7, value: 9 }))
-    expect(patchAddress({ t: 'voxel', id: 'g', field: 'material', index: 7, value: 1 })).not.toBe(patchAddress({ t: 'voxel', id: 'g', field: 'shape', index: 7, value: 1 }))
-    expect(patchAddress({ t: 'voxel', id: 'g', field: 'material', index: 7, value: 1 })).not.toBe(patchAddress({ t: 'voxel', id: 'g', field: 'water', index: 7, value: 1 }))
-    expect(patchAddress({ t: 'voxelPaint', id: 'g', layer: 'faces', key: '1,2', value: 3 })).not.toBe(patchAddress({ t: 'voxelPaint', id: 'g', layer: 'tint', key: '1,2', value: 3 }))
+    expect(patchAddress({ t: 'voxel', id: 'g', field: 'shape', index: 7, value: 1 })).toBe(patchAddress({ t: 'voxel', id: 'g', field: 'shape', index: 7, value: 9 }))
+    expect(patchAddress({ t: 'voxel', id: 'g', field: 'shape', index: 7, value: 1 })).not.toBe(patchAddress({ t: 'voxel', id: 'g', field: 'water', index: 7, value: 1 }))
+    expect(patchAddress({ t: 'voxelPaint', id: 'g', layer: 'faces', key: '1,2', value: layersOf(3) })).not.toBe(patchAddress({ t: 'voxelPaint', id: 'g', layer: 'tint', key: '1,2', value: 3 }))
     expect(patchAddress({ t: 'object', id: 'a', value: undefined })).toBe('object:a')
     expect(patchAddress({ t: 'doc', field: 'camera', value: null })).toBe('doc:camera')
   })
 
   it('reads the before-value the applier would have returned, without writing', () => {
     const doc = createMap(4, 4)
-    // A three-block column in material 6: its top voxel sits in layer 2.
-    fillColumn(ground(doc), 1, 1, 6, 6)
-    const patch: Patch = { t: 'voxel', id: ground(doc).id, field: 'material', index: voxelIndex(ground(doc), 1, 1, 2), value: 9 }
+    // A three-block column: its top voxel sits in layer 2.
+    fillColumn(ground(doc), 1, 1, 6, { material: 4 })
+    const patch: Patch = { t: 'voxel', id: ground(doc).id, field: 'shape', index: voxelIndex(ground(doc), 1, 1, 2), value: SHAPE_SLAB }
     const before = inversePatch(doc, patch)
-    expect(before).toEqual({ ...patch, value: 6 })
-    expect(materialAt(ground(doc), 1, 1)).toBe(6)
+    expect(before).toEqual({ ...patch, value: SHAPE_BLOCK })
     // Same answer as the applier, which is what makes the two paths agree.
     expect(applyPatches(doc, [patch])).toEqual([before])
-    const face = faceKey(0, 0, 0, FACE_TOP)
-    expect(inversePatch(doc, { t: 'voxelPaint', id: ground(doc).id, layer: 'faces', key: face, value: 1 })).toEqual({ t: 'voxelPaint', id: ground(doc).id, layer: 'faces', key: face, value: undefined })
+    // A face's layers come back as they were, and a copy: the next forward write must not edit the inverse too.
+    const face = faceKey(1, 1, 2, FACE_TOP)
+    const inverse = inversePatch(doc, { t: 'voxelPaint', id: ground(doc).id, layer: 'faces', key: face, value: layersOf(1) })
+    expect(inverse).toEqual({ t: 'voxelPaint', id: ground(doc).id, layer: 'faces', key: face, value: layersOf(4) })
+    expect(inverse.t === 'voxelPaint' && inverse.value).not.toBe(ground(doc).paint.faces[face])
+    const bare = faceKey(1, 1, 5, FACE_TOP)
+    expect(inversePatch(doc, { t: 'voxelPaint', id: ground(doc).id, layer: 'faces', key: bare, value: layersOf(1) })).toEqual({ t: 'voxelPaint', id: ground(doc).id, layer: 'faces', key: bare, value: undefined })
   })
 })
 
@@ -329,41 +332,86 @@ describe('store', () => {
   })
 })
 
-describe('paint survives sculpt', () => {
-  it('never emits a paint patch from a sculpt op', () => {
+/** Every face of the volume that draws, as keys: what the paint record should hold exactly. */
+function drawnFaces(voxel: VoxelStructure): string[] {
+  const out: string[] = []
+  for (let z = 0; z < voxel.size.height; z++) for (let x = 0; x < voxel.size.width; x++) out.push(...exposedFacesOf(voxel, x, z))
+  return out.sort()
+}
+
+describe('a stack moves with the surface (no dormant paint)', () => {
+  it('leaves exactly the faces that draw painted after every sculpt op, and undoes to the paint it started with', () => {
     const doc = createMap(8, 8)
     // A cliff at (1,1) for the ramp to be cut from, and a ramp at (3,3) to clear.
     setHeight(doc, 1, 1, 4)
-    fillColumn(ground(doc), 3, 3, 4, 0, rampShape(0))
-    const edge = { x: 1, z: 1, dir: 0 }
-    const ops = [
-      raise(doc, ground(doc), [[1, 1]], 2),
-      flatten(doc, ground(doc), [[1, 1]], 5),
-      rampRun(doc, ground(doc), edge, rampRunLength(ground(doc), edge) ?? 0),
-      clearRampRun(doc, ground(doc), 3, 3),
+    fillColumn(ground(doc), 3, 3, 4, { material: 0, shape: rampShape(0) })
+    settleFaces(ground(doc))
+    expect(Object.keys(ground(doc).paint.faces).sort()).toEqual(drawnFaces(ground(doc)))
+    const start: unknown = JSON.parse(JSON.stringify(ground(doc).paint.faces))
+    // Cut west, toward (0,1) at one cube, once (1,1) stands two.
+    const edge = { x: 1, z: 1, dir: 2 }
+    const steps = [
+      () => raise(doc, ground(doc), [[1, 1], [2, 1]], 3),
+      () => flatten(doc, ground(doc), [[1, 1]], 0),
+      () => raise(doc, ground(doc), [[1, 1]], 4),
+      () => rampRun(doc, ground(doc), edge, rampRunLength(ground(doc), edge) ?? 0),
+      () => clearRampRun(doc, ground(doc), 3, 3),
     ]
-    for (const patches of ops) {
+    const inverses: Patch[][] = []
+    for (const step of steps) {
+      const patches = step()
       expect(patches.length).toBeGreaterThan(0)
-      expect(patches.some((patch) => patch.t === 'voxelPaint')).toBe(false)
+      inverses.push(applyPatches(doc, patches))
+      expect(Object.keys(ground(doc).paint.faces).sort()).toEqual(drawnFaces(ground(doc)))
     }
+    for (const inverse of inverses.reverse()) applyPatches(doc, inverse)
+    expect(ground(doc).paint.faces).toEqual(start)
   })
 
-  it('reports dormant paint as a diagnostic', () => {
+  it("gives a raised top its old top's stack, and a new cliff the stack of the face below it", () => {
+    const doc = createMap(6, 6)
+    const g = ground(doc)
+    // A two-cube column whose top holds two layers and whose east side at the bottom is stone.
+    fillColumn(g, 2, 2, 4, { material: 3, sides: 1 })
+    settleFaces(g)
+    g.paint.faces[faceKey(2, 2, 1, FACE_TOP)] = ['m:3', 'm:4', null, null]
+    g.paint.faces[faceKey(2, 2, 1, 0)] = layersOf(2)
+
+    applyPatches(doc, raise(doc, g, [[2, 2]], 4))
+    expect(g.paint.faces[faceKey(2, 2, 1, FACE_TOP)]).toBeUndefined()
+    expect(g.paint.faces[faceKey(2, 2, 3, FACE_TOP)]).toEqual(['m:3', 'm:4', null, null])
+    // The new east face two layers up copies up from the one below it, stone all the way.
+    expect(g.paint.faces[faceKey(2, 2, 2, 0)]).toEqual(layersOf(2))
+    expect(g.paint.faces[faceKey(2, 2, 3, 0)]).toEqual(layersOf(2))
+    // The other sides carry their own.
+    expect(g.paint.faces[faceKey(2, 2, 3, 2)]).toEqual(layersOf(1))
+  })
+
+  it('keeps an emptied column painted: its floor takes the old top, and the sides it uncovers take theirs', () => {
+    const doc = createMap(6, 6)
+    const g = ground(doc)
+    for (let z = 0; z < 6; z++) for (let x = 0; x < 6; x++) fillColumn(g, x, z, 4, { material: 3, sides: 1 })
+    settleFaces(g)
+    applyPatches(doc, flatten(doc, g, [[2, 2]], 0))
+    expect(columnTopAt(g, 2, 2)).toBe(-1)
+    expect(g.paint.faces[faceKey(2, 2, -1, FACE_TOP)]).toEqual(layersOf(3))
+    // (3,2)'s west side, now a wall over the hole: no side of it was painted, so it takes its column's top.
+    expect(g.paint.faces[faceKey(3, 2, 0, 2)]).toEqual(layersOf(3))
+    expect(Object.keys(g.paint.faces).sort()).toEqual(drawnFaces(g))
+  })
+
+  it("paints one material layer of a face and leaves the others", () => {
     const doc = createMap(4, 4)
     const g = ground(doc)
-    // An override on a face that is drawn — the top of the one-cube column at (1, 1) — and one on a face
-    // no voxel has, off the volume. Only the second is dormant.
-    g.paint.faces[faceKey(1, 1, 0, FACE_TOP)] = 3
-    g.paint.faces[faceKey(9, 9, 0, 0)] = 4
-    const exists = (key: string) => {
-      const { x, z, y, dir } = parseFaceKey(key)
-      return faceExposed(g, x, z, y, dir)
-    }
-    expect(countDormant(g.paint, exists)).toBe(1)
-    // Lower the column to nothing and its top face goes too: the override stays, dormant now.
-    setHeight(doc, 1, 1, 0)
-    expect(countDormant(g.paint, exists)).toBe(2)
-    expect(g.paint.faces[faceKey(1, 1, 0, FACE_TOP)]).toBe(3)
+    applyPatches(doc, setMaterial(g, [[1, 1]], 2, 2))
+    expect(topLayersAt(g, 1, 1)).toEqual(['m:0', null, 'm:2', null])
+    applyPatches(doc, setMaterial(g, [[1, 1]], null))
+    expect(topLayersAt(g, 1, 1)).toEqual([null, null, 'm:2', null])
+    // A face with no stack yet gets one.
+    applyPatches(doc, paintFace(g, [{ x: 1, z: 1, y: 3, dir: 0 }], 1, 3))
+    expect(g.paint.faces[faceKey(1, 1, 3, 0)]).toEqual([null, null, null, 'm:1'])
+    // Painting what is already there is no patch at all.
+    expect(setMaterial(g, [[1, 1]], 2, 2)).toEqual([])
   })
 })
 
@@ -371,7 +419,7 @@ describe('terrain queries', () => {
   it('interpolates a ramp instead of stepping it', () => {
     const doc = createMap(4, 4)
     // A two-cube column whose top voxel is a ramp descending east.
-    fillColumn(ground(doc), 1, 1, 4, 0, rampShape(0))
+    fillColumn(ground(doc), 1, 1, 4, { material: 0, shape: rampShape(0) })
 
     const high = groundHeight(doc, 1.01, 1.5)
     const low = groundHeight(doc, 1.99, 1.5)
@@ -469,7 +517,7 @@ describe('ramps', () => {
     expect(rampRun(doc, ground(doc), { x: 2, z: 1, dir: 0 }, 2)).toEqual([])
     // A ramp already cut behind the edge blocks it too.
     setHeight(doc, 1, 1, 6)
-    fillColumn(ground(doc), 1, 1, 6, 0, rampShape(1))
+    fillColumn(ground(doc), 1, 1, 6, { material: 0, shape: rampShape(1) })
     expect(rampRunBlocked(ground(doc), { x: 2, z: 1, dir: 0 })).toBe('the run crosses another ramp')
     // And a run that would step off the volume: a drop of three tiles from a plateau only two cells deep.
     const small = createMap(3, 2)
@@ -547,7 +595,7 @@ describe('io', () => {
   it('round-trips a document', () => {
     const store = new EditorStore(createMap(6, 6, 'Test Map'))
     store.apply('Raise', raise(store.reader.doc, ground(store.reader.doc), [[1, 1]], 3))
-    // The top face of the column's top voxel, drawn with material 4 (path) instead of its own.
+    // The top face of the column's top voxel, drawn with material 4 (path).
     const top = columnTopAt(ground(store.reader.doc), 1, 1)
     store.apply('Paint', paintFace(ground(store.reader.doc), [{ x: 1, z: 1, y: top, dir: FACE_TOP }], 4))
 
@@ -556,8 +604,8 @@ describe('io', () => {
     expect(ground(restored).voxels).toEqual(ground(store.reader.doc).voxels)
     expect(columnHeights(ground(restored))).toEqual(columnHeights(ground(store.reader.doc)))
     expect(ground(restored).paint.faces).toEqual(ground(store.reader.doc).paint.faces)
-    expect(ground(restored).paint.faces[faceKey(1, 1, top, FACE_TOP)]).toBe(4)
-    expect(restored.formatVersion).toBe(4)
+    expect(ground(restored).paint.faces[faceKey(1, 1, top, FACE_TOP)]).toEqual(layersOf(4))
+    expect(restored.formatVersion).toBe(5)
   })
 
   it('refuses an older format outright: no migrations until data exists', () => {
@@ -599,7 +647,7 @@ describe('io', () => {
     const doc = createMap(4, 4)
     const { layers } = ground(doc)
     const raw = parseOnDisk(doc)
-    raw.structures[ground(doc).id].voxels.material = [1, 2, 3]
+    raw.structures[ground(doc).id].voxels.shape = [1, 2, 3]
     expect(() => deserialize(JSON.stringify(raw))).toThrow(LoadError)
     expect(() => deserialize(JSON.stringify(raw))).toThrow(new RegExp(`should hold ${16 * layers} entries`))
   })
@@ -611,12 +659,16 @@ describe('io', () => {
     expect(() => deserialize(JSON.stringify(raw))).toThrow(/should hold 16 entries/)
   })
 
-  it('preserves dormant paint across a save and load', () => {
+  it('refuses a face that is not four material layers, or a key that names no face', () => {
     const doc = createMap(4, 4)
-    // The east side of a voxel fifteen layers up a column that is one cube tall: no such face is drawn.
-    ground(doc).paint.faces[faceKey(1, 1, 15, 0)] = 5
-    const restored = deserialize(serialize(doc))
-    expect(ground(restored).paint.faces[faceKey(1, 1, 15, 0)]).toBe(5)
+    const raw = parseOnDisk(doc)
+    raw.structures[ground(doc).id].paint.faces[faceKey(1, 1, 0, FACE_TOP)] = 5
+    expect(() => deserialize(JSON.stringify(raw))).toThrow(/should be 4 material layers/)
+    raw.structures[ground(doc).id].paint.faces[faceKey(1, 1, 0, FACE_TOP)] = ['t:12', null, null, null]
+    expect(() => deserialize(JSON.stringify(raw))).toThrow(/should be 4 material layers/)
+    raw.structures[ground(doc).id].paint.faces[faceKey(1, 1, 0, FACE_TOP)] = ['m:1', null, null, 'm:2']
+    raw.structures[ground(doc).id].paint.faces['1,1'] = layersOf(1)
+    expect(() => deserialize(JSON.stringify(raw))).toThrow(/does not name a face/)
   })
 })
 
@@ -785,12 +837,12 @@ describe('structures', () => {
 })
 
 describe('a map file is checked before it is believed', () => {
-  const raw = () => JSON.parse(serialize(createMap(2, 2))) as { structures: Record<string, { voxels: { material: number[]; shape: number[] }; layers: number }> }
+  const raw = () => JSON.parse(serialize(createMap(2, 2))) as { structures: Record<string, { voxels: { shape: number[] }; layers: number }> }
 
-  it('refuses a voxel whose material or shape is not one', () => {
-    const material = raw()
-    material.structures.ground.voxels.material[0] = -5
-    expect(() => deserialize(JSON.stringify(material))).toThrow(/material\[0\] is -5/)
+  it('refuses a voxel whose shape is not one', () => {
+    const air = raw()
+    air.structures.ground.voxels.shape[0] = -5
+    expect(() => deserialize(JSON.stringify(air))).toThrow(/shape\[0\] is -5/)
     const shape = raw()
     shape.structures.ground.voxels.shape[1] = 99
     expect(() => deserialize(JSON.stringify(shape))).toThrow(/shape\[1\] is 99/)
@@ -864,9 +916,8 @@ describe('a project file is checked before it is believed', () => {
     const project = (materials: unknown[], image: Record<string, unknown>) => JSON.stringify({ formatVersion: PROJECT_FORMAT_VERSION, materials, images: [{ path: 'sheets/a.png', grid: { tile: 16 }, ...image }] })
     expect(() => parseProject(project([{ id: 0, name: 'Grass' }], { terrain: { tiles: { 0: [tagOf(7), null, null, null] } } }))).toThrow(/tagged with material 7, which the project does not have/)
     expect(() => parseProject(project([{ id: 0, name: 'Grass' }], { layout: { convention: 'corner-blocks', materials: [0, 7] } }))).toThrow(/lays out material 7/)
-    expect(() => parseProject(project([{ id: 0, name: 'Grass', side: 7 }], {}))).toThrow(/cuts its sides with material 7/)
-    // The same file with the material present is read, and `side` is kept as the id it is.
+    // A material has no `side` any more (ruling of 2026-09-18): one a file still carries is not read.
     const ok = parseProject(project([{ id: 0, name: 'Grass', side: 7 }, { id: 7, name: 'Dirt' }], { terrain: { tiles: { 0: [tagOf(7), null, null, null] } } }))
-    expect(ok.materials[0].side).toBe(7)
+    expect(ok.materials[0]).not.toHaveProperty('side')
   })
 })
