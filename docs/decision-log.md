@@ -757,3 +757,11 @@ Each entry:
 - **SCOPE:** minor/local (refines "The paint layers are a collapsing widget on the stage")
 - **WHAT:** Collapsed, the widget is a compact row with one target per layer that is large enough to click, so you can switch the active layer without opening it. Its header is an icon, not the words "Material layers". It appears only while the Terrain tool is in Paint mode.
 - **WHY:** Switching layers is the frequent action while painting, so it should take one click and not a trip into the panel. The text label wrapped and made the widget bulkier than its job. Outside terrain painting the layers aren't being worked with, so the widget would only cover the map.
+
+## A fringe is a flap of geometry hanging off the rim
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model / geometry
+- **SCOPE:** moderate (shapes stage 3; builds on "A material spans archetypes; the archetype is named per corner")
+- **WHAT:** A material can have fringe tiles, tagged with the `fringe` slot on the sheet. Wherever that material stands on a cliff top, the mesher hangs its fringe off the rim as geometry of its own: a strip hinged at the edge and angled 45° out from the wall, like a box flap. This is the only kind of any-to-any fringing. A fringe is never laid flat over the wall's art, whether automatically or by painting the floor's material a layer up. Drawn joins across a fold stay available where an artist draws them.
+- **WHY:** Seen side by side, the flap reads as a real overhang and looks far better than a fringe lying flat on the wall. Compositing a fringe over wall art by hand isn't worth the effort. Wall art as drawn meets anything, with a cap, a middle and a foot, so the fringe is what makes the rim look finished.
