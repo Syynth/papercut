@@ -150,11 +150,12 @@ export function TerrainBar(props: TerrainPanelProps) {
             value={params.paintVerb}
             onChange={(paintVerb) => set({ paintVerb })}
             options={[
-              { value: 'material', icon: 'material', title: 'Material — a top takes it, a cliff band is painted with it, ⇧ clears a band' },
+              { value: 'material', icon: 'material', title: 'Material — paints the active material layer of a top or a cliff band; ⇧ empties it' },
               { value: 'tint', icon: 'tint', title: 'Tint' },
             ]}
           />
           <BarDivider />
+          {params.paintVerb === 'material' ? <BarLabel>{`Material layer ${params.materialLayer + 1}`}</BarLabel> : null}
           {params.paintVerb === 'material'
             ? props.materials.map((material) => (
                 <Chip key={material.id} title={`${material.name} · ${material.archetype}`} swatch={cssColor(material.color)} active={material.id === params.material} onClick={() => set({ material: material.id })} />

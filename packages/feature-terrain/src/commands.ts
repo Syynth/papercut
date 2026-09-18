@@ -76,6 +76,7 @@ const terrainParams = z
     strokeShape: z.enum(['brush', 'rect', 'fill']).exactOptional(),
     brush: z.object({ size: z.int().min(1).max(12), shape: z.enum(['square', 'circle']) }).exactOptional(),
     material: z.int().min(0).exactOptional(),
+    materialLayer: z.int().min(0).max(MATERIAL_LAYERS - 1).exactOptional(),
     tint: z.int().min(0).max(0xffffff).exactOptional(),
     strength: z.int().min(1).max(8).exactOptional(),
     height: z.int().min(MIN_HEIGHT).max(MAX_HEIGHT).exactOptional(),

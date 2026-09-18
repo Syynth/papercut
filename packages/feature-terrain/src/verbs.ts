@@ -61,6 +61,8 @@ export interface TerrainParams {
   readonly strokeShape: StrokeShape
   readonly brush: Brush
   readonly material: number
+  /** The material layer painting goes to, 0–3 from the bottom: what the Material Layers widget selects. */
+  readonly materialLayer: number
   readonly tint: number
   /** Half-tiles per pass of Raise, Lower and Smooth. */
   readonly strength: number
@@ -90,6 +92,7 @@ export const TERRAIN_DEFAULTS: TerrainParams = {
   strokeShape: 'brush',
   brush: { size: 1, shape: 'square' },
   material: 0,
+  materialLayer: 0,
   tint: 0xffffff,
   strength: 2,
   height: 2,
@@ -163,9 +166,9 @@ function surfaceFace(voxel: ReadonlyVoxel, address: SurfaceAddress): FaceRef {
   return { x: address.x, z: address.y, y: columnTopAt(voxel, address.x, address.y), dir: FACE_TOP }
 }
 
-/** The material on a face's first material layer, or `null` for an empty or unpainted one. */
-function faceMaterial(voxel: ReadonlyVoxel, face: FaceRef): number | null {
-  return slotMaterial(faceLayers(voxel.paint, face.x, face.z, face.y, face.dir)?.[0])
+/** The material on one of a face's material layers, or `null` for an empty or unpainted one. */
+function faceMaterial(voxel: ReadonlyVoxel, face: FaceRef, layer: number): number | null {
+  return slotMaterial(faceLayers(voxel.paint, face.x, face.z, face.y, face.dir)?.[layer])
 }
 
 /**
@@ -180,8 +183,8 @@ export function eyedrop(voxel: ReadonlyVoxel, params: TerrainParams, address: Su
     const tint = tintPaint(voxel.paint, address.x, address.y)
     return tint === undefined ? {} : { tint }
   }
-  // A face answers with what its first material layer holds; an empty one picks up nothing.
-  const material = faceMaterial(voxel, surfaceFace(voxel, address))
+  // A face answers with what the active material layer holds there; an empty one picks up nothing.
+  const material = faceMaterial(voxel, surfaceFace(voxel, address), params.materialLayer)
   return material === null ? {} : { material }
 }
 
@@ -231,9 +234,9 @@ export function sculptPatches(
 
 /**
  * One paint tick, by the same rule. The Material brush is one brush for
- * every face (spec §4): it puts the material on the face's first material
- * layer — the column's top on a top, that voxel's side on a cliff band — and
- * shift empties that layer. A brush wider than one cell walks the same level
+ * every face (spec §4): it puts the material on the active material layer of
+ * the face — the column's top on a top, that voxel's side on a cliff band —
+ * and shift empties that layer. A brush wider than one cell walks the same level
  * along the same face.
  */
 export function paintPatches(voxel: ReadonlyVoxel, params: TerrainParams, address: SurfaceAddress, cells: Cell[], modifiers: TerrainModifiers): Patch[] {
@@ -243,9 +246,9 @@ export function paintPatches(voxel: ReadonlyVoxel, params: TerrainParams, addres
       if (address.kind === SURFACE_CLIFF) {
         // Along the face only: an east or west face runs along z, a south or north one along x.
         const faces = cells.filter(([x, y]) => (address.dir % 2 === 0 ? x === address.x : y === address.y)).map(([x, y]) => faceOf(address, x, y))
-        return paintFace(voxel, faces, erase ? null : params.material)
+        return paintFace(voxel, faces, erase ? null : params.material, params.materialLayer)
       }
-      if (address.kind === SURFACE_TOP) return setMaterial(voxel, cells, erase ? null : params.material)
+      if (address.kind === SURFACE_TOP) return setMaterial(voxel, cells, erase ? null : params.material, params.materialLayer)
       return []
     case 'tint':
       return paintTint(voxel, cells, erase ? undefined : params.tint)

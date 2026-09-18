@@ -21,6 +21,7 @@ import {
   HALF,
   MAX_HEIGHT,
   MIN_HEIGHT,
+  MATERIAL_LAYERS,
   NO_WATER,
   frameOf,
   levelBounds,
@@ -32,6 +33,7 @@ import {
   type ReadonlyVoxel,
   type SurfaceAddress,
   columnHeights,
+  slotMaterial,
 } from '@papercut/document'
 import {
   selectionSubject,
@@ -51,7 +53,7 @@ import { currentSketch, sketchPointHeight } from '@papercut/feature-sketch'
 // is the only thing that may import a feature (#35), and this file is an app.
 import { rampRunCells, strokeCells } from '@papercut/feature-terrain'
 import { chordFor, type Platform } from '@papercut/registry'
-import { Kbd, LayerRange, Overlay, Pill } from '@papercut/ui'
+import { Kbd, LayerRange, MaterialLayers, Overlay, Pill, type MaterialLayerRow } from '@papercut/ui'
 import { Viewport, type SketchOverlay } from '@papercut/viewport'
 
 import { useArt } from './art'
@@ -96,6 +98,7 @@ export function Stage({ platform }: { platform: Platform }) {
   const showGrid = useViewSelector((snapshot) => snapshot.context.showGrid)
   const showMissing = useViewSelector((snapshot) => snapshot.context.showMissing)
   const fallback = useViewSelector((snapshot) => snapshot.context.fallback)
+  const materialLayers = useViewSelector((snapshot) => snapshot.context.materialLayersShown)
   const gameCamera = useViewSelector((snapshot) => snapshot.context.gameCamera)
   const projection = useViewSelector((snapshot) => snapshot.context.projection)
   const selection = useViewSelector((snapshot) => snapshot.context.selection)
@@ -173,8 +176,8 @@ export function Stage({ platform }: { platform: Platform }) {
   // where the character stands up, read at the transition.
   const play = useMemo(() => (playing ? host.playSession() : null), [host, playing])
   useEffect(() => {
-    viewportRef.current?.setOptions({ showGrid, showMissing, fallback, gameCamera, projection, play, selection: selectionSubject(selection), layers })
-  }, [showGrid, showMissing, fallback, gameCamera, projection, play, selection, layers])
+    viewportRef.current?.setOptions({ showGrid, showMissing, fallback, materialLayers, gameCamera, projection, play, selection: selectionSubject(selection), layers })
+  }, [showGrid, showMissing, fallback, materialLayers, gameCamera, projection, play, selection, layers])
 
   useEffect(() => {
     if (tool !== 'sketch') viewportRef.current?.setOptions({ sketch: null })
@@ -205,6 +208,11 @@ export function Stage({ platform }: { platform: Platform }) {
         <LevelSize />
       </Overlay>
       {playing ? null : <EnvelopeWarning platform={platform} />}
+      {playing ? null : (
+        <Overlay at="bottom-left">
+          <MaterialLayersWidget />
+        </Overlay>
+      )}
       {playing ? null : (
         <Overlay at="right">
           <LayerSlider />
@@ -266,6 +274,58 @@ function SketchOverlaySync({ viewport }: { viewport: RefObject<Viewport | null> 
     viewport.current?.setOptions({ sketch: overlayRef.current })
   }, [key, viewport])
   return null
+}
+
+/**
+ * What the open map holds on each material layer, bottom first: every material id that layer carries on any
+ * face, most used first. Walks every face, so it is selected settled.
+ */
+function materialsByLayer(doc: ReadonlyMapDoc): number[][] {
+  const counts = Array.from({ length: MATERIAL_LAYERS }, () => new Map<number, number>())
+  for (const id of doc.structureOrder) {
+    const s = doc.structures[id]
+    if (!s || s.kind !== 'voxel') continue
+    for (const stack of Object.values(s.paint.faces)) {
+      stack.forEach((slot, layer) => {
+        const m = slotMaterial(slot)
+        if (m !== null) counts[layer].set(m, (counts[layer].get(m) ?? 0) + 1)
+      })
+    }
+  }
+  return counts.map((c) => [...c].sort((a, b) => b[1] - a[1]).map(([m]) => m))
+}
+
+const sameLayers = (a: number[][], b: number[][]): boolean => a.length === b.length && a.every((l, i) => l.length === b[i].length && l.every((m, j) => m === b[i][j]))
+
+/** How many materials a layer's row names before it says how many more. */
+const NAMED = 2
+
+/**
+ * The Material Layers widget (ruling of 2026-09-18): which layer painting goes to, which layers the stage draws, and
+ * what each holds. The active layer is a terrain parameter, so the brush reads it; visibility is the view's.
+ */
+function MaterialLayersWidget() {
+  const host = useHost()
+  const active = useToolsSelector((snapshot) => mergeParams(snapshot.context).materialLayer)
+  const shown = useViewSelector((snapshot) => snapshot.context.materialLayersShown)
+  const open = useViewSelector((snapshot) => snapshot.context.materialLayersOpen)
+  const materials = useProject(materialsOf)
+  const held = useDocumentSelector(materialsByLayer, { equal: sameLayers, settled: true })
+  const rows: MaterialLayerRow[] = held.map((ids, layer) => {
+    const named = ids.map((id) => materials.find((m) => m.id === id)).filter((m): m is MaterialDef => m !== undefined)
+    const summary = named.length === 0 ? 'empty' : named.slice(0, NAMED).map((m) => m.name).join(' · ') + (named.length > NAMED ? ` +${named.length - NAMED}` : '')
+    return { summary, swatch: named[0] ? `#${named[0].color.toString(16).padStart(6, '0')}` : null, visible: shown[layer] }
+  })
+  return (
+    <MaterialLayers
+      rows={rows}
+      active={active}
+      open={open}
+      onOpen={(next) => void run(host, 'view.set', { materialLayersOpen: next })}
+      onSelect={(layer) => void run(host, 'terrain.params', { materialLayer: layer })}
+      onToggle={(layer) => void run(host, 'view.set', { materialLayersShown: shown.map((v, i) => (i === layer ? !v : v)) })}
+    />
+  )
 }
 
 function levelSize(doc: ReadonlyMapDoc): string {

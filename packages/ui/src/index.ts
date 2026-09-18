@@ -54,6 +54,7 @@ export {
   Item,
   Kbd,
   LayerRange,
+  MaterialLayers,
   List,
   Overlay,
   Pill,
@@ -71,7 +72,7 @@ export {
   TopSep,
   Verb,
 } from './frame'
-export type { IconOption } from './frame'
+export type { IconOption, MaterialLayerRow } from './frame'
 
 export { Dialog, DialogManifest, Menu, MenuDivider, MenuItem, MenuLabel, TopCrumb } from './overlays'
 export { Checkbox, Door, Doors, ErrorLine, RecentList, RecentRow, StartupScreen, StartupSection } from './startup'
