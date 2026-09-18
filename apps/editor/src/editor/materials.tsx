@@ -163,17 +163,27 @@ const cellsOf = (shape: readonly string[], first: string, second: string | null)
   shape.map((row) => [...row].map((ch) => (ch === '1' ? first : ch === '2' ? second : null)))
 
 /**
- * Which ARRANGEMENT a corner of the patch is: the bits of the corner that are
- * THIS material, which is exactly how the coverage query asked for its tile.
+ * Which ARRANGEMENT a corner of the patch is, in the subject being shown: the
+ * bits of the corner that are THIS material, provided every other corner is
+ * what it meets — the other material in a pairing, nothing on its own.
  *
- * `null` for a corner that is none of it — the inside of the other material's
- * island — because that is the other material's art, not part of this pairing.
- * An arrangement is not a slot: a slot is a part of one material's surface,
- * and every archetype's slots but its ordinary one are still undrawable today.
+ * Both halves matter. Counting only this material's corners made the outside
+ * edge of a pairing's patch, where this material meets nothing, answer the same
+ * mask as the boundary with the other material, and the hover lit tiles the
+ * strip's tile does not draw. `null` for any corner that belongs to a different
+ * subject: the outside edge in a pairing, the inside of the other material's
+ * island, and the solid tile, which is this material's own and not the pairing's.
  */
-function maskAt(corner: Assembled, mine: Tag): number | null {
-  const mask = CORNER_BITS.reduce((m, bit, i) => (corner.corners[i] === mine ? m | bit : m), 0)
-  return mask === 0 ? null : mask
+function maskAt(corner: Assembled, mine: Tag, theirs: Tag): number | null {
+  let mask = 0
+  for (let i = 0; i < 4; i++) {
+    const tag = corner.corners[i]
+    if (tag === mine) mask |= CORNER_BITS[i]
+    else if (tag !== theirs) return null
+  }
+  if (mask === 0) return null
+  if (mask === 15 && theirs !== null) return null
+  return mask
 }
 
 /** One corner of the assembled patch, with the tile that draws it and the sheet that tile is on. */
@@ -214,7 +224,7 @@ function assembleAcross(sets: readonly LoadedSet[], cells: Tag[][]): Assembled[]
  * going dark rather than the matches going bright, because at one tile in forty the bright version
  * is the harder read.
  */
-function PatchPreview({ tile, corners, columns, rows, scale, mine, lit, onLight }: { tile: number; corners: readonly Assembled[]; columns: number; rows: number; scale: number; mine: Tag; lit: number | null; onLight: (mask: number | null) => void }) {
+function PatchPreview({ tile, corners, columns, rows, scale, mine, theirs, lit, onLight }: { tile: number; corners: readonly Assembled[]; columns: number; rows: number; scale: number; mine: Tag; theirs: Tag; lit: number | null; onLight: (mask: number | null) => void }) {
   const ref = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
@@ -264,13 +274,13 @@ function PatchPreview({ tile, corners, columns, rows, scale, mine, lit, onLight 
     ctx.fillStyle = 'rgba(15, 17, 21, 0.68)'
     ctx.fillRect(0, 0, w, h)
     for (const corner of corners) {
-      if (maskAt(corner, mine) !== lit) continue
+      if (maskAt(corner, mine, theirs) !== lit) continue
       paint(corner)
       ctx.strokeStyle = '#e9a23b'
       ctx.lineWidth = 2
       ctx.strokeRect(corner.column * step + 1, corner.row * step + 1, step - 2, step - 2)
     }
-  }, [tile, corners, scale, columns, rows, mine, lit])
+  }, [tile, corners, scale, columns, rows, mine, theirs, lit])
 
   const at = (event: { clientX: number; clientY: number }): number | null => {
     const canvas = ref.current
@@ -281,7 +291,7 @@ function PatchPreview({ tile, corners, columns, rows, scale, mine, lit, onLight 
     const column = Math.floor(((event.clientX - box.left) * (canvas.width / box.width)) / step)
     const row = Math.floor(((event.clientY - box.top) * (canvas.height / box.height)) / step)
     const corner = corners[row * columns + column]
-    return corner && corner.column === column && corner.row === row ? maskAt(corner, mine) : null
+    return corner && corner.column === column && corner.row === row ? maskAt(corner, mine, theirs) : null
   }
 
   return <canvas ref={ref} className="ui-patch" onPointerMove={(event) => onLight(at(event))} onPointerLeave={() => onLight(null)} />
@@ -432,7 +442,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
   // Assembled here rather than in the preview, because the strip's readout counts the corners too.
   const corners = useMemo(() => assembleAcross(sets, cells), [sets, cells])
   const litKind = lit === null ? undefined : arrangements().find((a) => a.mask === lit)
-  const litCount = lit === null ? 0 : corners.filter((c) => maskAt(c, mine) === lit).length
+  const litCount = lit === null ? 0 : corners.filter((c) => maskAt(c, mine, theirs) === lit).length
   /** The one tile size everything is drawn at: the project's density, which every loaded set is cut to. */
   const tile = sets[0]?.set.tile ?? 16
   /** Which sheets this material's art actually turned up on. More than one is now ordinary rather than a problem. */
@@ -500,6 +510,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
               rows={cells.length + 1}
               scale={tile <= 16 ? 3 : 1}
               mine={mine}
+              theirs={theirs}
               lit={lit}
               onLight={setLit}
             />

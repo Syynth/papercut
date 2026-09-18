@@ -163,6 +163,28 @@ describe('the materials screen', () => {
     }
   })
 
+  it('lights only the corners of the pairing, not where the material meets nothing', () => {
+    const sets = ground([
+      [0, null],
+      [0, 1],
+    ])
+    mount(() => <MaterialsSettings session={session()} selected={0} onSelect={() => undefined} sets={sets} />)
+    act(() => inMeets('Dirt')?.click())
+
+    // Worked out from the pairing's preview shape by hand. Counting only which corners are Grass
+    // made the outer edge of the blob, where Grass meets nothing, answer the same mask as the
+    // boundary with Dirt: mask 3 lit ten corners where four are Grass meeting Dirt.
+    const expected: Record<number, number> = { 1: 1, 2: 1, 3: 4, 4: 2, 5: 1, 6: 1, 7: 3, 8: 2, 9: 1, 10: 1, 11: 3, 12: 2, 13: 4, 14: 4 }
+    const slots = [...window.document.querySelectorAll('.ui-slot')]
+    expect(slots).toHaveLength(14)
+    for (const slot of slots) {
+      act(() => slot.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true })))
+      const mask = Number(/mask (\d+) ·/.exec(text())?.[1])
+      const count = Number(/· (\d+) corners? of the patch/.exec(text())?.[1])
+      expect(count).toBe(expected[mask])
+    }
+  })
+
   it('swaps the preview to the two materials together when a pairing is picked', () => {
     const sets = ground([
       [0, null],
