@@ -13,7 +13,7 @@ mostly void.
 | `Main.dc.html` | What a material and a transition are, what it settles, how a corner resolves |
 | `Grid.dc.html` | The corner block shapes, drawn, and why they close at four materials |
 | `Blocks.dc.html` | A block is what the artist places: a rule over its faces, not a fixed assignment |
-| `Shapes.dc.html` | Shape and material as separate questions; the archetype vocabularies; the prior art |
+| `Shapes.dc.html` | The fifteen corner masks sorted by what they are; what an archetype actually settles |
 | `Layers.dc.html` | Block, material, archetype, transition — and what each replaces |
 | `Authoring.dc.html` | Project settings › Transitions, sketched before the block and archetype existed |
 | `Format.dc.html` | `papercut.json` and the GID scheme, likewise an early sketch |
@@ -23,6 +23,14 @@ The boards are exploratory. `Main`, `Authoring` and `Format` were drawn
 first, when a transition between materials looked like the whole answer;
 `Blocks`, `Shapes` and `Layers` came out of the conversation that followed,
 and are closer to right. Nothing here is decided.
+
+`Shapes` was redrawn once: its first version enumerated shape vocabularies
+per archetype and drifted into blob-style eight-neighbour matching, which
+would mean authoring 47 tiles where 16 do. Authoring stays on the corner
+model. Inside and outside corners are already among the fifteen drawn masks;
+what an archetype settles is which PLANE those four cells lie in, the tile's
+aspect, and whether the archetype has seams where two faces meet at an
+angle.
 
 Matched against `packages/ui` tokens the same way the other canvases are.
 

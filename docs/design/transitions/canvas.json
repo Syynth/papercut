@@ -30,7 +30,7 @@
       "y": 1000,
       "w": 1240,
       "h": 800,
-      "title": "Shape and material"
+      "title": "Sixteen, not forty-seven"
     },
     {
       "file": "Layers.dc.html",
@@ -70,7 +70,7 @@
       "x": 2680,
       "y": 1300,
       "w": 320,
-      "text": "The split that makes inside corners, outside corners and edge tiles stop being special cases: they are SHAPES, not material combinations. Nothing was ever a material."
+      "text": "CORRECTED: an earlier draft of this board drew 3x3 neighbourhoods and drifted into blob thinking. Authoring stays on the corner model — 16 arrangements a pairing, 15 drawn. Inside and outside corners are already among them."
     },
     {
       "id": "note-sketch",

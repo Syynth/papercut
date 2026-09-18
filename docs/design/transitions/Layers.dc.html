@@ -59,7 +59,7 @@
       <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
         <h3>Material</h3><span class="tag on">the artist</span>
       </div>
-      <p>Art for a face. It owes a set of shapes, which its archetype names, and it may meet other materials.</p>
+      <p>Art for a face. It owes the fifteen-tile edge set its archetype's plane asks for, and it may meet other materials.</p>
       <pre>Grass   archetype: ground
 Dirt    archetype: wall
 Cobble  archetype: ramp</pre>
@@ -68,16 +68,16 @@ Cobble  archetype: ramp</pre>
       <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
         <h3>Archetype</h3><span class="tag">papercut</span>
       </div>
-      <p>The shape vocabulary a material owes art for, and the aspect of its tiles. A fixed set to begin with, extensible later.</p>
-      <pre>ground  15 shapes,  d &times; d
-wall    ~12 shapes,  d &times; d
-ramp    ~6 shapes,   d &times; round(d&radic;2)</pre>
+      <p>Which plane a face's four corner cells lie in, how big its tiles are, and which seams it has. NOT a second matching scheme: the sixteen-tile corner set is the same for every archetype.</p>
+      <pre>ground  corners in map x/y     d &times; d
+wall    corners in run/height  d &times; d   + 2 seams
+ramp    corners in run/across  d &times; round(d&radic;2)</pre>
     </div>
     <div class="card" style="border-color:#353b4a;">
       <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px;">
         <h3>Transition</h3><span class="tag">the artist, rarely</span>
       </div>
-      <p>A block of art where two to four materials genuinely meet, at one shape. Only where somebody draws one; everything else composites.</p>
+      <p>A block of art where two to four materials genuinely meet, in one archetype. Only where somebody draws one; everything else composites.</p>
       <pre>[Grass, Sand]        ground  at gid 1120
 [Grass, Dirt]        wall    at gid 5360</pre>
     </div>
@@ -88,10 +88,10 @@ ramp    ~6 shapes,   d &times; round(d&radic;2)</pre>
       <div class="k">Reading a face</div>
       <div style="display:grid;gap:8px;">
         <div class="row"><span class="n">1</span><p>The voxel's block rule says what this face is made of. One material, usually.</p></div>
-        <div class="row"><span class="n">2</span><p>The neighbourhood says which SHAPE this face is: interior, an edge, an outside corner.</p></div>
-        <div class="row"><span class="n">3</span><p>If every neighbour agrees on the material, take that material's art for that shape. This is nearly every face on a map.</p></div>
-        <div class="row"><span class="n">4</span><p>If they do not, look for a transition over exactly those materials at that shape.</p></div>
-        <div class="row"><span class="n">5</span><p>No transition? Composite from the materials' own shape art in priority order, and count it as still to author &mdash; which is what papercut does now.</p></div>
+        <div class="row"><span class="n">2</span><p>The four cells at each of its corners give the sixteen-tile mask, in whichever plane the archetype names.</p></div>
+        <div class="row"><span class="n">3</span><p>If every cell holds the same material, take that material's own edge set. This is nearly every face on a map.</p></div>
+        <div class="row"><span class="n">4</span><p>If they do not, look for a transition over exactly those materials, in that archetype.</p></div>
+        <div class="row"><span class="n">5</span><p>No transition? Composite from the materials' own edge sets in priority order, and count it as still to author &mdash; which is what papercut does now.</p></div>
       </div>
     </div>
     <div class="card" style="border-color:#414859;">
@@ -101,7 +101,7 @@ ramp    ~6 shapes,   d &times; round(d&radic;2)</pre>
         <tr><td class="first">terrain</td><td class="note">a material is the only noun</td></tr>
         <tr><td class="first">a terrain set per sheet</td><td class="note">art is addressed by gid, not owned by a sheet</td></tr>
         <tr><td class="first">a material's <code>top</code> / <code>side</code></td><td class="note">the block rule decides the face; the archetype decides the shapes</td></tr>
-        <tr><td class="first">a material's <code>role</code></td><td class="note">the archetype says where it belongs</td></tr>
+        <tr><td class="first">a material's <code>role</code></td><td class="note">the archetype says which plane its corners lie in</td></tr>
         <tr><td class="first">tagging tiles by hand</td><td class="note">a material's shapes and a transition's block are both laid out, so pointing at one place reads the lot</td></tr>
       </table>
     </div>
@@ -112,7 +112,7 @@ ramp    ~6 shapes,   d &times; round(d&radic;2)</pre>
     <div style="display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px 24px;">
       <div class="row"><span class="n">?</span><p>Does a block paint materials onto faces ONCE, or does the voxel remember its block and re-derive forever? The second survives sculpting; the first lets an artist override one face and keep it.</p></div>
       <div class="row"><span class="n">?</span><p>Can a block rule see a NEIGHBOUR'S block, so "earth beside stone" can be said? That is the difference between a rule and a lookup table.</p></div>
-      <div class="row"><span class="n">?</span><p>Is the wall vocabulary really about corners in plan, or about a wall's own silhouette swept along an edge &mdash; which is the profile strip the brief already describes?</p></div>
+      <div class="row"><span class="n">?</span><p>Are a wall's two seams &mdash; convex and concave, where faces meet at an angle &mdash; art an artist draws, or geometry the mesher miters? The brief's profile strip suggests the second.</p></div>
       <div class="row"><span class="n">?</span><p>Does the ramp archetype need a direction, or does the mesher rotate one set of art through four?</p></div>
     </div>
   </div>
