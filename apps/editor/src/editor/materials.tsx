@@ -2,7 +2,7 @@
  * Materials, in two places: the inspector's PICKER — the project's list in
  * priority order with a swatch from its terrain set, click to make one the
  * brush's — and the Project settings' LIBRARY, where a material is edited:
- * name, role, terrains, colour, priority, and what transitions its terrain
+ * name, archetype, terrains, colour, priority, and what transitions its terrain
  * set has authored to the others (decision-log 2026-09-14: materials are the
  * project's, edited in Project settings).
  *
@@ -13,15 +13,15 @@
  * reorder is as much an edit as a rename.
  */
 
-import { useMemo, useState, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
 import { AIR, PLACEHOLDER_SHEET, materialById, nextMaterialId, type MaterialDef, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage, type TerrainRef } from '@papercut/document'
 import { useDocumentSelector, useHost, useProject, type SettingsSection } from '@papercut/editor-host'
-import { exactTile, pairAuthored, terrainKey, type LoadedSet } from '@papercut/geometry'
-import { Action, Actions, ColorInput, Dialog, Field, FieldGrid, Item, List, Note, Row, Section, Segmented, Select, SettingsBlock, Status, Swatch, Table, TableRow, TextInput } from '@papercut/ui'
+import { archetypeOf, archetypes, assemble, exactTile, requiredSlots, templateTags, terrainKey, type Archetype, type LoadedSet, type Tag } from '@papercut/geometry'
+import { Action, Actions, ColorInput, Dialog, Field, Item, Library, LibraryGroup, List, Note, Section, Select, Status, TextInput } from '@papercut/ui'
 
 import { run } from './commands'
-import { rgbaToDataUrl } from './rgba'
+import { rgbaToCanvas, rgbaToDataUrl } from './rgba'
 import { repaintAndDeleteMaterial, type Session } from './session'
 
 /** One tile's pixels as a data URL, once per image and tile. */
@@ -52,14 +52,6 @@ export function swatchFor(sets: readonly LoadedSet[], ref: TerrainRef): string |
   if (!loaded) return undefined
   const index = exactTile(loaded.set, [ref.terrain, ref.terrain, ref.terrain, ref.terrain])
   return index === null ? undefined : `url(${tileUrl(loaded, index)}) center / cover`
-}
-
-/** The swatch as an image URL alone, for a `Swatch`. */
-function swatchImage(sets: readonly LoadedSet[], ref: TerrainRef): string | undefined {
-  const loaded = sets.find((s) => s.set.sheet === ref.sheet)
-  if (!loaded) return undefined
-  const index = exactTile(loaded.set, [ref.terrain, ref.terrain, ref.terrain, ref.terrain])
-  return index === null ? undefined : tileUrl(loaded, index)
 }
 
 const cssColor = (color: number): string => `#${color.toString(16).padStart(6, '0')}`
@@ -96,7 +88,7 @@ export function MaterialsPicker({ active, sets }: { active: number; sets: readon
     <Section title="Materials" summary={material ? `${materials.length} · ${material.name}` : materials.length}>
       <List>
         {[...materials].reverse().map((m) => (
-          <Item key={m.id} name={m.name} meta={`${m.role} · ${counts[m.id] ?? 0}`} swatch={swatchFor(sets, m.top) ?? cssColor(m.color)} active={m.id === active} onClick={() => select(m.id)} />
+          <Item key={m.id} name={m.name} meta={`${m.archetype} · ${counts[m.id] ?? 0}`} swatch={swatchFor(sets, m.top) ?? cssColor(m.color)} active={m.id === active} onClick={() => select(m.id)} />
         ))}
       </List>
       <Note>The project's library, shared by every map in it. Top of the list draws over what is below it where two meet in a corner nobody has drawn.</Note>
@@ -107,24 +99,179 @@ export function MaterialsPicker({ active, sets }: { active: number; sets: readon
   )
 }
 
-/** The Project settings' library: the table, and the selected material opened up to edit. */
+/**
+ * The Project settings' Materials screen (design of 2026-09-17).
+ *
+ * A material shows the PATCH IT ACTUALLY DRAWS — its archetype's slots run
+ * through the dual grid and blitted from the real sheet — beside the raw
+ * slots, and a list of everything it meets. The preview is assembled rather
+ * than swatched on purpose: a slot nobody drew leaves a hole in the patch,
+ * so an incomplete material looks incomplete instead of looking fine.
+ *
+ * Meets is grouped by ARCHETYPE, because the archetype decides the shape of
+ * the art: a floor pairing owes fifteen slots, a wall seven, a ramp four.
+ * Picking a pairing swaps the preview for it — same screen, same shape, one
+ * material become two.
+ */
+
+/**
+ * The shape a material is previewed in: `.` nothing, `1` this material, `2`
+ * the one it meets. Between them the two shapes reach all fifteen corner
+ * masks, so a slot nobody drew shows up in the patch rather than only in the
+ * strip. The MEETING shape keeps the second material strictly inside the
+ * first, because a corner where three things meet is one no two-material
+ * tile can answer — that is the compositor's job, not a hole in the art.
+ */
+const BLOB = [
+  '..####....',
+  '.#######..',
+  '#########.',
+  '###..#####',
+  '###..#####',
+  '.########.',
+  '..####.#..',
+  '##......##',
+  '##......##',
+].map((row) => row.replace(/#/g, '1'))
+
+const MEETING = [
+  '...11111.....',
+  '..111111111..',
+  '.11222221111.',
+  '1112222212111',
+  '1122222221211',
+  '1112222111111',
+  '.11122111111.',
+  '..111111111..',
+  '...11111.....',
+]
+
+/** A shape's rows as tags: `1` is the material, `2` the one it meets, anything else nothing. */
+const cellsOf = (shape: readonly string[], first: string, second: string | null): Tag[][] =>
+  shape.map((row) => [...row].map((ch) => (ch === '1' ? first : ch === '2' ? second : null)))
+
+/**
+ * The patch, on a canvas: one tile blitted per corner, and a cross-hatch where nothing is tagged
+ * so a gap reads as a gap. Scaled by whole numbers, because this is pixel art.
+ */
+function PatchPreview({ loaded, cells, scale }: { loaded: LoadedSet; cells: Tag[][]; scale: number }) {
+  const ref = useRef<HTMLCanvasElement>(null)
+  const corners = useMemo(() => assemble(loaded.set, cells), [loaded, cells])
+  useEffect(() => {
+    const canvas = ref.current
+    if (!canvas) return
+    const t = loaded.set.tile
+    const columns = (cells[0]?.length ?? 0) + 1
+    const rows = cells.length + 1
+    const w = columns * t * scale
+    const h = rows * t * scale
+    if (canvas.width !== w || canvas.height !== h) {
+      canvas.width = w
+      canvas.height = h
+    }
+    const ctx = canvas.getContext('2d')
+    if (!ctx) return
+    ctx.imageSmoothingEnabled = false
+    ctx.clearRect(0, 0, w, h)
+    const source = tileCanvas(loaded)
+    for (const corner of corners) {
+      const dx = corner.column * t * scale
+      const dy = corner.row * t * scale
+      if (corner.tile === null) {
+        if (corner.corners.every((c) => c === null)) continue
+        // A corner the set has no tile for: the atlas would composite it, so show it as missing.
+        ctx.fillStyle = 'rgba(229, 99, 111, 0.22)'
+        ctx.fillRect(dx, dy, t * scale, t * scale)
+        ctx.strokeStyle = 'rgba(229, 99, 111, 0.85)'
+        ctx.lineWidth = 1
+        ctx.beginPath()
+        ctx.moveTo(dx + 2, dy + 2)
+        ctx.lineTo(dx + t * scale - 2, dy + t * scale - 2)
+        ctx.moveTo(dx + t * scale - 2, dy + 2)
+        ctx.lineTo(dx + 2, dy + t * scale - 2)
+        ctx.stroke()
+        continue
+      }
+      const sx = (corner.tile % loaded.set.columns) * t
+      const sy = Math.floor(corner.tile / loaded.set.columns) * t
+      ctx.drawImage(source, sx, sy, t, t, dx, dy, t * scale, t * scale)
+    }
+  }, [loaded, cells, corners, scale])
+  return <canvas ref={ref} className="ui-patch" />
+}
+
+/** The sheet as a canvas, once per image, so a patch is blits rather than a hundred data URLs. */
+const canvases = new WeakMap<RgbaImage, HTMLCanvasElement>()
+function tileCanvas(loaded: LoadedSet): HTMLCanvasElement {
+  const known = canvases.get(loaded.image)
+  if (known) return known
+  const canvas = rgbaToCanvas(loaded.image)
+  canvases.set(loaded.image, canvas)
+  return canvas
+}
+
+/** One of an archetype's slots, with the tile that fills it or an empty frame. */
+function SlotTile({ loaded, tile, title }: { loaded: LoadedSet | undefined; tile: number | null; title: string }) {
+  const url = loaded && tile !== null ? tileUrl(loaded, tile) : undefined
+  return (
+    <span className={`ui-slot ${url ? '' : 'is-empty'}`} title={title}>
+      {url ? <img src={url} alt="" /> : null}
+    </span>
+  )
+}
+
+/** Where a material's art lives, and which of its archetype's slots are filled. */
+interface Coverage {
+  set: LoadedSet | undefined
+  /** Per slot id, the tile that fills it or `null`. */
+  tiles: Map<string, number | null>
+  filled: number
+  required: number
+}
+
+function coverageOf(sets: readonly LoadedSet[], archetype: Archetype, ref: TerrainRef, against: TerrainRef | null): Coverage {
+  const set = sets.find((s) => s.set.sheet === ref.sheet)
+  const tiles = new Map<string, number | null>()
+  let filled = 0
+  let required = 0
+  for (const slot of archetype.slots) {
+    // Only the floor archetype's slots are corner masks; the others have no art in today's format yet.
+    const tile = set && slot.mask !== undefined ? exactTile(set.set, templateTags(slot.mask, against === null ? null : against.terrain, ref.terrain)) : null
+    tiles.set(slot.id, tile)
+    if (!slot.optional) {
+      required += 1
+      if (tile !== null) filled += 1
+    }
+  }
+  return { set, tiles, filled, required }
+}
+
+/** What one material meeting another comes to, for the Meets list. */
+interface Meeting {
+  other: MaterialDef
+  archetype: Archetype
+  filled: number
+  required: number
+  /** Their art is on different sheets, so the atlas can never take an authored tile (`atlas.ts`). */
+  crossSheet: boolean
+}
+
 export function MaterialsSettings({ session, selected, onSelect, sets }: { session: Session; selected: number; onSelect: (id: number) => void; sets: readonly LoadedSet[] }) {
   const host = useHost()
   const materials = useProject(materialsOf)
   const counts = useDocumentSelector(usage, { equal: sameCounts, settled: true })
   const summaries = useSyncExternalStore(session.summaries.subscribe, session.summaries.get)
   const currentMap = host.children.project.getSnapshot().context.map
-  // Which maps use a material: the open map by its live document, the others by what their files say.
   const mapsUsing = (id: number): number => summaries.filter((s) => (s.path === currentMap ? (counts[id] ?? 0) > 0 : s.materials.has(id))).length
-  const [dropping, setDropping] = useState<number | null>(null)
+  const [meeting, setMeeting] = useState<number | null>(null)
   const [deleting, setDeleting] = useState<{ from: MaterialDef; to: number } | null>(null)
   const notify = (notice: string): void => void run(host, 'view.set', { notice })
+
   const material = materialById(materials, selected) ?? materials[0]
   const active = material?.id ?? -1
   const position = materials.findIndex((m) => m.id === active)
   const terrains = useMemo(() => sets.flatMap((s) => s.set.terrains.map((t) => ({ value: terrainKey(s.set.sheet, t.id), label: `${t.name} · ${s.set.sheet}` }))), [sets])
 
-  // The list whole, every time: its order is the priority. Ids never move, so no voxel changes what it is made of.
   const commit = (next: readonly MaterialDef[]): void => void run(host, 'project.materials.set', { materials: next.map((m) => ({ ...m })) })
   const change = (changes: Partial<MaterialDef>): void => {
     if (!material) return
@@ -141,175 +288,229 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
   }
   const add = (from: MaterialDef | undefined): void => {
     const id = nextMaterialId(materials)
-    const fresh: MaterialDef = from ? { ...from, id, name: `${from.name} copy` } : { id, name: `Material ${materials.length + 1}`, color: 0x808080, role: 'any', top: materials[0]?.top ?? { sheet: PLACEHOLDER_SHEET, terrain: 'grass' } }
+    const fresh: MaterialDef = from
+      ? { ...from, id, name: `${from.name} copy` }
+      : { id, name: `Material ${materials.length + 1}`, color: 0x808080, archetype: 'floor', top: materials[0]?.top ?? { sheet: PLACEHOLDER_SHEET, terrain: 'grass' } }
     commit([...materials, fresh])
     onSelect(id)
+    setMeeting(null)
   }
   const remove = (): void => {
     if (!material || materials.length <= 1) return
     if (mapsUsing(active) > 0) {
-      // In use somewhere: ask what to repaint it as, then repaint every map and take it out.
       setDeleting({ from: material, to: materials.find((m) => m.id !== active)?.id ?? active })
       return
     }
     commit(materials.filter((m) => m.id !== active))
-    onSelect(materials[position === 0 ? 1 : position - 1].id)
-  }
-  const dropOn = (targetId: number, dragged: string): void => {
-    setDropping(null)
-    const fromAt = materials.findIndex((m) => m.id === Number(dragged))
-    const toAt = materials.findIndex((m) => m.id === targetId)
-    if (fromAt < 0 || toAt < 0 || fromAt === toAt) return
-    const next = [...materials]
-    const [moved] = next.splice(fromAt, 1)
-    next.splice(toAt, 0, moved)
-    commit(next)
+    onSelect(materials.find((m) => m.id !== active)?.id ?? -1)
   }
 
-  // Which of the other materials' top terrains this one has an authored transition to, in its own set.
-  const partners = useMemo(() => {
-    if (!material) return { authored: [] as string[], missing: [] as string[] }
-    const loaded = sets.find((s) => s.set.sheet === material.top.sheet)
-    const authored: string[] = []
-    const missing: string[] = []
-    for (const other of materials) {
-      if (other === material || refKey(other.top) === refKey(material.top)) continue
-      const same = other.top.sheet === material.top.sheet
-      ;(loaded && same && pairAuthored(loaded.set, material.top.terrain, other.top.terrain) ? authored : missing).push(other.name)
-    }
-    return { authored, missing }
+  // Everything this material can meet, and how far its art goes, grouped by the archetype it is drawn in.
+  const meetings = useMemo((): Meeting[] => {
+    if (!material) return []
+    return materials
+      .filter((m) => m.id !== material.id)
+      .map((other) => {
+        // A pairing is drawn in the archetype of the face it appears on: two floors meet on a floor,
+        // and a floor meeting a wall is drawn in the wall's vocabulary.
+        const id = material.archetype === 'floor' && other.archetype === 'floor' ? 'floor' : other.archetype === 'floor' ? material.archetype : other.archetype
+        const archetype = archetypeOf(id)
+        const crossSheet = material.top.sheet !== other.top.sheet
+        const cover = crossSheet ? null : coverageOf(sets, archetype, material.top, other.top)
+        return { other, archetype, filled: cover?.filled ?? 0, required: cover?.required ?? requiredSlots(archetype).length, crossSheet }
+      })
   }, [material, materials, sets])
 
-  const refCell = (ref: TerrainRef | undefined): ReactNode =>
-    ref ? (
-      <>
-        <Swatch image={swatchImage(sets, ref)} color={swatchImage(sets, ref) ? undefined : '#414859'} />
-        <code>
-          {ref.sheet.replace(/\.[^.]+$/, '')} / {ref.terrain}
-        </code>
-      </>
-    ) : (
-      <Status tone="muted">same as top</Status>
-    )
+  const byArchetype = useMemo(() => {
+    const out = new Map<string, Meeting[]>()
+    for (const a of archetypes()) out.set(a.id, [])
+    for (const m of meetings) out.get(m.archetype.id)?.push(m)
+    return out
+  }, [meetings])
+
+  const other = meeting === null ? null : (materialById(materials, meeting) ?? null)
+  const archetype = archetypeOf(material?.archetype ?? 'floor')
+  const previewArchetype = other ? (meetings.find((m) => m.other.id === other.id)?.archetype ?? archetype) : archetype
+  const cover = material ? coverageOf(sets, previewArchetype, material.top, other ? other.top : null) : null
+  const cells = useMemo(
+    () => (material ? cellsOf(other ? MEETING : BLOB, material.top.terrain, other ? other.top.terrain : null) : []),
+    [material, other],
+  )
+  const crossSheet = Boolean(other && material && other.top.sheet !== material.top.sheet)
+
+  if (!material) return <Note>No materials.</Note>
+
+  const tabs = (
+    <>
+      <span className="ui-swatch" style={{ background: cssColor(material.color), width: 14, height: 14, marginRight: 4 }} />
+      <span style={{ fontSize: 13, fontWeight: 600 }}>{material.name}</span>
+      {other ? (
+        <>
+          <span className="ui-library-soon" style={{ marginLeft: 2 }}>meets</span>
+          <span className="ui-swatch" style={{ background: cssColor(other.color), width: 14, height: 14 }} />
+          <span style={{ fontSize: 13 }}>{other.name}</span>
+        </>
+      ) : null}
+      <span className="ui-library-soon">{previewArchetype.title}</span>
+      <span className="ui-tagger-grow" />
+      {other ? <Action title="Back to the material" onClick={() => setMeeting(null)} /> : null}
+    </>
+  )
+
+  const side = (
+    <>
+      <div className="ui-library-list">
+        {archetypes().map((a) => {
+          const mine = materials.filter((m) => m.archetype === a.id)
+          return (
+            <div key={a.id}>
+              <LibraryGroup>{a.title}</LibraryGroup>
+              {mine.length === 0 ? <div className="ui-hint-line" style={{ padding: '2px 8px 6px' }}>none</div> : null}
+              {mine.map((m) => (
+                <div key={m.id} className={`ui-tagger-item ${m.id === active ? 'is-active' : ''}`}>
+                  <span className="ui-tagger-swatch" style={{ background: cssColor(m.color), cursor: 'default' }} />
+                  <button type="button" className="ui-tagger-name" onClick={() => { onSelect(m.id); setMeeting(null) }}>
+                    {m.name}
+                  </button>
+                  <span className="ui-library-dot is-muted" title={`used in ${mapsUsing(m.id)} maps`} />
+                </div>
+              ))}
+            </div>
+          )
+        })}
+      </div>
+      <div className="ui-library-foot" style={{ display: 'grid', gap: 6 }}>
+        <Action title="New material" tone="accent" onClick={() => add(undefined)} />
+        <Action title="Duplicate" onClick={() => add(material)} />
+      </div>
+    </>
+  )
+
+  const stage = (
+    <div className="ui-patch-stage">
+      {cover?.set ? (
+        <>
+          <div style={{ display: 'grid', gap: 8, justifyItems: 'start' }}>
+            <PatchPreview loaded={cover.set} cells={cells} scale={cover.set.set.tile <= 16 ? 3 : 1} />
+            <span className="ui-hint-line">
+              {other ? 'how the two draw where they meet' : 'how it draws — the slots, assembled'}
+            </span>
+          </div>
+          <div style={{ display: 'grid', gap: 8, justifyItems: 'start' }}>
+            <div className="ui-slots">
+              {previewArchetype.slots.map((slot) => (
+                <SlotTile key={slot.id} loaded={cover.set} tile={cover.tiles.get(slot.id) ?? null} title={`${slot.name}${slot.note ? ` — ${slot.note}` : ''}${slot.optional ? ' (mitred when empty)' : ''}`} />
+              ))}
+            </div>
+            <span className="ui-hint-line">
+              {previewArchetype.slots.length} slots · {cover.filled} of {cover.required} drawn
+              {previewArchetype.slots.some((s) => s.optional) ? ' · seams mitred when empty' : ''}
+            </span>
+          </div>
+        </>
+      ) : (
+        <Note tone="warn">
+          {crossSheet
+            ? `${material.name} draws from ${material.top.sheet} and ${other?.name} from ${other?.top.sheet}. The atlas only takes an authored tile when both are on one sheet, so this pairing always composites.`
+            : `No sheet loaded for ${material.top.sheet}.`}
+        </Note>
+      )}
+    </div>
+  )
+
+  const form = (
+    <>
+      <Field label="Name">
+        <TextInput value={material.name} onChange={(name) => (name.trim() ? change({ name }) : undefined)} />
+      </Field>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <Field label="Swatch" hint="Where no art covers a corner">
+          <ColorInput value={material.color} onChange={(color) => change({ color })} />
+        </Field>
+        <Field label="Archetype" hint={archetype.note}>
+          <Select value={material.archetype} options={archetypes().map((a) => ({ value: a.id, label: a.title }))} onChange={(id) => change({ archetype: id })} />
+        </Field>
+      </div>
+      <Field label="Art">
+        <Select value={refKey(material.top)} options={terrains} onChange={(key) => change({ top: parseRef(key) })} />
+      </Field>
+
+      <div className="ui-k">Meets</div>
+      {archetypes().map((a) => {
+        const rows = byArchetype.get(a.id) ?? []
+        return (
+          <div key={a.id} style={{ display: 'grid', gap: 2 }}>
+            <div className="ui-k" style={{ color: 'var(--ui-accent)', marginTop: 2 }}>
+              {a.title} · {a.slots.length} slots
+            </div>
+            {rows.length === 0 ? <div className="ui-hint-line" style={{ padding: '0 0 4px' }}>nothing yet</div> : null}
+            {rows.map((m) => (
+              <div key={m.other.id} className={`ui-tagger-item ${meeting === m.other.id ? 'is-active' : ''}`}>
+                <span className="ui-tagger-swatch" style={{ background: cssColor(m.other.color), cursor: 'default' }} />
+                <button type="button" className="ui-tagger-name" onClick={() => setMeeting(meeting === m.other.id ? null : m.other.id)}>
+                  {m.other.name}
+                </button>
+                <Status tone={m.crossSheet ? 'warn' : m.filled === m.required ? 'ok' : m.filled === 0 ? 'muted' : 'warn'}>
+                  {m.crossSheet ? 'other sheet' : m.filled === m.required ? 'drawn' : m.filled === 0 ? 'composites' : `${m.filled} / ${m.required}`}
+                </Status>
+              </div>
+            ))}
+          </div>
+        )
+      })}
+
+      <div className="ui-k" style={{ marginTop: 4 }}>Priority</div>
+      <div className="ui-hint-line">
+        {position + 1} of {materials.length} — higher draws over lower where a corner nobody drew is composited.
+      </div>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+        <Action title="Move up" disabled={position <= 0} onClick={() => move(position - 1)} />
+        <Action title="Move down" disabled={position >= materials.length - 1} onClick={() => move(position + 1)} />
+        <Action title="Delete" tone="danger" disabled={materials.length <= 1} onClick={remove} />
+      </div>
+      <div className="ui-hint-line">Used in {mapsUsing(active)} of {summaries.length} maps.</div>
+    </>
+  )
 
   return (
     <>
-      <SettingsBlock
-        note="What the brush paints. A material names its top terrain and the terrain its cliff sides take; list order is draw priority where two meet at a corner. Shared by every map in the project."
-        action={<Action title="Add material" tone="accent" onClick={() => add(undefined)} />}
-      >
-        <Table
-          columns={[
-            { title: '', width: '24px' },
-            { title: 'Material', width: '1.1fr' },
-            { title: 'Role', width: '0.6fr' },
-            { title: 'Top', width: '1.2fr' },
-            { title: 'Sides', width: '1.2fr' },
-            { title: 'Used in', width: '0.8fr' },
-          ]}
-        >
-          {materials.map((m) => (
-            <TableRow
-              key={m.id}
-              active={m.id === active}
-              onClick={() => onSelect(m.id)}
-              drag={String(m.id)}
-              dropping={dropping === m.id}
-              onDrop={(dragged) => dropOn(m.id, dragged)}
-              cells={[
-                <span className="ui-drag-handle" title="Drag to reorder: higher draws over lower where two meet">⋮⋮</span>,
-                <>
-                  <Swatch image={swatchImage(sets, m.top)} color={swatchImage(sets, m.top) ? undefined : cssColor(m.color)} />
-                  {m.name}
-                </>,
-                m.role,
-                refCell(m.top),
-                refCell(m.side),
-                `${mapsUsing(m.id)} ${mapsUsing(m.id) === 1 ? 'map' : 'maps'}`,
-              ]}
-            />
-          ))}
-        </Table>
-      </SettingsBlock>
-      {material ? (
-        <SettingsBlock
-          title={material.name}
-          action={
+      <Library tabs={tabs} side={side} stage={stage} form={form} />
+      {deleting ? (
+        <Dialog
+          opened
+          onClose={() => setDeleting(null)}
+          title={`Delete ${deleting.from.name}`}
+          description={`${mapsUsing(deleting.from.id)} maps paint with it. Everything made of it is repainted as whatever you pick, in every map, and that cannot be undone beyond this map's history.`}
+          width={460}
+          footer={
             <>
-              <Action title="Move up" disabled={position <= 0} onClick={() => move(position - 1)} />
-              <Action title="Move down" disabled={position >= materials.length - 1} onClick={() => move(position + 1)} />
-              <Action title="Duplicate" onClick={() => add(material)} />
-              <Action title="Delete" tone="danger" disabled={materials.length <= 1} onClick={remove} />
+              <Action title="Cancel" onClick={() => setDeleting(null)} />
+              <Action
+                title="Repaint and delete"
+                tone="danger"
+                onClick={() => {
+                  const { from, to } = deleting
+                  setDeleting(null)
+                  repaintAndDeleteMaterial(host, session, from.id, to)
+                    .then(() => {
+                      onSelect(to)
+                      notify(`${from.name} deleted; everything it painted is now ${materialById(materials, to)?.name ?? 'another material'}`)
+                    })
+                    .catch((error: unknown) => notify(error instanceof Error ? error.message : String(error)))
+                }}
+              />
             </>
           }
         >
-          <FieldGrid columns={3}>
-            <Field label="Name">
-              <TextInput value={material.name} onChange={(name) => change({ name })} />
-            </Field>
-            <Field label="Role" hint="Where the material is meant to go; the brush does not enforce it">
-              <Segmented
-                value={material.role}
-                options={[
-                  { value: 'top', label: 'Top' },
-                  { value: 'wall', label: 'Wall' },
-                  { value: 'any', label: 'Any' },
-                ]}
-                onChange={(role) => change({ role })}
-              />
-            </Field>
-            <Field label="Swatch" hint="The colour when no sheet is loaded">
-              <ColorInput value={material.color} onChange={(color) => change({ color })} />
-            </Field>
-            <Field label="Top terrain" hint="Draws the top faces, and the sides unless a side terrain is set">
-              <Select value={refKey(material.top)} options={terrains} onChange={(key) => change({ top: parseRef(key) })} />
-            </Field>
-            <Field label="Side terrain">
-              <Select
-                value={material.side ? refKey(material.side) : 'same'}
-                options={[{ value: 'same', label: 'Same as top' }, ...terrains]}
-                onChange={(key) => change({ side: key === 'same' ? undefined : parseRef(key) })}
-              />
-            </Field>
-          </FieldGrid>
-          <Row label="Id" value={`${material.id} · what a voxel stores, stable, never reused`} muted />
-          <Row label="Transitions drawn" value={partners.authored.length ? partners.authored.join(', ') : '—'} />
-          <Row label="Not yet drawn" value={partners.missing.length ? partners.missing.join(', ') : '—'} muted />
-          <Note>{mapsUsing(active) > 0 ? `In use in ${mapsUsing(active)} ${mapsUsing(active) === 1 ? 'map' : 'maps'}${(counts[active] ?? 0) > 0 ? `, ${counts[active]} voxels and faces of this one` : ''}; deleting it asks what to repaint them as. Renaming and reordering never touch a map.` : 'Renaming and reordering never touch a map: ids are what voxels store.'}</Note>
-        </SettingsBlock>
-      ) : null}
-      <Dialog
-        opened={deleting !== null}
-        onClose={() => setDeleting(null)}
-        title={deleting ? `Delete ${deleting.from.name}` : ''}
-        description={deleting ? `${deleting.from.name} is painted in ${mapsUsing(deleting.from.id)} ${mapsUsing(deleting.from.id) === 1 ? 'map' : 'maps'}. Every voxel and face that holds it is repainted as the material you pick, in every map, and then it is gone from the library.` : ''}
-        footer={
-          <>
-            <Action title="Cancel" onClick={() => setDeleting(null)} />
-            <Action
-              title="Repaint and delete"
-              tone="danger"
-              onClick={() => {
-                if (!deleting) return
-                const { from, to } = deleting
-                setDeleting(null)
-                repaintAndDeleteMaterial(host, session, from.id, to)
-                  .then(() => {
-                    onSelect(to)
-                    notify(`${from.name} deleted; repainted as ${materialById(materials, to)?.name ?? to}`)
-                  })
-                  .catch((error: unknown) => notify(error instanceof Error ? error.message : String(error)))
-              }}
-            />
-          </>
-        }
-      >
-        {deleting ? (
           <Field label="Repaint as">
-            <Select value={String(deleting.to)} options={materials.filter((m) => m.id !== deleting.from.id).map((m) => ({ value: String(m.id), label: m.name }))} onChange={(value) => setDeleting({ ...deleting, to: Number(value) })} />
+            <Select
+              value={String(deleting.to)}
+              options={materials.filter((m) => m.id !== deleting.from.id).map((m) => ({ value: String(m.id), label: m.name }))}
+              onChange={(value) => setDeleting({ ...deleting, to: Number(value) })}
+            />
           </Field>
-        ) : null}
-      </Dialog>
+        </Dialog>
+      ) : null}
     </>
   )
 }

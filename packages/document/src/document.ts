@@ -238,10 +238,19 @@ export interface MaterialDef {
   name: string
   /** Fallback colour when no sheet is loaded, and the swatch. */
   color: number
-  role: 'top' | 'wall' | 'any'
+  /**
+   * The surface vocabulary its art fills (design of 2026-09-17): a floor
+   * material owes the corner set, a wall owes its named parts, a ramp owes
+   * its own at a different aspect. Replaces the old `role`, which said where
+   * a material belonged without saying what it owed.
+   */
+  archetype: ArchetypeId
   top: TerrainRef
   side?: TerrainRef
 }
+
+/** The surface vocabularies papercut ships. `@papercut/geometry` says what each owes. */
+export type ArchetypeId = 'floor' | 'wall' | 'ramp'
 
 /**
  * One map of a project. What every map shares — the materials its voxels
@@ -319,11 +328,11 @@ export const PLACEHOLDER_SHEET = 'ground.png'
 const placeholder = (terrain: string): TerrainRef => ({ sheet: PLACEHOLDER_SHEET, terrain })
 
 export const DEFAULT_MATERIALS: MaterialDef[] = [
-  { id: 0, name: 'Grass', color: 0x6aa84f, role: 'top', top: placeholder('grass'), side: placeholder('dirt') },
-  { id: 1, name: 'Dirt', color: 0x8b6b45, role: 'any', top: placeholder('dirt') },
-  { id: 2, name: 'Stone', color: 0x8e8e8e, role: 'wall', top: placeholder('stone') },
-  { id: 3, name: 'Sand', color: 0xd9c27e, role: 'top', top: placeholder('sand'), side: placeholder('dirt') },
-  { id: 4, name: 'Path', color: 0xb08f5e, role: 'top', top: placeholder('path'), side: placeholder('dirt') },
+  { id: 0, name: 'Grass', color: 0x6aa84f, archetype: 'floor', top: placeholder('grass'), side: placeholder('dirt') },
+  { id: 1, name: 'Dirt', color: 0x8b6b45, archetype: 'floor', top: placeholder('dirt') },
+  { id: 2, name: 'Stone', color: 0x8e8e8e, archetype: 'wall', top: placeholder('stone') },
+  { id: 3, name: 'Sand', color: 0xd9c27e, archetype: 'floor', top: placeholder('sand'), side: placeholder('dirt') },
+  { id: 4, name: 'Path', color: 0xb08f5e, archetype: 'floor', top: placeholder('path'), side: placeholder('dirt') },
 ]
 
 /** The material a voxel names, by id; `undefined` for an id the project no longer has. */

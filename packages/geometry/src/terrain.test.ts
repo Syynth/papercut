@@ -439,7 +439,7 @@ describe('walls beside slopes', () => {
 
 describe('a material whose sheet is not loaded', () => {
   it('draws as its colour rather than as a hole', () => {
-    const materials = [{ id: 0, name: 'Grass', color: 0x6aa84f, role: 'top' as const, top: { sheet: 'ground.png', terrain: 'grass' } }, { id: 1, name: 'Moss', color: 0x336633, role: 'top' as const, top: { sheet: 'gone.png', terrain: 'moss' } }]
+    const materials = [{ id: 0, name: 'Grass', color: 0x6aa84f, archetype: 'floor' as const, top: { sheet: 'ground.png', terrain: 'grass' } }, { id: 1, name: 'Moss', color: 0x336633, archetype: 'floor' as const, top: { sheet: 'gone.png', terrain: 'moss' } }]
     const look = createTerrainLook(materials, [placeholderSet()])
     const answer = look.atlas.tileFor([terrainKey('gone.png', 'moss'), terrainKey('gone.png', 'moss'), terrainKey('gone.png', 'moss'), terrainKey('gone.png', 'moss')])
     expect(answer.composite).toBe(true)

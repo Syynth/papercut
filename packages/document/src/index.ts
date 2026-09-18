@@ -105,6 +105,7 @@ export type {
   WallProfile,
   WallProfilePoint,
 } from './structure'
+export type { ArchetypeId } from './document'
 export type { RgbaImage, SpriteAsset } from './image'
 export {
   DEFAULT_WALL_PROFILE,

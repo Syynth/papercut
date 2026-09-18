@@ -39,7 +39,7 @@ const materialDef = z
     id: z.int().min(0),
     name: z.string().min(1),
     color: z.int().min(0).max(0xffffff),
-    role: z.enum(['top', 'wall', 'any']),
+    archetype: z.enum(['floor', 'wall', 'ramp']),
     top: terrainRef,
     side: terrainRef.exactOptional(),
   })
