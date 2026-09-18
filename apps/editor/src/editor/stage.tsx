@@ -62,6 +62,7 @@ import { mergeParams } from './params'
 
 const NO_CELLS: BrushCells = []
 const same = Object.is
+const ALL_LAYERS = [true, true, true, true] as const
 const isPlaying = (snapshot: { value: unknown }): boolean => snapshot.value === 'play'
 const wholeDocument = (doc: ReadonlyMapDoc): ReadonlyMapDoc => doc
 const atmosphereOf = (doc: ReadonlyMapDoc): ReadonlyMapDoc['atmosphere'] => doc.atmosphere
@@ -98,7 +99,10 @@ export function Stage({ platform }: { platform: Platform }) {
   const showGrid = useViewSelector((snapshot) => snapshot.context.showGrid)
   const showMissing = useViewSelector((snapshot) => snapshot.context.showMissing)
   const fallback = useViewSelector((snapshot) => snapshot.context.fallback)
-  const materialLayers = useViewSelector((snapshot) => snapshot.context.materialLayersShown)
+  const paintingTerrain = useToolsSelector((snapshot) => snapshot.context.tool === 'terrain' && mergeParams(snapshot.context).terrainMode === 'paint')
+  // Hiding a layer is part of painting: out of Paint mode, with the widget gone, every layer draws again.
+  const layersShown = useViewSelector((snapshot) => snapshot.context.materialLayersShown)
+  const materialLayers = paintingTerrain ? layersShown : ALL_LAYERS
   const gameCamera = useViewSelector((snapshot) => snapshot.context.gameCamera)
   const projection = useViewSelector((snapshot) => snapshot.context.projection)
   const selection = useViewSelector((snapshot) => snapshot.context.selection)
@@ -208,7 +212,7 @@ export function Stage({ platform }: { platform: Platform }) {
         <LevelSize />
       </Overlay>
       {playing ? null : <EnvelopeWarning platform={platform} />}
-      {playing ? null : (
+      {playing || !paintingTerrain ? null : (
         <Overlay at="bottom-left">
           <MaterialLayersWidget />
         </Overlay>

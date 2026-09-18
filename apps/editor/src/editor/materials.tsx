@@ -104,7 +104,7 @@ export function MaterialsPicker({ active, sets }: { active: number; sets: readon
           <Item key={m.id} name={m.name} meta={`${m.archetype} · ${counts[m.id] ?? 0}`} swatch={swatchFor(sets, m.id) ?? cssColor(m.color)} active={m.id === active} onClick={() => select(m.id)} />
         ))}
       </List>
-      <Note>The project's library, shared by every map in it. Top of the list draws over what is below it where two meet in a corner nobody has drawn.</Note>
+      <Note>The project's library, shared by every map in it. Which material draws over which is the material layer each is painted on.</Note>
       <Actions>
         <Action title="Edit in Project settings…" onClick={() => openSettings('materials')} />
       </Actions>

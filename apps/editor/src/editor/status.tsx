@@ -76,8 +76,8 @@ export function hintsFor(params: EditorParams): ReadonlyArray<{ kbd?: string; te
             { kbd: '⌥ click', text: 'pick up a colour' },
           ]
         : [
-            { kbd: 'drag', text: 'paint a top, or a cliff band' },
-            { kbd: '⇧ drag', text: 'clear a band to its own material' },
+            { kbd: 'drag', text: 'paint the active material layer' },
+            { kbd: '⇧ drag', text: 'empty the active material layer' },
             { kbd: '⌥ click', text: 'pick up a material' },
           ]
     case 'sketch':

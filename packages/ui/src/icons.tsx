@@ -249,6 +249,13 @@ const GLYPHS = {
     </>
   ),
   mountains: <path d="M2 19 8 8l3 5 3-8 8 14z" />,
+  layers: (
+    <>
+      <path d="M12 3 3 8l9 5 9-5z" />
+      <path d="m3 12 9 5 9-5" />
+      <path d="m3 16 9 5 9-5" />
+    </>
+  ),
   eye: (
     <>
       <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" />

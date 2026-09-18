@@ -527,13 +527,14 @@ export interface MaterialLayerRow {
 }
 
 /**
- * The Material Layers widget (ruling of 2026-09-18): a collapsing panel in a
- * corner of the stage. Open, it lists the four layers topmost first; clicking
- * a row makes it the one painting goes to, and each row's eye hides it from
- * the view without changing anything saved. Collapsed, it still names the
- * active layer and shows the stack as four marks, the active one lit and the
- * hidden ones hollow. Layers are numbered from 1 here, bottom first; `active`
- * and the callbacks count from 0.
+ * The Material Layers widget (rulings of 2026-09-18): a compact control in a
+ * corner of the stage, shown while painting terrain. Its bar is always there:
+ * one target per layer, bottom first, so switching the layer painting goes to
+ * is one click, the active one lit and a hidden one dimmed, each with a bar of
+ * the swatch of what it mostly holds. The layers icon opens it, adding a row
+ * per layer, topmost first, with what the map holds on it and an eye that
+ * hides it from the view without changing anything saved. Layers are numbered
+ * from 1 on screen; `active` and the callbacks count from 0.
  */
 export function MaterialLayers({
   rows,
@@ -550,46 +551,50 @@ export function MaterialLayers({
   onSelect: (layer: number) => void
   onToggle: (layer: number) => void
 }) {
-  const order = rows.map((_, layer) => layer).reverse()
+  const describe = (layer: number): string => {
+    const row = rows[layer]
+    return `Material layer ${layer + 1} · ${row.summary}${row.visible ? '' : ' · hidden'}${layer === active ? ' · painting here' : ''}`
+  }
   return (
     <div className={`ui-mlayers ${open ? 'is-open' : ''}`}>
-      <button type="button" className="ui-mlayers-head" aria-expanded={open} onClick={() => onOpen(!open)}>
-        <span className="ui-mlayers-chevron">{open ? '▾' : '▸'}</span>
-        <span className="ui-mlayers-title">Material layers</span>
-        {open ? null : (
-          <span className="ui-mlayers-active">
-            Layer {active + 1} · {rows[active]?.summary}
-          </span>
-        )}
-        <span className="ui-mlayers-dots" aria-hidden>
-          {order.map((layer) => (
-            <span key={layer} className={`ui-mlayers-dot ${layer === active ? 'is-active' : ''} ${rows[layer].visible ? '' : 'is-hidden'}`} />
-          ))}
-        </span>
-      </button>
       {open ? (
         <div className="ui-mlayers-rows">
-          {order.map((layer) => {
-            const row = rows[layer]
-            return (
+          {rows
+            .map((row, layer) => ({ row, layer }))
+            .reverse()
+            .map(({ row, layer }) => (
               <div key={layer} className={`ui-mlayers-row ${layer === active ? 'is-active' : ''} ${row.visible ? '' : 'is-hidden'}`}>
                 <button type="button" className="ui-mlayers-eye" aria-label={`${row.visible ? 'Hide' : 'Show'} material layer ${layer + 1}`} aria-pressed={!row.visible} onClick={() => onToggle(layer)}>
-                  <Icon name={row.visible ? 'eye' : 'eyeOff'} size={15} />
+                  <Icon name={row.visible ? 'eye' : 'eyeOff'} size={14} />
                 </button>
-                <button type="button" className="ui-mlayers-pick" aria-pressed={layer === active} onClick={() => onSelect(layer)}>
+                <button type="button" className="ui-mlayers-pick" aria-pressed={layer === active} title={describe(layer)} onClick={() => onSelect(layer)}>
                   <span className="ui-mlayers-n ui-num">{layer + 1}</span>
                   {row.swatch ? <span className="ui-mlayers-swatch" style={{ background: row.swatch }} /> : null}
-                  <span className="ui-mlayers-summary">
-                    {row.summary}
-                    {row.visible ? '' : ' · hidden'}
-                    {layer === active ? ' · painting here' : ''}
-                  </span>
+                  <span className="ui-mlayers-summary">{row.summary}</span>
                 </button>
               </div>
-            )
-          })}
+            ))}
         </div>
       ) : null}
+      <div className="ui-mlayers-bar">
+        <button type="button" className="ui-mlayers-toggle" aria-expanded={open} title={open ? 'Material layers — close' : 'Material layers — show each layer, and hide some from the view'} onClick={() => onOpen(!open)}>
+          <Icon name="layers" size={15} />
+        </button>
+        {rows.map((row, layer) => (
+          <button
+            key={layer}
+            type="button"
+            className={`ui-mlayers-target ${layer === active ? 'is-active' : ''} ${row.visible ? '' : 'is-hidden'}`}
+            aria-pressed={layer === active}
+            aria-label={describe(layer)}
+            title={describe(layer)}
+            onClick={() => onSelect(layer)}
+          >
+            <span className="ui-num">{layer + 1}</span>
+            <span className="ui-mlayers-target-swatch" style={{ background: row.swatch ?? 'transparent' }} />
+          </button>
+        ))}
+      </div>
     </div>
   )
 }
