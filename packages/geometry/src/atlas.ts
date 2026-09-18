@@ -1,15 +1,19 @@
 /**
  * The runtime atlas: the one texture the terrain is drawn with (spec §3).
  *
- * It holds every authored tile of every terrain set the map uses, and one
- * baked tile per distinct corner combination nobody authored — a composite
- * of the terrains' edge sets in priority order. The mesher asks it two
- * things and nothing else: the tile for a corner's four terrains, and the
- * UV rectangle of one quadrant of a tile. It never composes pixels.
+ * It holds every authored tile of every set the map uses, and one baked tile
+ * per distinct corner combination nobody authored — a composite of the
+ * materials' edge sets in priority order. The mesher asks it two things and
+ * nothing else: the tile for a corner's four tags, and the UV rectangle of
+ * one quadrant of a tile. It never composes pixels.
  *
- * Terrains are addressed across sets by key, `<sheet>/<terrain>`, so a map
- * can draw from several sheets. An exact tile can only come from one set,
- * where every terrain at the corner lives; a composite may mix sets.
+ * A tag names a MATERIAL (ruling of 2026-09-17), which is a thing of the
+ * project rather than of an image, so the index of authored tiles is built
+ * across every set at once. An authored tile is taken wherever it was drawn,
+ * however the art is spread over sheets. The earlier cut of this could only
+ * take one when every terrain at the corner lived on one sheet, because a tag
+ * then named something local to an image; nothing about that restriction was
+ * a decision, and it went with the terrain.
  *
  * The atlas fills as strokes create combinations it has not seen, and its
  * SIZE IS FIXED at construction: `ATLAS_COLUMNS` across, and as many rows as
@@ -28,14 +32,7 @@
 
 import type { RgbaImage } from '@papercut/document'
 
-import { CORNER_BITS, exactTile, edgeTile, templateTags, type CornerTags, type TerrainSet } from './terrainset'
-
-/** `<sheet>/<terrain>`: a terrain named across sets. */
-export type TerrainKey = string
-
-export function terrainKey(sheet: string, terrain: string): TerrainKey {
-  return `${sheet}/${terrain}`
-}
+import { CORNER_BITS, cornerKey, exactTile, edgeTile, templateTags, type CornerTags, type Tag, type TerrainSet } from './terrainset'
 
 /** A terrain set and the pixels of its sheet. */
 export interface LoadedSet {
@@ -46,8 +43,8 @@ export interface LoadedSet {
   source?: RgbaImage
 }
 
-/** The four terrains at a corner, in `CornerTags` order; `null` is nothing. */
-export type CornerKeys = readonly [TerrainKey | null, TerrainKey | null, TerrainKey | null, TerrainKey | null]
+/** The four tags at a corner, in `CornerTags` order; `null` is nothing. */
+export type CornerKeys = CornerTags
 
 export interface AtlasTile {
   tile: number
@@ -58,7 +55,7 @@ export interface AtlasTile {
 }
 
 export interface CompositeReport {
-  /** The distinct terrains at the corner, highest priority last, then "edge" when nothing is among them. */
+  /** The distinct materials at the corner by name, highest priority last, then "edge" when nothing is among them. */
   combo: string
   /** The first tile baked for it; the same combination in another arrangement of corners bakes another. */
   tile: number
@@ -79,27 +76,33 @@ export class TerrainAtlas {
   private readonly buffer: Uint8ClampedArray<ArrayBuffer>
   /** Corners answered so far, keyed by the four interned terrain ids packed into one number. */
   private byCorner = new Map<number, AtlasTile>()
-  /** Terrain keys interned to small ids; 0 is nothing. */
-  private ids = new Map<TerrainKey, number>()
+  /** Tags interned to small ids; 0 is nothing. */
+  private ids = new Map<Tag, number>()
   private sheetTiles = new Map<string, number>() // `<sheet>:<index>` -> atlas tile
   private readonly sets = new Map<string, LoadedSet>()
+  /** Every authored tile of every set, by its four tags: one index across the sheets, not one per sheet. */
+  private readonly authored = new Map<string, { loaded: LoadedSet; index: number }>()
+  /** Where a tag's own art is: the first set that tags anything with it. What a composite reaches for. */
+  private readonly home = new Map<Tag, LoadedSet>()
   private composites: CompositeReport[] = []
   /** Bumps whenever `image` changes content or size. */
   version = 0
 
   /**
-   * @param priority Where a terrain stands in the map's material order; a
-   * higher number draws over a lower one in a composite. Unknown terrains
-   * count as lowest.
-   */
-  /**
-   * @param colorOf The flat colour (0xRRGGBB) a terrain falls back to when its set is not loaded — its material's
-   * swatch — or `null` for a terrain nothing names, which draws magenta so the hole is seen rather than missed.
+   * @param priority Where a tag's material stands in the map's material order; a
+   * higher number draws over a lower one in a composite. An unknown material
+   * counts as lowest.
+   * @param colorOf The flat colour (0xRRGGBB) a tag falls back to when there is no art for
+   * it — its material's swatch — or `null` for a tag no material answers, which draws
+   * magenta so the hole is seen rather than missed.
+   * @param nameOf What to call a tag in a composite's report, which is the artist's list of
+   * transitions still to draw. Defaults to the tag itself, which is a material id.
    */
   constructor(
     sets: readonly LoadedSet[],
-    private readonly priority: (key: TerrainKey) => number,
-    private readonly colorOf: (key: TerrainKey) => number | null = () => null,
+    private readonly priority: (key: Tag) => number,
+    private readonly colorOf: (key: Tag) => number | null = () => null,
+    private readonly nameOf: (key: Tag) => string = (key) => String(key),
   ) {
     const tile = sets[0]?.set.tile ?? 16
     for (const loaded of sets) {
@@ -116,7 +119,16 @@ export class TerrainAtlas {
     this.rows = rows
     this.buffer = new Uint8ClampedArray(ATLAS_COLUMNS * tile * rows * tile * 4)
     // Every tagged tile of every set is in the atlas from the start, so an exact answer never grows it.
-    for (const loaded of sets) for (const index of loaded.set.tiles.keys()) this.sheetTile(loaded, index)
+    // The same pass builds the cross-set index: first tile wins where two sheets drew the same corner,
+    // in set order, which is the project's image order.
+    for (const loaded of sets) {
+      for (const [index, tags] of loaded.set.tiles) {
+        this.sheetTile(loaded, index)
+        const key = cornerKey(tags)
+        if (!this.authored.has(key)) this.authored.set(key, { loaded, index })
+        for (const tag of tags) if (tag !== null && !this.home.has(tag)) this.home.set(tag, loaded)
+      }
+    }
   }
 
   /** The whole atlas; the same buffer every time, so a consumer keys its upload on `version`, not on identity. */
@@ -140,12 +152,12 @@ export class TerrainAtlas {
     return answer
   }
 
-  private id(key: TerrainKey | null): number {
+  private id(key: Tag): number {
     if (key === null) return 0
     let id = this.ids.get(key)
     if (id === undefined) {
       id = this.ids.size + 1
-      if (id >= 4096) throw new Error('The atlas addresses at most 4095 terrains.')
+      if (id >= 4096) throw new Error('The atlas addresses at most 4095 distinct tags.')
       this.ids.set(key, id)
     }
     return id
@@ -176,19 +188,12 @@ export class TerrainAtlas {
   }
 
   private resolve(keys: CornerKeys): AtlasTile {
-    const terrains = [...new Set(keys.filter((k): k is TerrainKey => k !== null))]
-    if (terrains.length === 0) return { tile: this.blankTile(), composite: false }
-    // An exact tile lives in one set, where every terrain at the corner is.
-    const sheets = new Set(terrains.map((k) => k.slice(0, k.lastIndexOf('/'))))
-    if (sheets.size === 1) {
-      const loaded = this.sets.get([...sheets][0])
-      if (loaded) {
-        const tags = keys.map((k) => (k === null ? null : k.slice(k.lastIndexOf('/') + 1))) as unknown as CornerTags
-        const index = exactTile(loaded.set, tags)
-        if (index !== null) return { tile: this.sheetTile(loaded, index), composite: false }
-      }
-    }
-    const tile = this.composite(keys, terrains)
+    const tags = [...new Set(keys.filter((k): k is string => k !== null))]
+    if (tags.length === 0) return { tile: this.blankTile(), composite: false }
+    // Wherever it was drawn. A tag names a material, so nothing about a corner is local to a sheet.
+    const found = this.authored.get(cornerKey(keys))
+    if (found) return { tile: this.sheetTile(found.loaded, found.index), composite: false }
+    const tile = this.composite(keys, tags)
     return { tile, composite: true, combo: this.composites[this.composites.length - 1].combo }
   }
 
@@ -213,25 +218,23 @@ export class TerrainAtlas {
   }
 
   /**
-   * Bake a corner nobody drew: the lowest terrain from its edge set, masked
-   * to the corners that are not nothing, then each higher terrain's edge
-   * tile over it. A terrain with no edge tile for a mask lends its full
+   * Bake a corner nobody drew: the lowest material from its edge set, masked
+   * to the corners that are not nothing, then each higher material's edge
+   * tile over it. A material with no edge tile for a mask lends its full
    * tile, clipped to its own corners.
    */
-  private composite(keys: CornerKeys, terrains: TerrainKey[]): number {
-    const ordered = terrains.slice().sort((a, b) => this.priority(a) - this.priority(b))
+  private composite(keys: CornerKeys, tags: string[]): number {
+    const ordered = tags.slice().sort((a, b) => this.priority(a) - this.priority(b))
     const tile = this.allocate()
     const present = keys.reduce((mask, k, i) => (k === null ? mask : mask | CORNER_BITS[i]), 0)
     ordered.forEach((key, layer) => {
       const mask = layer === 0 ? present : keys.reduce((m, k, i) => (k === key ? m | CORNER_BITS[i] : m), 0)
-      const sheet = key.slice(0, key.lastIndexOf('/'))
-      const terrain = key.slice(key.lastIndexOf('/') + 1)
-      const loaded = this.sets.get(sheet)
-      const edge = loaded ? edgeTile(loaded.set, terrain, mask) : null
-      const source = loaded ? (edge ?? exactTile(loaded.set, templateTags(15, null, terrain))) : null
+      const loaded = this.home.get(key)
+      const edge = loaded ? edgeTile(loaded.set, key, mask) : null
+      const source = loaded ? (edge ?? exactTile(loaded.set, templateTags(15, null, key))) : null
       if (!loaded || source === null) {
-        // No sheet, or no tile for it in the sheet: the material's colour fills the terrain's corners, so a
-        // material pointing at a sheet the folder lacks is a flat face rather than a hole in the ground.
+        // Nothing drawn for it anywhere: the material's colour fills its corners, so a material
+        // whose art has not been made yet is a flat face rather than a hole in the ground.
         this.fill(tile, mask, this.colorOf(key) ?? 0xff00ff)
         return
       }
@@ -239,7 +242,7 @@ export class TerrainAtlas {
       const sy = Math.floor(source / loaded.set.columns) * this.tile
       this.blit(loaded.image, sx, sy, tile, edge === null ? mask : null, true)
     })
-    const names = ordered.map((k) => k.slice(k.lastIndexOf('/') + 1))
+    const names = ordered.map((k) => this.nameOf(k))
     if (present !== 15) names.push('edge')
     this.composites.push({ combo: names.join(' · '), tile })
     return tile

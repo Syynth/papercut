@@ -1,47 +1,59 @@
 /**
- * Archetypes: the vocabulary of slots a material owes art for (design of
- * 2026-09-17).
+ * Archetypes: which face a material's art is for, and what parts it has
+ * (rulings of 2026-09-17).
  *
- * An archetype owns its vocabulary. The FLOOR archetype's slots happen to be
- * the fifteen corner masks — the dual grid papercut draws top faces with —
- * and that is why corner tagging feels universal, but it is not: the WALL
- * archetype's slots are named parts in elevation, including the two seams
- * where a wall turns, and the RAMP's are its own at a taller aspect because
- * a slope is longer than the run beneath it.
+ * An earlier cut of this listed TILE SHAPES — a floor owed fifteen corner
+ * masks, a wall owed a top band and two ends. That was wrong twice over. The
+ * fifteen masks are not a floor's slots, they are the ways ANY material meets
+ * something at the corners of a tile; and a wall's bands and ends turned out
+ * to be those same fifteen read in elevation, because the mesher already runs
+ * a wall face through the dual grid with the wall's own silhouette as the
+ * shape. Both were a second spelling of the corner model.
  *
- * A material fills its archetype's slots with its own art. A transition
- * fills the SAME slots with the art of two to four materials meeting. Same
- * shape of thing, different subject, which is why transitions live in every
- * archetype rather than only where there are corners.
+ * So an archetype says two things. Which face its art is drawn on, and what
+ * PARTS its surface has beyond the ordinary one. A part is a SLOT, it is
+ * optional on a tag, and almost every tag leaves it off: absent means the
+ * ordinary surface, which is what an artist tags all day.
  *
- * Nothing here knows about a project, a sheet or a tile. It says what is
- * owed; who owes it and where the pixels are is somebody else's business.
+ * The slot exists for what the corner model cannot reach. A wall's seam is
+ * the case today: a convex or concave turn is two wall faces meeting at an
+ * angle in three dimensions, and no arrangement of four corners inside one
+ * face's own plane can say it, because the other face is not in that plane.
+ * Alternates and alternate shapes — a curved corner or a wedge in place of
+ * the standard blob corner — join this list when they are built.
+ *
+ * Nothing here knows about a project, an image or a tile. It says what a
+ * material's surface is made of; where the pixels are is somebody else's
+ * business.
  */
 
 import type { ArchetypeId } from '@papercut/document'
 
 export interface Slot {
-  /** Unique within its archetype: `mask:15`, `face`, `convex`. */
+  /** Unique within its archetype, and what a tag spells after the colon: `convex`. */
   id: string
   /** What the editor calls it. */
   name: string
-  /** The corner mask it answers, for an archetype whose slots are corners; absent otherwise. */
-  mask?: number
-  /** Left empty, the mesher copes — a wall's seams are mitred. An unfilled required slot composites instead. */
+  /** True for the part a tag means when it names no slot at all. Exactly one per archetype. */
+  ordinary?: boolean
+  /** Left undrawn, the mesher copes — a wall's seams are mitred. */
   optional?: boolean
-  /** A word for what it is, so the editor can group or explain. */
+  /** A word for what it is, so the editor can explain it. */
   note?: string
 }
 
 export interface Archetype {
   id: ArchetypeId
   title: string
-  /** What its faces are, in one line, for the editor to show. */
+  /** Which faces its art is drawn on, in one line, for the editor to show. */
   note: string
   /** A tile's size as multiples of the project's texel density. */
   aspect: { width: number; height: number }
   slots: Slot[]
 }
+
+/** The slot a tag means when it names none: `tagOf(3)` is material 3's ordinary surface. */
+export const ORDINARY = 'surface'
 
 /** What a corner mask is, in words: the nine ways four cells can be arranged up to which is which. */
 export function maskKind(mask: number): string {
@@ -52,10 +64,25 @@ export function maskKind(mask: number): string {
   return mask === 6 || mask === 9 ? 'diagonal' : 'edge'
 }
 
-const CORNER_SLOTS: Slot[] = Array.from({ length: 15 }, (_, i) => {
-  const mask = i + 1
-  return { id: `mask:${mask}`, name: `mask ${mask}`, mask, note: maskKind(mask) }
-})
+/**
+ * One of the fifteen ways a material meets something at a tile's corners.
+ *
+ * Not a slot. A slot is a part of one material's surface; an arrangement is
+ * how a surface meets what is beside it. Every archetype has the same fifteen,
+ * because every face is meshed through the same dual grid — a floor's in the
+ * map's plane, a wall's in elevation, a ramp's along its slope.
+ */
+export interface Arrangement {
+  mask: number
+  name: string
+  kind: string
+}
+
+const ARRANGEMENTS: readonly Arrangement[] = Array.from({ length: 15 }, (_, i) => ({ mask: i + 1, name: `mask ${i + 1}`, kind: maskKind(i + 1) }))
+
+export function arrangements(): readonly Arrangement[] {
+  return ARRANGEMENTS
+}
 
 /** √2, because a ramp's surface spans the diagonal of the cell it descends through. */
 export const RAMP_RISE = Math.SQRT2
@@ -64,23 +91,19 @@ const ARCHETYPES: readonly Archetype[] = [
   {
     id: 'floor',
     title: 'Floor',
-    note: 'Top faces. Corner slots, in the map’s own plane.',
+    note: 'Top faces, in the map’s own plane.',
     aspect: { width: 1, height: 1 },
-    slots: CORNER_SLOTS,
+    slots: [{ id: ORDINARY, name: 'Surface', ordinary: true, note: 'the ground itself' }],
   },
   {
     id: 'wall',
     title: 'Wall',
-    note: 'Side faces, in elevation. Named parts, and two seams where a wall turns.',
+    note: 'Side faces, in elevation. Its bands and ends are the same corner arrangements, read upright.',
     aspect: { width: 1, height: 1 },
     slots: [
-      { id: 'face', name: 'Face', note: 'a run of wall' },
-      { id: 'top', name: 'Top band', note: 'where it meets the surface above' },
-      { id: 'bottom', name: 'Bottom band', note: 'where it meets the ground' },
-      { id: 'end-left', name: 'End, left', note: 'the wall stops' },
-      { id: 'end-right', name: 'End, right', note: 'the wall stops' },
-      { id: 'convex', name: 'Convex seam', optional: true, note: 'an outside turn; mitred when empty' },
-      { id: 'concave', name: 'Concave seam', optional: true, note: 'an inside turn; mitred when empty' },
+      { id: ORDINARY, name: 'Surface', ordinary: true, note: 'the wall itself' },
+      { id: 'convex', name: 'Convex seam', optional: true, note: 'an outside turn; mitred when undrawn' },
+      { id: 'concave', name: 'Concave seam', optional: true, note: 'an inside turn; mitred when undrawn' },
     ],
   },
   {
@@ -88,12 +111,7 @@ const ARCHETYPES: readonly Archetype[] = [
     title: 'Ramp',
     note: 'Sloped top faces. Taller tiles, because the slope is longer than its run.',
     aspect: { width: 1, height: RAMP_RISE },
-    slots: [
-      { id: 'run', name: 'Run', note: 'the slope itself' },
-      { id: 'head', name: 'Head', note: 'where it meets the level above' },
-      { id: 'foot', name: 'Foot', note: 'where it meets the level below' },
-      { id: 'side', name: 'Side', note: 'the slope’s own edge' },
-    ],
+    slots: [{ id: ORDINARY, name: 'Surface', ordinary: true, note: 'the slope itself' }],
   },
 ]
 
@@ -112,7 +130,7 @@ export function slotSize(archetype: Archetype, density: number): { width: number
   return { width: Math.round(density * archetype.aspect.width), height: Math.round(density * archetype.aspect.height) }
 }
 
-/** How many of an archetype's slots must be filled before nothing composites: the optional ones do not count. */
+/** The slots that must be drawn before nothing composites: the optional ones do not count. */
 export function requiredSlots(archetype: Archetype): Slot[] {
   return archetype.slots.filter((s) => !s.optional)
 }

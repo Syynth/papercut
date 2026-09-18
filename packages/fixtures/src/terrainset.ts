@@ -1,6 +1,6 @@
 /**
- * The placeholder terrain set: a sheet and its sidecar, drawn without a
- * canvas (spec §6).
+ * The placeholder tile set: a sheet and its tags, drawn without a canvas
+ * (spec §6).
  *
  * Every tile is a transition authored the way the prototype drew them: the
  * over-terrain's quadrants are opened and closed by a disc so convex corners
@@ -16,11 +16,12 @@
  * placeholder art and stays behind its own subpath.
  */
 
-import type { RgbaImage } from '@papercut/document'
-import { addTerrain, createTerrainSet, stampTemplate, type TerrainSet } from '@papercut/geometry'
+import { tagOf, type RgbaImage } from '@papercut/document'
+import { createTerrainSet, stampTemplate, type TerrainSet } from '@papercut/geometry'
 
 export interface PlaceholderTerrain {
-  id: string
+  /** The MATERIAL this art is for, by id: what its tiles are tagged with. */
+  id: number
   name: string
   /** 0xRRGGBB fill, and the rim and speckle derived from it. */
   color: number
@@ -135,14 +136,14 @@ function morph(mask: Uint8Array, size: number, radius: number, grow: boolean): U
  * for every pair, and the terrain set that tags it. `pairs` are `[under,
  * over]` by id; the over-terrain is the shape.
  */
-export function generateTerrainSetArt(sheet: string, terrains: readonly PlaceholderTerrain[], pairs: ReadonlyArray<readonly [string, string]>, tile = 16): PlaceholderTerrainSet {
+export function generateTerrainSetArt(sheet: string, terrains: readonly PlaceholderTerrain[], pairs: ReadonlyArray<readonly [number, number]>, tile = 16): PlaceholderTerrainSet {
   const blocks: Array<{ under: PlaceholderTerrain | null; over: PlaceholderTerrain }> = []
   const byId = new Map(terrains.map((t) => [t.id, t]))
   for (const t of terrains) blocks.push({ under: null, over: t })
   for (const [under, over] of pairs) {
     const a = byId.get(under)
     const b = byId.get(over)
-    if (!a || !b) throw new Error(`Pair ${under}·${over} names a terrain the placeholder does not have.`)
+    if (!a || !b) throw new Error(`Pair ${under}·${over} names a material the placeholder does not have.`)
     blocks.push({ under: a, over: b })
   }
   const columns = BLOCKS_ACROSS * 4
@@ -151,13 +152,12 @@ export function generateTerrainSetArt(sheet: string, terrains: readonly Placehol
   const height = rows * tile
   const data = new Uint8ClampedArray(width * height * 4)
   let set = createTerrainSet(sheet, tile, columns, rows)
-  for (const t of terrains) set = addTerrain(set, { id: t.id, name: t.name, color: `#${t.color.toString(16).padStart(6, '0')}` })
 
   const rounding = Math.max(1, Math.round((tile * 3) / 16))
   blocks.forEach((block, b) => {
     const column = (b % BLOCKS_ACROSS) * 4
     const row = Math.floor(b / BLOCKS_ACROSS) * 4
-    set = stampTemplate(set, column, row, block.under?.id ?? null, block.over.id)
+    set = stampTemplate(set, column, row, block.under === null ? null : tagOf(block.under.id), tagOf(block.over.id))
     const bleed = block.over.bleed ? block.over.bleed : block.under?.bleed ? -block.under.bleed : 0
     for (let mask = 0; mask < 16; mask++) {
       const x0 = (column + (mask & 3)) * tile
@@ -232,25 +232,26 @@ function mix(a: [number, number, number], b: [number, number, number], t: number
 }
 
 /** The sample map's placeholder: the four default materials plus a path, and the transitions the sample uses. */
+/** By material id, which is `DEFAULT_MATERIALS`: 0 Grass, 1 Dirt, 2 Stone, 3 Sand, 4 Path. */
 export const PLACEHOLDER_TERRAINS: readonly PlaceholderTerrain[] = [
-  { id: 'stone', name: 'Stone', color: 0x8e8e8e, wall: true },
-  { id: 'dirt', name: 'Dirt', color: 0x8b6b45 },
-  { id: 'sand', name: 'Sand', color: 0xd9c27e },
-  { id: 'grass', name: 'Grass', color: 0x6aa84f, bleed: 3 },
-  { id: 'path', name: 'Path', color: 0xb08f5e },
+  { id: 2, name: 'Stone', color: 0x8e8e8e, wall: true },
+  { id: 1, name: 'Dirt', color: 0x8b6b45 },
+  { id: 3, name: 'Sand', color: 0xd9c27e },
+  { id: 0, name: 'Grass', color: 0x6aa84f, bleed: 3 },
+  { id: 4, name: 'Path', color: 0xb08f5e },
 ]
 
-export const PLACEHOLDER_PAIRS: ReadonlyArray<readonly [string, string]> = [
-  ['dirt', 'grass'],
-  ['sand', 'grass'],
-  ['dirt', 'sand'],
-  ['stone', 'dirt'],
-  ['stone', 'grass'],
-  ['stone', 'sand'],
-  ['stone', 'path'],
-  ['grass', 'path'],
-  ['dirt', 'path'],
-  ['sand', 'path'],
+export const PLACEHOLDER_PAIRS: ReadonlyArray<readonly [number, number]> = [
+  [1, 0],
+  [3, 0],
+  [1, 3],
+  [2, 1],
+  [2, 0],
+  [2, 3],
+  [2, 4],
+  [0, 4],
+  [1, 4],
+  [3, 4],
 ]
 
 export function generatePlaceholderTerrainSet(tile = 16): PlaceholderTerrainSet {

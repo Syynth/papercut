@@ -85,7 +85,7 @@ export function templateTags(mask: number, under: Tag, over: Tag): CornerTags {
  * at (`column + (mask & 3)`, `row + (mask >> 2)`). `under` may be `null`,
  * which makes `over`'s edge set. Refused when the block leaves the sheet.
  */
-export function stampTemplate(set: TerrainSet, column: number, row: number, under: Tag, over: string): TerrainSet {
+export function stampTemplate(set: TerrainSet, column: number, row: number, under: Tag, over: Tag): TerrainSet {
   if (column < 0 || row < 0 || column + 4 > set.columns || row + 4 > set.rows) throw new TerrainSetError(`A 4×4 block at ${column},${row} does not fit a ${set.columns}×${set.rows} sheet.`)
   const tiles = new Map(set.tiles)
   for (let mask = 0; mask < 16; mask++) tiles.set((row + (mask >> 2)) * set.columns + column + (mask & 3), templateTags(mask, under, over))
@@ -140,7 +140,8 @@ export function cornerAt(set: TerrainSet, x: number, y: number): { index: number
   return { index: row * set.columns + column, corner }
 }
 
-const tagKey = (tags: CornerTags): string => tags.map((t) => t ?? '').join('|')
+/** One string for a corner's four tags: what an index of authored tiles is keyed on. */
+export const cornerKey = (tags: CornerTags): string => tags.map((t) => t ?? '').join('|')
 
 const indexCache = new WeakMap<ReadonlyMap<number, CornerTags>, Map<string, number>>()
 
@@ -150,12 +151,12 @@ export function exactTile(set: TerrainSet, tags: CornerTags): number | null {
   if (!byKey) {
     byKey = new Map()
     for (const [index, t] of set.tiles) {
-      const key = tagKey(t)
+      const key = cornerKey(t)
       if (!byKey.has(key)) byKey.set(key, index)
     }
     indexCache.set(set.tiles, byKey)
   }
-  return byKey.get(tagKey(tags)) ?? null
+  return byKey.get(cornerKey(tags)) ?? null
 }
 
 /** A tag's edge-set tile for a template mask: itself at the set corners, nothing elsewhere. */

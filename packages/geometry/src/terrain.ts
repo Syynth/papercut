@@ -52,9 +52,10 @@ import {
   tintPaint,
   topHeight,
   voxelAt,
+  type Tag,
 } from '@papercut/document'
 
-import type { CornerKeys, TerrainKey } from './atlas'
+import type { CornerKeys } from './atlas'
 import type { TerrainLook } from './look'
 
 export interface MeshBuffers {
@@ -204,7 +205,7 @@ const CORNER_AT = [
  */
 class Cells {
   private cells = new Map<number, CellInfo>()
-  private bands = new Map<number, TerrainKey | null>()
+  private bands = new Map<number, Tag>()
 
   constructor(
     private readonly voxel: ReadonlyVoxel,
@@ -237,13 +238,13 @@ class Cells {
   }
 
   /** The terrain a band of a side is drawn with: an override on that voxel's side, else its material's side terrain. */
-  bandKey(x: number, y: number, dir: number, level: number): TerrainKey | null {
+  bandKey(x: number, y: number, dir: number, level: number): Tag {
     const key = ((y * this.voxel.size.width + x) * 4 + dir) * 256 + level
     const known = this.bands.get(key)
     if (known !== undefined) return known
     const layer = Math.floor(level / 2)
     const override = facePaint(this.voxel.paint, x, y, layer, dir)
-    let answer: TerrainKey | null
+    let answer: Tag
     if (override !== undefined) answer = this.look.keyOf(override, true)
     else {
       const material = voxelAt(this.voxel, x, y, layer)
@@ -258,7 +259,7 @@ interface CellInfo {
   readonly corners: readonly [number, number, number, number]
   readonly top: number
   /** The terrain the top is drawn with: an override on the top face, else the top voxel's material's top terrain. */
-  readonly topKey: TerrainKey | null
+  readonly topKey: Tag
 }
 
 /** A value at a point inside the cell, bilinear across its corners in `CORNER_OFFSETS` order. */
@@ -402,7 +403,7 @@ const SIDE_GEOMETRY: ReadonlyArray<{
 function topCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, vx: number, vy: number): CornerKeys {
   const mine = cells.vertex(x, y, vx, vy)
   const own = cells.at(x, y).topKey
-  const at = (cx: number, cy: number): TerrainKey | null => {
+  const at = (cx: number, cy: number): Tag => {
     if (!inBounds(voxel.size, cx, cy)) return own
     if (cx === x && cy === y) return own
     return cells.vertex(cx, cy, vx, vy) < mine ? null : cells.at(cx, cy).topKey
@@ -434,7 +435,7 @@ function bandExists(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, di
 function bandCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, level: number, atEnd: boolean, atTop: boolean): CornerKeys {
   const [ux, uy] = SIDE_GEOMETRY[dir].u
   const own = cells.bandKey(x, y, dir, level)
-  const at = (along: number, l: number): TerrainKey | null => {
+  const at = (along: number, l: number): Tag => {
     const cx = x + along * ux
     const cy = y + along * uy
     if (!inBounds(voxel.size, cx, cy)) return own

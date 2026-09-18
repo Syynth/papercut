@@ -15,34 +15,34 @@
 export {
   CORNER_BITS,
   TerrainSetError,
-  addTerrain,
   assemble,
   cornerAt,
+  cornerKey,
   createTerrainSet,
   edgeCoverage,
   edgeTile,
   exactTile,
   pairAuthored,
-  removeTerrain,
+  removeMaterial,
   stampTemplate,
   tagCorner,
   templateTags,
   terrainOf,
   terrainSetFrom,
 } from './terrainset'
-export type { CornerTags, PatchCorner, Tag, TerrainDef, TerrainSet } from './terrainset'
+export type { CornerTags, PatchCorner, Tag, TerrainSet } from './terrainset'
 export { cutGrid, fitsOf, gridCells, remapTags } from './grid'
-export { RAMP_RISE, archetypeOf, archetypes, maskKind, requiredSlots, slotSize } from './archetype'
-export type { Archetype, Slot } from './archetype'
+export { ORDINARY, RAMP_RISE, archetypeOf, archetypes, arrangements, maskKind, requiredSlots, slotSize } from './archetype'
+export type { Archetype, Arrangement, Slot } from './archetype'
 export { CORNER_BLOCKS, conventionOf, conventions, layoutTags, terrainFromLayout } from './layout'
 export type { Convention, LayoutBlock, LayoutSpec, LayoutTile } from './layout'
 export { renderTemplate } from './template'
-export type { Template, TemplateOptions, TemplateTerrain } from './template'
+export type { Template, TemplateMaterial, TemplateOptions } from './template'
 export type { GridCells, Remapped } from './grid'
-export { TerrainAtlas, terrainKey } from './atlas'
+export { TerrainAtlas } from './atlas'
 export { createTerrainLook } from './look'
 export type { TerrainLook } from './look'
-export type { AtlasTile, CompositeReport, CornerKeys, LoadedSet, TerrainKey } from './atlas'
+export type { AtlasTile, CompositeReport, CornerKeys, LoadedSet } from './atlas'
 
 export { meshTerrainChunk } from './terrain'
 export type { MeshBuffers, TerrainChunkMesh } from './terrain'
