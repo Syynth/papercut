@@ -13,10 +13,11 @@ mostly void.
 | `Main.dc.html` | What a material and a transition are, what it settles, how a corner resolves |
 | `Grid.dc.html` | The corner block shapes, drawn, and why they close at four materials |
 | `Blocks.dc.html` | A block is what the artist places: a rule over its faces, not a fixed assignment |
+| `Screen.dc.html` | Project settings › Materials: the assembled preview, the slots, and the Meets list |
 | `Archetypes.dc.html` | An archetype owns a vocabulary of slots; the corner set is the floor's, not everyone's |
 | `Shapes.dc.html` | The fifteen corner masks sorted by what they are; what an archetype actually settles |
 | `Seams.dc.html` | A wall turning a corner, mitred or drawn, and why that decides whether a second kind of tag exists |
-| `Material.dc.html` | Project settings › Materials: a material's art page, corner block and named slots |
+| `Material.dc.html` | An earlier art page, drawn while the corner block was still taken as universal |
 | `Layers.dc.html` | Block, material, archetype, transition — and what each replaces |
 | `Authoring.dc.html` | Project settings › Transitions, sketched before the block and archetype existed |
 | `Format.dc.html` | `papercut.json` and the GID scheme, likewise an early sketch |

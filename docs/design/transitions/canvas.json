@@ -1,20 +1,20 @@
 {
   "artboards": [
     {
-      "file": "Main.dc.html",
+      "file": "Screen.dc.html",
       "x": 0,
       "y": 0,
-      "w": 1180,
+      "w": 1320,
       "h": 900,
-      "title": "The model"
+      "title": "Materials — the screen"
     },
     {
-      "file": "Grid.dc.html",
-      "x": 1280,
+      "file": "Archetypes.dc.html",
+      "x": 1420,
       "y": 0,
-      "w": 1180,
+      "w": 1280,
       "h": 900,
-      "title": "The corner blocks"
+      "title": "Archetypes own their vocabularies"
     },
     {
       "file": "Blocks.dc.html",
@@ -25,17 +25,17 @@
       "title": "A block is what you place"
     },
     {
-      "file": "Archetypes.dc.html",
+      "file": "Main.dc.html",
       "x": 1340,
       "y": 1000,
-      "w": 1280,
-      "h": 820,
-      "title": "Archetypes own their vocabularies"
+      "w": 1180,
+      "h": 900,
+      "title": "The model"
     },
     {
       "file": "Shapes.dc.html",
       "x": 0,
-      "y": 1920,
+      "y": 1900,
       "w": 1240,
       "h": 800,
       "title": "Sixteen, not forty-seven"
@@ -43,39 +43,47 @@
     {
       "file": "Seams.dc.html",
       "x": 1340,
-      "y": 1920,
+      "y": 2000,
       "w": 1240,
       "h": 820,
       "title": "Mitred, or drawn"
     },
     {
-      "file": "Material.dc.html",
+      "file": "Grid.dc.html",
       "x": 0,
-      "y": 2840,
+      "y": 2800,
+      "w": 1180,
+      "h": 900,
+      "title": "The corner blocks"
+    },
+    {
+      "file": "Material.dc.html",
+      "x": 1340,
+      "y": 2920,
       "w": 1280,
       "h": 860,
-      "title": "A material's art page"
+      "title": "An earlier art page"
     },
     {
       "file": "Layers.dc.html",
-      "x": 1380,
-      "y": 2840,
+      "x": 0,
+      "y": 3800,
       "w": 1240,
       "h": 860,
       "title": "How the pieces sit"
     },
     {
       "file": "Authoring.dc.html",
-      "x": 0,
-      "y": 3800,
+      "x": 1340,
+      "y": 3880,
       "w": 1240,
       "h": 800,
       "title": "Transitions, as first sketched"
     },
     {
       "file": "Format.dc.html",
-      "x": 1340,
-      "y": 3800,
+      "x": 0,
+      "y": 4760,
       "w": 1120,
       "h": 760,
       "title": "The format, as first sketched"
@@ -83,39 +91,32 @@
   ],
   "annotations": [
     {
-      "id": "note-arc",
-      "x": 2720,
-      "y": 1000,
+      "id": "note-screen",
+      "x": 2800,
+      "y": 0,
       "w": 340,
-      "text": "THE CURRENT READING. An archetype owns a vocabulary of slots — floor's are the sixteen corner masks, wall's are named parts including its seams, ramp's are parts at a root-2 aspect.\n\nA material fills that vocabulary with its own art. A transition fills the SAME vocabulary with the art of two to four materials meeting. Same shape, different subject — so transitions live in every archetype."
+      "text": "THE SCREEN. A material shows the patch it actually draws — its archetype's slots, assembled — beside the raw slots, and a Meets list of everything it can touch.\n\nPicking a pairing swaps the preview for that transition. Same screen, same shape; one material became two and the empty half of each slot filled in. The list is a way of looking, not a form."
+    },
+    {
+      "id": "note-arc",
+      "x": 2800,
+      "y": 420,
+      "w": 340,
+      "text": "An archetype owns a vocabulary of slots — floor's are the sixteen corner masks, wall's are named parts including its seams, ramp's are parts at a root-2 aspect.\n\nA material fills that vocabulary with its own art. A transition fills the SAME vocabulary with two to four materials meeting. So transitions live in every archetype."
     },
     {
       "id": "note-open",
-      "x": 2720,
-      "y": 1380,
+      "x": 2800,
+      "y": 860,
       "w": 340,
-      "text": "OPEN: how much resolution a non-corner slot needs. A wall's face slot is one tile, so stone becoming wood along a run is abrupt; a small left/right mask would let it feather. That is the wall's version of what the corner mask does for floors.\n\nAlso: a transition's archetype belongs to the transition, not to its materials — Grass is a floor material but Grass + Rock is drawn in the wall vocabulary. So one pairing can have a floor block and a wall strip."
+      "text": "OPEN: how much resolution a non-corner slot needs. A wall's face slot is one tile, so stone becoming wood along a run is abrupt; a small left/right mask would let it feather.\n\nAlso: a transition's archetype belongs to the transition, not its materials, so one pairing may have a floor block and a wall strip."
     },
     {
       "id": "note-hist",
-      "x": 2720,
-      "y": 1920,
+      "x": 2800,
+      "y": 1900,
       "w": 340,
-      "text": "Shapes and Seams were drawn while the corner set was still taken as universal. Shapes is right about the fifteen masks and about 16 beating 47; Seams is right that a seam cannot be a corner tag. Both are superseded on whose vocabulary owns what."
-    },
-    {
-      "id": "note-mat",
-      "x": 2720,
-      "y": 2840,
-      "w": 340,
-      "text": "Material's art page predates the correction too: it shows a corner block plus named slots for every archetype. Under the current reading a wall material would show only its seven named slots and no corner block at all."
-    },
-    {
-      "id": "note-sketch",
-      "x": 2720,
-      "y": 3800,
-      "w": 320,
-      "text": "Authoring and Format are the first sketches, kept for the GID scheme and the block geometry. To be redrawn once the model settles."
+      "text": "The boards below are kept in the order they were drawn, with their supersessions noted, so the reasoning stays legible. Shapes is right that 16 beats 47; Seams is right that a seam cannot be a corner tag; both predate archetypes owning their own vocabularies."
     }
   ],
   "launch": {
