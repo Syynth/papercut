@@ -132,6 +132,17 @@ describe('the materials screen', () => {
     expect(text()).toContain('how it draws')
   })
 
+  it("keeps the side terrain editable, because the mesher still draws cliffs with it", () => {
+    const sets = [ground([['grass', null]])]
+    mount(() => <MaterialsSettings session={session()} selected={0} onSelect={() => undefined} sets={sets} />)
+
+    // Grass ships with a side terrain of its own, and `look.ts` reads `side ?? top`
+    // for every vertical face, so a screen with no control for it strands live data.
+    expect(text()).toContain('Side art')
+    const options = [...window.document.querySelectorAll('select')].flatMap((s) => [...s.options].map((o) => o.label))
+    expect(options).toContain('Same as the top')
+  })
+
   it('lights a slot from the strip and says how much of the patch it draws', () => {
     const sets = [ground([['grass', null]])]
     mount(() => <MaterialsSettings session={session()} selected={0} onSelect={() => undefined} sets={sets} />)
