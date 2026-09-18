@@ -20,10 +20,10 @@
  * 2026-09-17).
  */
 
-import { DEFAULT_MATERIALS, PLACEHOLDER_SHEET, defaultCameraRig, type CameraRig, type DeepReadonly, type MaterialDef, type TerrainRef } from './document'
+import { DEFAULT_MATERIALS, PLACEHOLDER_SHEET, defaultCameraRig, type CameraRig, type DeepReadonly, type MaterialDef } from './document'
 import { LoadError } from './io'
 
-export const PROJECT_FORMAT_VERSION = 2
+export const PROJECT_FORMAT_VERSION = 3
 /** The file a project is anchored on, at the root of its folder. */
 export const PROJECT_FILE = 'papercut.json'
 /** Where a project keeps its maps and its images, relative to the folder. */
@@ -36,23 +36,53 @@ export interface ResolutionProfile {
   filtering: 'nearest' | 'linear'
 }
 
-// --- terrain sets, as an image carries them ------------------------------------
+// --- tags, as an image carries them --------------------------------------------
 
-/** A corner's terrain: an id in the image's `terrains`, or `null` for nothing — the edge of the ground, the top of a cliff. */
+/**
+ * What a corner of a tile shows (ruling of 2026-09-17): a MATERIAL, and
+ * optionally a SLOT of that material's archetype. `null` is nothing — the
+ * edge of the ground, the air beside a cliff.
+ *
+ * Spelled as a string, `"3"` or `"3:convex"`, for two reasons. A tag is
+ * compared far more often than it is read apart: the atlas interns it, the
+ * mesher packs four of them into one number, and the tagger asks whether two
+ * corners are the same thing. A primitive makes every one of those an `===`.
+ * And the tiles record is the bulkiest thing in a project file, four tags per
+ * tile over hundreds of tiles, so the compact spelling is what gets written.
+ *
+ * The slot is ALLOWED on every tag and expected on almost none. Absent, a tag
+ * means the material's ordinary surface, which is what an artist tags all day;
+ * a wall's seam is inferred from the geometry rather than authored. It is
+ * carried here from the start because retrofitting a field onto every tag in
+ * every project later is worse than carrying an empty one now, and the cases
+ * are known: seams, and later alternates and alternate shapes.
+ */
 export type Tag = string | null
 /** The four corners of a tile, in the order NW, NE, SW, SE. */
 export type CornerTags = readonly [Tag, Tag, Tag, Tag]
 
-export interface TerrainDef {
-  id: string
-  name: string
-  /** `#rrggbb`, the swatch and the fallback fill. */
-  color: string
+/** The tag for a material, and a slot of its archetype when the ordinary surface is not what is meant. */
+export function tagOf(material: number, slot?: string | null): Tag {
+  return slot ? `${material}:${slot}` : String(material)
 }
 
-/** What an image's tiles are, tagged by corner: the terrain set, as the project file holds it. Tile indexes are row-major on the image's grid. */
+/** The material a tag names, or `null` for nothing. */
+export function materialOfTag(tag: Tag): number | null {
+  if (tag === null) return null
+  const colon = tag.indexOf(':')
+  const id = Number(colon === -1 ? tag : tag.slice(0, colon))
+  return Number.isInteger(id) && id >= 0 ? id : null
+}
+
+/** The slot a tag names, or `null` for the material's ordinary surface. */
+export function slotOfTag(tag: Tag): string | null {
+  if (tag === null) return null
+  const colon = tag.indexOf(':')
+  return colon === -1 ? null : tag.slice(colon + 1)
+}
+
+/** What an image's tiles are, tagged by corner, as the project file holds it. Tile indexes are row-major on the image's grid. */
 export interface ImageTerrain {
-  terrains: TerrainDef[]
   tiles: Record<string, [Tag, Tag, Tag, Tag]>
 }
 
@@ -82,10 +112,8 @@ export interface ImageLayout {
   convention: string
   /** Where its first block starts, in tiles from the image's top-left. */
   origin: Axes
-  /** The terrains it lays out, in the convention's order; a block is named by their indexes. */
-  terrains: string[]
-  /** Blocks the artist has not drawn, by the convention's key for them, so they tag nothing and are listed as still to author. */
-  unauthored: string[]
+  /** The materials it lays out, by id, in the convention's order; a block is named by their indexes. */
+  materials: number[]
 }
 
 /** An image the project draws from, and everything the project knows about it. */
@@ -134,7 +162,7 @@ export function plainGrid(tile: number): Grid {
 }
 
 export function emptyTerrain(): ImageTerrain {
-  return { terrains: [], tiles: {} }
+  return { tiles: {} }
 }
 
 /** The placeholder image's entry: the image the default materials point into, tagged as `terrain` says. */
@@ -155,16 +183,13 @@ export function createProject(name = 'Untitled Project', texelDensity = 16, plac
   }
 }
 
-/** A material names its terrains or it is not a material; the rest defaults. Ids are unique, or the list is refused. */
+/** A material is an id and a name; the rest defaults. Ids are unique, or the list is refused. */
 export function normaliseMaterials(raw: unknown): MaterialDef[] {
   if (!Array.isArray(raw)) return DEFAULT_MATERIALS.map((m) => ({ ...m }))
   if (raw.length === 0) throw new LoadError('A project has at least one material.')
   const ids = new Set<number>()
-  return raw.map((value, index) => {
+  const out: MaterialDef[] = raw.map((value, index): MaterialDef => {
     const m = value as Partial<MaterialDef>
-    const top = m.top as Partial<TerrainRef> | undefined
-    if (!top || typeof top.sheet !== 'string' || typeof top.terrain !== 'string') throw new LoadError(`Material ${index} names no terrain.`)
-    const side = m.side as Partial<TerrainRef> | undefined
     const id = typeof m.id === 'number' && Number.isInteger(m.id) && m.id >= 0 ? m.id : index
     if (ids.has(id)) throw new LoadError(`Two materials share the id ${id}.`)
     ids.add(id)
@@ -173,10 +198,12 @@ export function normaliseMaterials(raw: unknown): MaterialDef[] {
       name: typeof m.name === 'string' ? m.name : `Material ${index + 1}`,
       color: typeof m.color === 'number' ? m.color : 0x808080,
       archetype: m.archetype === 'wall' || m.archetype === 'ramp' ? m.archetype : 'floor',
-      top: { sheet: top.sheet, terrain: top.terrain },
-      ...(side && typeof side.sheet === 'string' && typeof side.terrain === 'string' ? { side: { sheet: side.sheet, terrain: side.terrain } } : {}),
+      ...(typeof m.side === 'number' && Number.isInteger(m.side) && m.side >= 0 ? { side: m.side } : {}),
     }
   })
+  // A side naming a material the project does not have would send the mesher looking for art that cannot exist.
+  for (const m of out) if (m.side !== undefined && !ids.has(m.side)) throw new LoadError(`Material ${m.id} cuts its sides with material ${m.side}, which the project does not have.`)
+  return out
 }
 
 const isRelativePath = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && !value.startsWith('/') && !value.includes('\\') && !value.split('/').includes('..')
@@ -191,16 +218,14 @@ function normaliseAxes(raw: unknown, what: string, where: string): Axes {
   return { x: a.x, y: a.y }
 }
 
-/** A layout names a convention and the terrains it lays out; anything else is refused rather than half-read. */
+/** A layout names a convention and the materials it lays out; anything else is refused rather than half-read. */
 export function normaliseLayout(raw: unknown, where: string): ImageLayout | null {
   if (raw === undefined || raw === null) return null
   const l = raw as Partial<ImageLayout>
   if (typeof l.convention !== 'string' || l.convention.length === 0) throw new LoadError(`Image ${where} has a layout that names no convention.`)
-  if (!Array.isArray(l.terrains) || !l.terrains.every((t) => typeof t === 'string' && t.length > 0)) throw new LoadError(`Image ${where}'s layout does not list its terrains.`)
-  if (new Set(l.terrains).size !== l.terrains.length) throw new LoadError(`Image ${where}'s layout lists a terrain twice.`)
-  const unauthored = l.unauthored === undefined ? [] : l.unauthored
-  if (!Array.isArray(unauthored) || !unauthored.every((b) => typeof b === 'string')) throw new LoadError(`Image ${where}'s layout does not name its unauthored blocks.`)
-  return { convention: l.convention, origin: normaliseAxes(l.origin, 'origin', where), terrains: [...l.terrains], unauthored: [...unauthored] }
+  if (!Array.isArray(l.materials) || !l.materials.every((m) => typeof m === 'number' && Number.isInteger(m) && m >= 0)) throw new LoadError(`Image ${where}'s layout does not list its materials.`)
+  if (new Set(l.materials).size !== l.materials.length) throw new LoadError(`Image ${where}'s layout lists a material twice.`)
+  return { convention: l.convention, origin: normaliseAxes(l.origin, 'origin', where), materials: [...l.materials] }
 }
 
 /** A grid's tile is a positive whole number of pixels; margin and spacing default to none. */
@@ -210,21 +235,14 @@ export function normaliseGrid(raw: unknown, where: string): Grid {
   return { tile: g.tile, margin: normaliseAxes(g.margin, 'margin', where), spacing: normaliseAxes(g.spacing, 'spacing', where) }
 }
 
-/** A terrain set as the project file holds it: terrains with unique ids, and tags that name only those. Tile indexes are checked against the image when it loads, not here. */
+/**
+ * An image's tags as the project file holds it: four per tile, each naming a
+ * material or nothing. Whether the materials exist is the project's business
+ * and is checked once the whole file is read; whether the tile indexes fit is
+ * the image's, and is checked when its pixels load.
+ */
 export function normaliseTerrain(raw: unknown, where: string): ImageTerrain {
   const t = (raw ?? {}) as Partial<ImageTerrain>
-  const terrains: TerrainDef[] = []
-  const ids = new Set<string>()
-  if (t.terrains !== undefined) {
-    if (!Array.isArray(t.terrains)) throw new LoadError(`Image ${where} lists its terrains as something that is not a list.`)
-    for (const value of t.terrains as unknown[]) {
-      const def = value as Partial<TerrainDef>
-      if (typeof def.id !== 'string' || def.id.length === 0) throw new LoadError(`Image ${where} has a terrain with no id.`)
-      if (ids.has(def.id)) throw new LoadError(`Image ${where} lists the terrain ${def.id} twice.`)
-      ids.add(def.id)
-      terrains.push({ id: def.id, name: typeof def.name === 'string' && def.name.trim() ? def.name : def.id, color: typeof def.color === 'string' ? def.color : '#808080' })
-    }
-  }
   const tiles: Record<string, [Tag, Tag, Tag, Tag]> = {}
   if (t.tiles !== undefined) {
     if (typeof t.tiles !== 'object' || t.tiles === null || Array.isArray(t.tiles)) throw new LoadError(`Image ${where} tags its tiles as something that is not a map.`)
@@ -232,12 +250,15 @@ export function normaliseTerrain(raw: unknown, where: string): ImageTerrain {
       const index = Number(key)
       if (!Number.isInteger(index) || index < 0) throw new LoadError(`Image ${where} tags a tile ${key}, which is not a tile index.`)
       if (!Array.isArray(tags) || tags.length !== 4) throw new LoadError(`Image ${where}, tile ${key}: four corner tags, NW NE SW SE.`)
-      for (const tag of tags as unknown[]) if (!(tag === null || (typeof tag === 'string' && ids.has(tag)))) throw new LoadError(`Image ${where}, tile ${key} names a terrain the image does not have.`)
+      for (const tag of tags as unknown[]) {
+        if (tag === null) continue
+        if (typeof tag !== 'string' || materialOfTag(tag) === null) throw new LoadError(`Image ${where}, tile ${key} has a corner tag that names no material.`)
+      }
       // A tile tagged nothing everywhere is held: the template tags one so on purpose (the all-under tile).
       tiles[String(index)] = [...(tags as [Tag, Tag, Tag, Tag])]
     }
   }
-  return { terrains, tiles }
+  return { tiles }
 }
 
 const KINDS: readonly ImageKind[] = ['tileset', 'sprites', 'texture']
@@ -289,7 +310,7 @@ export function parseProject(text: string): ProjectDoc {
     throw new LoadError(`This project is format ${String(raw.formatVersion)}; this build reads format ${PROJECT_FORMAT_VERSION}.`)
   }
   if (raw.maps !== undefined && (!Array.isArray(raw.maps) || !raw.maps.every(isRelativePath))) throw new LoadError('The map list holds something that is not a path inside the project.')
-  return {
+  const project: ProjectDoc = {
     formatVersion: PROJECT_FORMAT_VERSION,
     name: typeof raw.name === 'string' && raw.name.trim() ? raw.name : 'Untitled Project',
     resolution: normaliseResolution(raw.resolution),
@@ -297,6 +318,35 @@ export function parseProject(text: string): ProjectDoc {
     materials: normaliseMaterials(raw.materials),
     camera: { ...defaultCameraRig(), ...((raw.camera as Partial<CameraRig>) ?? {}) },
     maps: [...((raw.maps) ?? [])],
+  }
+  checkTags(project)
+  return project
+}
+
+/**
+ * Every tag names a material the project has, or the file is refused.
+ *
+ * A tag naming an id nothing defines would send the atlas looking for art
+ * that cannot exist, and it would do so silently, one corner at a time, in a
+ * map. The editor never writes one: deleting a material clears its tags the
+ * same way it repaints its voxels. So a file with one has been edited by hand
+ * or written by something older, and saying which tile is wrong beats opening
+ * a project that draws the wrong thing.
+ */
+function checkTags(project: ProjectDoc): void {
+  const ids = new Set(project.materials.map((m) => m.id))
+  for (const image of project.images) {
+    for (const [index, tags] of Object.entries(image.terrain.tiles)) {
+      for (const tag of tags) {
+        const material = materialOfTag(tag)
+        if (material !== null && !ids.has(material)) throw new LoadError(`Image ${sheetName(image.path)}, tile ${index} is tagged with material ${material}, which the project does not have.`)
+      }
+    }
+    if (image.layout) {
+      for (const material of image.layout.materials) {
+        if (!ids.has(material)) throw new LoadError(`Image ${sheetName(image.path)}'s layout lays out material ${material}, which the project does not have.`)
+      }
+    }
   }
 }
 

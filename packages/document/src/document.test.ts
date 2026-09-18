@@ -807,9 +807,9 @@ describe('a project file is checked before it is believed', () => {
   const raw = () => JSON.parse(serializeProject(createProject('Harbour Town'))) as Record<string, unknown>
 
   it('round-trips, and starts with the placeholder image, the default materials and no maps', () => {
-    const project = createProject('Harbour Town', 32, { terrains: [{ id: 'grass', name: 'Grass', color: '#4f8a46' }], tiles: { 3: ['grass', 'grass', null, null] } })
+    const project = createProject('Harbour Town', 32, { tiles: { 3: ['0', '0', null, null] } })
     expect(project.resolution).toEqual({ texelDensity: 32, filtering: 'nearest' })
-    expect(project.images).toEqual([{ path: 'sheets/ground.png', name: 'Ground', kind: 'tileset', hash: null, grid: { tile: 32, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, layout: null, terrain: { terrains: [{ id: 'grass', name: 'Grass', color: '#4f8a46' }], tiles: { 3: ['grass', 'grass', null, null] } } }])
+    expect(project.images).toEqual([{ path: 'sheets/ground.png', name: 'Ground', kind: 'tileset', hash: null, grid: { tile: 32, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, layout: null, terrain: { tiles: { 3: ['0', '0', null, null] } } }])
     expect(project.maps).toEqual([])
     expect(parseProject(serializeProject(project))).toEqual(project)
     expect(sheetName('sheets/ground.png')).toBe('ground.png')

@@ -1,13 +1,19 @@
 /**
- * Terrain sets: what every tile on a sheet is (spec §2).
+ * Tile sets: what every tile on a sheet is (spec §2).
  *
- * A terrain set is part of its image's entry in the project file (ruling of
- * 2026-09-17; there are no sidecars). It names the terrains the image draws
- * and tags each tile with the terrain at each of its four corners, or
- * nothing. That is the whole model: a tile is authored as the
- * transition it shows — half grass, half path — and tagged so; position on
- * the sheet means nothing to anyone but the artist. The renderer's one
- * question is `exactTile`: the tile tagged exactly like a corner.
+ * A set is part of its image's entry in the project file (ruling of
+ * 2026-09-17; there are no sidecars). It tags each tile with the MATERIAL at
+ * each of its four corners, or nothing. That is the whole model: a tile is
+ * authored as the transition it shows — half grass, half path — and tagged
+ * so; position on the sheet means nothing to anyone but the artist. The
+ * renderer's one question is `exactTile`: the tile tagged exactly like a
+ * corner.
+ *
+ * A tag names a material rather than something local to this image (ruling of
+ * 2026-09-17), which is why a set no longer carries a list of its own. It
+ * also means two materials can meet in an authored tile whatever image each
+ * one's other art is on, and why the atlas can look across every set it has
+ * rather than inside one.
  *
  * The template is the RPG Maker half of the story: `stampTemplate` tags a
  * 4×4 block from position for a pair of terrains, so art drawn to the
@@ -18,9 +24,9 @@
  * with its image.
  */
 
-import type { CornerTags, ImageTerrain, Tag, TerrainDef } from '@papercut/document'
+import { materialOfTag, type CornerTags, type ImageTerrain, type Tag } from '@papercut/document'
 
-export type { CornerTags, Tag, TerrainDef }
+export type { CornerTags, Tag }
 
 /** The bit each corner holds in a template mask, in `CornerTags` order. */
 export const CORNER_BITS = [1, 2, 4, 8] as const
@@ -33,7 +39,6 @@ export interface TerrainSet {
   /** The image's size in tiles. */
   columns: number
   rows: number
-  terrains: TerrainDef[]
   /** Tile index (row-major on the image) → corner tags. Untagged tiles are absent. */
   tiles: ReadonlyMap<number, CornerTags>
 }
@@ -54,28 +59,23 @@ export function terrainSetFrom(sheet: string, tile: number, columns: number, row
     if (index >= count) dropped.push(index)
     else tiles.set(index, [...tags])
   }
-  return { set: { sheet, tile, columns, rows, terrains: terrain.terrains.map((t) => ({ ...t })), tiles }, dropped: dropped.sort((x, y) => x - y) }
+  return { set: { sheet, tile, columns, rows, tiles }, dropped: dropped.sort((x, y) => x - y) }
 }
 
-/** The set as the project file holds it: the terrains, and the tags by tile index in order. */
+/** The set as the project file holds it: the tags by tile index, in order. */
 export function terrainOf(set: TerrainSet): ImageTerrain {
   const tiles: Record<string, [Tag, Tag, Tag, Tag]> = {}
   for (const index of [...set.tiles.keys()].sort((x, y) => x - y)) tiles[String(index)] = [...(set.tiles.get(index) as CornerTags)] as [Tag, Tag, Tag, Tag]
-  return { terrains: set.terrains.map((t) => ({ ...t })), tiles }
+  return { tiles }
 }
 
-/** A fresh set for a sheet, with no terrains and nothing tagged. */
+/** A fresh set for a sheet, with nothing tagged. */
 export function createTerrainSet(sheet: string, tile: number, columns: number, rows: number): TerrainSet {
-  return { sheet, tile, columns, rows, terrains: [], tiles: new Map() }
-}
-
-export function addTerrain(set: TerrainSet, terrain: TerrainDef): TerrainSet {
-  if (set.terrains.some((t) => t.id === terrain.id)) throw new TerrainSetError(`Terrain ${terrain.id} is already in the set.`)
-  return { ...set, terrains: [...set.terrains, terrain] }
+  return { sheet, tile, columns, rows, tiles: new Map() }
 }
 
 /** The tags a template gives the tile at `mask` within its block: `over` at each corner whose bit is set, `under` elsewhere. */
-export function templateTags(mask: number, under: Tag, over: string): CornerTags {
+export function templateTags(mask: number, under: Tag, over: Tag): CornerTags {
   return CORNER_BITS.map((bit) => (mask & bit ? over : under)) as unknown as CornerTags
 }
 
@@ -103,19 +103,26 @@ export function tagCorner(set: TerrainSet, index: number, corner: number, tag: T
   return { ...set, tiles }
 }
 
-/** Take a terrain out of the set: its definition, and every corner tagged with it, which becomes nothing. A tile that carried it and is left tagged nothing everywhere is forgotten; a tile the template tagged nothing everywhere on purpose stays. */
-export function removeTerrain(set: TerrainSet, id: string): TerrainSet {
-  if (!set.terrains.some((t) => t.id === id)) throw new TerrainSetError(`Terrain ${id} is not in the set.`)
+/**
+ * Every corner tagged with a material becomes nothing, whatever slot it named.
+ *
+ * What deleting a material does to the art. A tag naming an id the project no
+ * longer has would send the atlas looking for something that cannot exist, so
+ * deleting clears tags the same way it repaints voxels. A tile left tagged
+ * nothing everywhere is forgotten; a tile the template tagged nothing
+ * everywhere on purpose stays, because it was never this material's.
+ */
+export function removeMaterial(set: TerrainSet, material: number): TerrainSet {
   const tiles = new Map<number, CornerTags>()
   for (const [index, tags] of set.tiles) {
-    if (!tags.includes(id)) {
+    if (!tags.some((t) => materialOfTag(t) === material)) {
       tiles.set(index, tags)
       continue
     }
-    const next = tags.map((t) => (t === id ? null : t)) as unknown as CornerTags
+    const next = tags.map((t) => (materialOfTag(t) === material ? null : t)) as unknown as CornerTags
     if (next.some((t) => t !== null)) tiles.set(index, next)
   }
-  return { ...set, terrains: set.terrains.filter((t) => t.id !== id), tiles }
+  return { ...set, tiles }
 }
 
 /**
@@ -151,20 +158,20 @@ export function exactTile(set: TerrainSet, tags: CornerTags): number | null {
   return byKey.get(tagKey(tags)) ?? null
 }
 
-/** A terrain's edge-set tile for a template mask: itself at the set corners, nothing elsewhere. */
-export function edgeTile(set: TerrainSet, terrain: string, mask: number): number | null {
-  return exactTile(set, templateTags(mask, null, terrain))
+/** A tag's edge-set tile for a template mask: itself at the set corners, nothing elsewhere. */
+export function edgeTile(set: TerrainSet, tag: Tag, mask: number): number | null {
+  return exactTile(set, templateTags(mask, null, tag))
 }
 
-/** How many of a terrain's sixteen edge-set tiles the set has. */
-export function edgeCoverage(set: TerrainSet, terrain: string): number {
+/** How many of a tag's sixteen edge-set tiles the set has. */
+export function edgeCoverage(set: TerrainSet, tag: Tag): number {
   let count = 0
-  for (let mask = 0; mask < 16; mask++) if (edgeTile(set, terrain, mask) !== null) count += 1
+  for (let mask = 0; mask < 16; mask++) if (edgeTile(set, tag, mask) !== null) count += 1
   return count
 }
 
 /** Whether every one of the sixteen tiles between `a` and `b` is tagged, in either role. */
-export function pairAuthored(set: TerrainSet, a: string, b: string): boolean {
+export function pairAuthored(set: TerrainSet, a: Tag, b: Tag): boolean {
   for (let mask = 1; mask < 15; mask++) if (exactTile(set, templateTags(mask, a, b)) === null && exactTile(set, templateTags(mask, b, a)) === null) return false
   return true
 }
