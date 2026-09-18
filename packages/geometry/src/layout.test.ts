@@ -5,7 +5,7 @@ import { tagOf } from '@papercut/document'
 import { ORDINARY, archetypeOf, archetypes, arrangements, maskKind, requiredSlots, slotSize } from './archetype'
 import { CORNER_BLOCKS, conventionOf, conventions, layoutTags, terrainFromLayout } from './layout'
 import { renderTemplate } from './template'
-import { assemble, createTerrainSet, exactTile, stampTemplate, terrainSetFrom } from './terrainset'
+import { assemble, createTerrainSet, exactTile, stampBlock, stampTemplate, templateTags, terrainSetFrom } from './terrainset'
 
 /** The same little ground set the terrain tests use: three materials by id over a 4 px sheet. */
 const GRASS = tagOf(0)
@@ -220,5 +220,49 @@ describe('archetypes and assembling a patch', () => {
     // An all-nothing corner is not a hole; it is simply outside the patch.
     const outside = assemble(set, [[null]])
     expect(outside.every((p) => p.tile === null)).toBe(true)
+  })
+})
+
+describe("placing one block where an artist drew it", () => {
+  const blank = () => createTerrainSet('kit.png', 16, 12, 12)
+
+  it('gives a pair block the fifteen arrangements of its two values, from the block corner', () => {
+    const shape = CORNER_BLOCKS.blockShape(2)
+    expect(shape).toMatchObject({ columns: 5, rows: 3 })
+    const set = stampBlock(blank(), shape!, [null, tagOf(4)], 2, 6)
+
+    // Fifteen, not sixteen: the block's shape has all sixteen cells, and the all-over tile is the
+    // one a block drawn against nothing already answers, so a block over nothing keeps it.
+    expect(set.tiles.size).toBe(15)
+    // Every tile lands inside the 5 x 3 the artist pointed at, and nowhere else.
+    for (const index of set.tiles.keys()) {
+      const column = index % 12
+      const row = Math.floor(index / 12)
+      expect(column).toBeGreaterThanOrEqual(2)
+      expect(column).toBeLessThan(7)
+      expect(row).toBeGreaterThanOrEqual(6)
+      expect(row).toBeLessThan(9)
+    }
+    // And the corner it answers is the one the mesher will ask for.
+    expect(exactTile(set, templateTags(7, null, tagOf(4)))).not.toBeNull()
+  })
+
+  it("leaves the all-over tile alone when the block is drawn over something, because it is the other material's", () => {
+    // Grass over dirt draws a solid-grass tile in the middle of its block, but that tile is grass's
+    // own. Claiming it here would have this block answer a corner that is not about this pairing.
+    const set = stampBlock(blank(), CORNER_BLOCKS.blockShape(2)!, [tagOf(1), tagOf(0)], 0, 0)
+    expect(set.tiles.size).toBe(14)
+    expect(exactTile(set, [tagOf(0), tagOf(0), tagOf(0), tagOf(0)])).toBeNull()
+    expect(exactTile(set, templateTags(3, tagOf(1), tagOf(0)))).not.toBeNull()
+  })
+
+  it('refuses a block that would run off the sheet rather than tagging half of it', () => {
+    expect(() => stampBlock(blank(), CORNER_BLOCKS.blockShape(2)!, [null, tagOf(0)], 9, 0)).toThrow(/does not fit/)
+    expect(() => stampBlock(blank(), CORNER_BLOCKS.blockShape(3)!, [null, tagOf(0), tagOf(1)], 0, 8)).toThrow(/does not fit/)
+  })
+
+  it('has no shape for four values at a corner, which is the case the atlas composites', () => {
+    expect(CORNER_BLOCKS.blockShape(4)).toBeNull()
+    expect(CORNER_BLOCKS.blockShape(3)).toMatchObject({ columns: 6, rows: 6 })
   })
 })
