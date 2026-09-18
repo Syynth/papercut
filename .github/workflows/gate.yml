@@ -119,7 +119,7 @@ jobs:
       # `test`/`typecheck`/`lint` above: it dependsOn apps/editor's own
       # `build` task (not `^build`), so turbo's graph — not runner-level
       # step ordering — is what makes it wait for `dist/` here. Vite/rolldown's
-      # 500 kB chunk-size message is only ever a warning (see
+      # chunk-size message is only ever a warning (see
       # apps/editor/vite.config.ts's manual-chunking comment); this re-reads
       # the built output and turns a regrown bundle into a real failure (#57).
       - name: Build

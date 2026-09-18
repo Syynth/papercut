@@ -51,7 +51,7 @@ are `build`, because `^build` now materialises every package's `dist/` before an
 is checked. That ordering is load-bearing, not
 incidental: see the workflow's header comment and
 `eslint.config.js`'s `ignores` comment for the bug a lint-before-build job would never
-catch. That same Build step now also enforces the 500 kB chunk ceiling (#57's
+catch. That same Build step now also enforces the chunk ceiling (#57's
 `check-bundle-size`, `dependsOn: ["build"]`) — this doc is the only place a pump agent
 would learn the ceiling is gated at all. CI itself runs `pnpm gate` (the test/typecheck/
 lint task set above) plus `pnpm turbo run build check-bundle-size` as two separate steps,

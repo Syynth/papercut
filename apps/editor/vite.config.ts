@@ -19,12 +19,18 @@ export default defineConfig({
         // `output.manualChunks` to `output.codeSplitting.groups` (a boolean
         // `manualChunks` fn is deprecated and silently ignored once this is
         // set). Without these groups, three + its postprocessing subpaths
-        // and react/react-dom land in the single entry chunk, which trips
-        // Vite's 500 kB warning — only ever a warning here; what turns it
-        // into a CI failure is `scripts/check-bundle-size.mjs` (#57),
-        // re-measuring the built output after this config runs. `[\\/]`
-        // (not `/`) in the test regexes so matching stays correct on
-        // Windows paths.
+        // and react/react-dom land in the single entry chunk.
+        //
+        // The split is not about first paint — the shell loads this from
+        // local disk. It is about what an UPDATE costs: an installed app
+        // fetches its UI bundle from the Pages deploy file by file and skips
+        // any hash it already has, and Vite names assets by content hash, so
+        // keeping the vendors out of the entry chunk means a UI-only change
+        // re-ships ~154 kB gzipped instead of ~469 kB. The same split keeps
+        // them in the browser cache on the Pages site. What enforces it is
+        // `scripts/check-bundle-size.mjs` (#57), re-measuring the built
+        // output after this config runs. `[\\/]` (not `/`) in the test
+        // regexes so matching stays correct on Windows paths.
         codeSplitting: {
           groups: [
             {
@@ -48,7 +54,7 @@ export default defineConfig({
               name: 'vendor-mantine',
               // Mantine and the floating-ui it positions tooltips with. It
               // arrived with the frame (#96, the ui vocabulary) and pushed
-              // the entry chunk past the 500 kB ceiling on its own; it changes
+              // the entry chunk past the ceiling on its own; it changes
               // on a dependency bump, never on an edit, so it caches well as
               // one chunk.
               test: /node_modules[\\/](@mantine|@floating-ui|clsx)[\\/]/,
