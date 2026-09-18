@@ -80,7 +80,7 @@ export function ProjectSettings({ session, platform }: { session: Session; platf
       opened={section !== null}
       onClose={close}
       title={current?.title ?? ''}
-      wide={section === 'terrains' || section === 'images'}
+      wide={section === 'terrains' || section === 'images' || section === 'materials'}
       aside={<span>{section ? aside[section] : ''}</span>}
       rail={
         <>

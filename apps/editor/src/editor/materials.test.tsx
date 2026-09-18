@@ -132,6 +132,28 @@ describe('the materials screen', () => {
     expect(text()).toContain('how it draws')
   })
 
+  it('lights a slot from the strip and says how much of the patch it draws', () => {
+    const sets = [ground([['grass', null]])]
+    mount(() => <MaterialsSettings session={session()} selected={0} onSelect={() => undefined} sets={sets} />)
+
+    const slots = [...window.document.querySelectorAll('.ui-slot')]
+    expect(slots).toHaveLength(15)
+
+    // Every one of the fifteen corner masks is somewhere in the preview shape, so
+    // hovering any slot names it and counts the corners of the patch it draws.
+    for (const [index, slot] of slots.entries()) {
+      act(() => slot.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true })))
+      expect(slot.className).toContain('is-lit')
+      const count = /· (\d+) corners? of the patch/.exec(text())
+      expect(text()).toContain(`mask ${index + 1} ·`)
+      expect(Number(count?.[1] ?? 0)).toBeGreaterThan(0)
+    }
+
+    // And the readout goes back to the summary when the pointer leaves the strip.
+    act(() => window.document.querySelector('.ui-slots')?.parentElement?.dispatchEvent(new window.MouseEvent('pointerout', { bubbles: true })))
+    expect(text()).toContain('15 slots · 15 of 15 drawn')
+  })
+
   it('says a pairing drawn in a wall owes the wall vocabulary, not fifteen corners', () => {
     const sets = [ground([['grass', null]])]
     mount(() => <MaterialsSettings session={session()} selected={0} onSelect={() => undefined} sets={sets} />)
