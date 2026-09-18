@@ -725,3 +725,11 @@ Each entry:
 - **SCOPE:** moderate (follows "A voxel is a shape plus a layer stack on each of its faces", same day)
 - **WHAT:** Each slot in a face's stack is a string with a kind prefix: `"m:<id>"` for a material, auto-tiled on the dual grid, or `null` for empty. `"t:<gid>"`, a single tile laid whole on the face, is reserved in the spelling but not built: tile slots and global tile ids are needed for the MVP and are designed separately, together with what a tile slot counts as to a neighbour that auto-tiles around it.
 - **WHY:** A slot has to say what KIND of thing it holds, because a material and a pinned tile sit on different grids: a material is drawn from quarters of four shared corner tiles, a tile covers its own face whole, which is how fences and 45° walls are drawn. The prefix keeps that room without building it now.
+
+## The paint layers are a collapsing widget on the stage
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui
+- **SCOPE:** minor/local (follows "Terrain paint has explicit layers", same day)
+- **WHAT:** The paint layers live in a collapsing widget in a corner of the viewport. Open, it lists the four layers topmost first; clicking a row makes it the one painting goes to, and an eye on each row toggles its visibility in the view without changing anything saved. Collapsed, it still names the active layer and shows the stack as four marks, the active one highlighted and hidden ones dimmed. The paint toolbar shows the target layer and opens the widget.
+- **WHY:** Choosing which layer to paint to and hiding layers to see underneath are frequent while painting, so they belong on the stage beside the work rather than in a panel, and a widget that collapses keeps them from covering the map when not in use.
