@@ -669,3 +669,11 @@ Each entry:
 - **SCOPE:** minor/local (follows "The materials screen shows the patch a material draws", same day)
 - **WHAT:** Wherever the editor shows the same art twice — an assembled preview beside the raw slots it was built from — the two point at each other. Hovering a slot lights every place in the preview drawn with it; hovering a place in the preview lights its slot. Both directions drive one piece of state, and the preview lights by darkening everything else rather than brightening the matches. The readout beside the strip becomes the hovered slot's name, what kind of thing it is, and how much of the preview it accounts for.
 - **WHY:** An assembled preview and a slot table say the same thing in two languages, and the work is translating between them — finding which tile drew that corner, or where a tile you are unhappy with actually lands. Hover is the cheapest way to ask. Darkening rather than brightening because a slot is often only a few tiles in a hundred, and a few bright tiles in a lit field are harder to find than a few lit tiles in a dark one.
+
+## The chunk ceiling is 750 kB, and it is about update cost, not first paint
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** build
+- **SCOPE:** minor/local
+- **WHAT:** The built-chunk ceiling is 750 kB, a number chosen for papercut rather than Vite's default warning threshold. Vendor code stays split out of the entry chunk, but the reason is what an UPDATE costs, not first paint: the editor loads from local disk over `app://`, while an installed app fetches its UI bundle from the Pages deploy file by content hash and skips whatever it already has, so keeping three.js, React and Mantine out of the entry chunk means a UI-only change re-ships about 154 kB gzipped instead of 469. The ceiling's job is to catch an import dragging a library into the entry chunk. It is not a budget to design around, and a change that needs a bit more room gets the room.
+- **WHY:** 500,000 was Vite's `chunkSizeWarningLimit`, a heuristic about one script blocking first paint over a mobile connection, adopted to silence a warning rather than from any measurement of this app. At 497 kB of 500 it had started shaping the code instead of catching anything.
