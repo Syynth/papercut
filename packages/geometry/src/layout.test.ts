@@ -1,25 +1,34 @@
 import { describe, expect, it } from 'vitest'
 
-import { archetypeOf, archetypes, requiredSlots, slotSize } from './archetype'
+import { tagOf } from '@papercut/document'
+
+import { ORDINARY, archetypeOf, archetypes, arrangements, maskKind, requiredSlots, slotSize } from './archetype'
 import { CORNER_BLOCKS, conventionOf, conventions, layoutTags, terrainFromLayout } from './layout'
 import { renderTemplate } from './template'
-import { addTerrain, assemble, createTerrainSet, exactTile, stampTemplate, terrainSetFrom } from './terrainset'
+import { assemble, createTerrainSet, exactTile, stampTemplate, terrainSetFrom } from './terrainset'
 
-/** The same little ground set the terrain tests use: grass, path and dirt over a 4 px sheet. */
+/** The same little ground set the terrain tests use: three materials by id over a 4 px sheet. */
+const GRASS = tagOf(0)
+const PATH = tagOf(1)
+const DIRT = tagOf(2)
+
 function groundSet() {
   let set = createTerrainSet('ground.png', 4, 8, 9)
-  set = addTerrain(set, { id: 'grass', name: 'Grass', color: '#4f8a46' })
-  set = addTerrain(set, { id: 'path', name: 'Path', color: '#b08f5e' })
-  set = addTerrain(set, { id: 'dirt', name: 'Dirt', color: '#8a6a45' })
-  set = stampTemplate(set, 0, 0, null, 'grass')
-  set = stampTemplate(set, 4, 0, null, 'path')
-  set = stampTemplate(set, 0, 4, 'grass', 'path')
-  set = stampTemplate(set, 4, 4, null, 'dirt')
+  set = stampTemplate(set, 0, 0, null, GRASS)
+  set = stampTemplate(set, 4, 0, null, PATH)
+  set = stampTemplate(set, 0, 4, GRASS, PATH)
+  set = stampTemplate(set, 4, 4, null, DIRT)
   return set
 }
 
-const ids = (n: number) => Array.from({ length: n }, (_, i) => String.fromCharCode(97 + i))
-const terrains = (n: number) => ids(n).map((id, i) => ({ id, color: ['#6aa84f', '#d9c27e', '#8e8e8e', '#5f8fb0', '#a06060'][i] ?? '#808080' }))
+/**
+ * The materials a layout lays out, by id. They are deliberately not 0, 1, 2, 3: a layout names
+ * the project's materials (ruling of 2026-09-17), and a value in a block is an index into its own
+ * list rather than a material id, so ids that are not their own positions catch a confusion of the two.
+ */
+const ids = (n: number) => [5, 7, 2, 9, 4].slice(0, n)
+const materials = (n: number) => ids(n).map((id, i) => ({ id, color: ['#6aa84f', '#d9c27e', '#8e8e8e', '#5f8fb0', '#a06060'][i] ?? '#808080' }))
+const tagsOf = (n: number) => ids(n).map((id) => tagOf(id))
 
 describe('the corner-blocks convention', () => {
   it('is in the registry and lays out pairs and triples of every value including nothing', () => {
@@ -72,34 +81,37 @@ describe('the corner-blocks convention', () => {
 })
 
 describe('a layout on an image', () => {
-  const spec = (over: string[] = []) => ({ convention: 'corner-blocks', origin: { x: 0, y: 0 }, terrains: ids(4), unauthored: over })
+  const spec = () => ({ convention: 'corner-blocks', origin: { x: 0, y: 0 }, materials: ids(4) })
 
-  it('names the tags by terrain, places them from the origin, and skips a block nobody drew', () => {
-    const tags = layoutTags(spec(), 11, 60)
-    expect(Object.keys(tags)).toHaveLength(CORNER_BLOCKS.tiles(4).length)
-    // Tile 0 is the first of the 0+1 block: mask 8 of terrain a, so SE only.
-    expect(tags['0']).toEqual([null, null, null, 'a'])
-    // With that block unauthored it is gone, and only it.
-    const without = layoutTags(spec(['0+1']), 11, 60)
-    expect(without['0']).toBeUndefined()
-    expect(Object.keys(without)).toHaveLength(Object.keys(tags).length - 15)
+  it('names the tags by material, places them from the origin, and tags every block the convention has', () => {
+    const tiles = layoutTags(spec(), 11, 60)
+    expect(Object.keys(tiles)).toHaveLength(CORNER_BLOCKS.tiles(4).length)
+    // Tile 0 is the first of the 0+1 block: mask 8 of the layout's first material, so SE only.
+    expect(tiles['0']).toEqual([null, null, null, tagsOf(4)[0]])
+    // There is no list of blocks left undrawn any more (ruling of 2026-09-17). The layout says what the
+    // sheet IS, so every block it lays out is tagged, and what nobody has painted yet is a question about
+    // pixels rather than an entry kept beside the tags.
+    const tagged = new Set(Object.keys(tiles).map(Number))
+    for (const block of CORNER_BLOCKS.blocks(4)) expect(tagged.has(block.row * 11 + block.column)).toBe(true)
     // An origin shifts every tile by the same amount.
     const moved = layoutTags({ ...spec(), origin: { x: 2, y: 1 } }, 20, 70)
-    expect(moved[String(1 * 20 + 2)]).toEqual([null, null, null, 'a'])
+    expect(moved[String(1 * 20 + 2)]).toEqual([null, null, null, tagsOf(4)[0]])
   })
 
   it("lets the entry's own tags win over the layout's", () => {
-    const overrides = { terrains: ids(4).map((id) => ({ id, name: id, color: '#808080' })), tiles: { '0': ['b', 'b', 'b', 'b'] as [string, string, string, string] } }
+    const own = tagsOf(4)[1]
+    const overrides = { tiles: { '0': [own, own, own, own] as [string, string, string, string] } }
     const merged = terrainFromLayout(spec(), overrides, 11, 60)
-    expect(merged.tiles['0']).toEqual(['b', 'b', 'b', 'b'])
+    expect(merged.tiles['0']).toEqual([own, own, own, own])
     expect(merged.tiles['1']).toBeDefined()
-    expect(merged.terrains).toHaveLength(4)
+    // What comes back is an image's terrain, which is its tags and nothing else.
+    expect(Object.keys(merged)).toEqual(['tiles'])
   })
 
   it('drops a tile the image is too small to hold rather than writing off its edge', () => {
-    const tags = layoutTags(spec(), 11, 10)
-    expect(Object.keys(tags).length).toBeGreaterThan(0)
-    expect(Math.max(...Object.keys(tags).map(Number))).toBeLessThan(11 * 10)
+    const tiles = layoutTags(spec(), 11, 10)
+    expect(Object.keys(tiles).length).toBeGreaterThan(0)
+    expect(Math.max(...Object.keys(tiles).map(Number))).toBeLessThan(11 * 10)
   })
 
   it('answers nothing for a convention it does not have', () => {
@@ -109,7 +121,7 @@ describe('a layout on an image', () => {
 
 describe('the template a layout draws', () => {
   it('is exactly the size the convention asks for, and every tile it tags has pixels', () => {
-    const template = renderTemplate('corner-blocks', terrains(4), { tile: 16 })
+    const template = renderTemplate('corner-blocks', materials(4), { tile: 16 })
     expect([template.columns, template.rows]).toEqual([11, 60])
     expect([template.image.width, template.image.height]).toEqual([11 * 16, 60 * 16])
     const opaque = (column: number, row: number, quadrant: number): boolean => {
@@ -124,42 +136,53 @@ describe('the template a layout draws', () => {
   })
 
   it('round-trips: a template read back through its own layout answers every corner it drew', () => {
-    const template = renderTemplate('corner-blocks', terrains(3), { tile: 8 })
-    const spec = { convention: 'corner-blocks', origin: { x: 0, y: 0 }, terrains: ids(3), unauthored: [] }
-    const terrain = { terrains: ids(3).map((id) => ({ id, name: id, color: '#808080' })), tiles: layoutTags(spec, template.columns, template.rows) }
+    const template = renderTemplate('corner-blocks', materials(3), { tile: 8 })
+    const spec = { convention: 'corner-blocks', origin: { x: 0, y: 0 }, materials: ids(3) }
+    const terrain = { tiles: layoutTags(spec, template.columns, template.rows) }
     const { set, dropped } = terrainSetFrom('template.png', 8, template.columns, template.rows, terrain)
     expect(dropped).toEqual([])
-    // Every corner of three or fewer terrains has a tile of its own; nothing composites.
-    for (const corners of [['a', 'a', 'a', 'a'], ['a', null, null, null], ['a', 'b', 'a', 'b'], ['a', 'b', 'c', 'b'], ['a', 'b', null, 'b']]) {
+    const [a, b, c] = tagsOf(3)
+    // Every corner of three or fewer materials has a tile of its own; nothing composites.
+    for (const corners of [[a, a, a, a], [a, null, null, null], [a, b, a, b], [a, b, c, b], [a, b, null, b]]) {
       expect(exactTile(set, corners as [string | null, string | null, string | null, string | null])).not.toBeNull()
     }
   })
 
-  it('refuses a convention it does not have, no terrains, or a tile too small to halve', () => {
-    expect(() => renderTemplate('nope', terrains(2), { tile: 16 })).toThrow(/No layout convention/)
-    expect(() => renderTemplate('corner-blocks', [], { tile: 16 })).toThrow(/at least one terrain/)
-    expect(() => renderTemplate('corner-blocks', terrains(2), { tile: 1 })).toThrow(/whole number of pixels/)
+  it('refuses a convention it does not have, no materials, or a tile too small to halve', () => {
+    expect(() => renderTemplate('nope', materials(2), { tile: 16 })).toThrow(/No layout convention/)
+    expect(() => renderTemplate('corner-blocks', [], { tile: 16 })).toThrow(/at least one material/)
+    expect(() => renderTemplate('corner-blocks', materials(2), { tile: 1 })).toThrow(/whole number of pixels/)
   })
 })
 
 describe('archetypes and assembling a patch', () => {
-  it('names a vocabulary per archetype, and only the floor is corners', () => {
+  it('gives every archetype one ordinary surface, and the seams to the wall alone', () => {
     expect(archetypes().map((a) => a.id)).toEqual(['floor', 'wall', 'ramp'])
-    const floor = archetypeOf('floor')
-    expect(floor.slots).toHaveLength(15)
-    expect(floor.slots.every((s) => s.mask !== undefined)).toBe(true)
-    expect(floor.slots.map((s) => s.mask)).toEqual(Array.from({ length: 15 }, (_, i) => i + 1))
-    const wall = archetypeOf('wall')
-    expect(wall.slots.some((s) => s.mask !== undefined)).toBe(false)
-    expect(wall.slots.map((s) => s.id)).toContain('convex')
-    // The seams are the optional ones: left empty they are mitred, so they do not count as owed.
-    expect(requiredSlots(wall).map((s) => s.id)).toEqual(['face', 'top', 'bottom', 'end-left', 'end-right'])
-    expect(requiredSlots(floor)).toHaveLength(15)
+    // Exactly one slot per archetype is the one a tag means when it names none, and it is spelled `surface`.
+    for (const archetype of archetypes()) {
+      const ordinary = archetype.slots.filter((s) => s.ordinary)
+      expect(ordinary).toHaveLength(1)
+      expect(ordinary[0].id).toBe(ORDINARY)
+    }
+    expect(archetypeOf('floor').slots.map((s) => s.id)).toEqual([ORDINARY])
+    expect(archetypeOf('ramp').slots.map((s) => s.id)).toEqual([ORDINARY])
+    // A seam is two wall faces meeting at an angle, which no arrangement of four coplanar corners can say,
+    // so it is the wall's alone and nobody else carries one.
+    expect(archetypeOf('wall').slots.map((s) => s.id)).toEqual([ORDINARY, 'convex', 'concave'])
+    // The seams are the optional ones: left undrawn they are mitred, so they do not count as owed.
+    expect(requiredSlots(archetypeOf('wall')).map((s) => s.id)).toEqual([ORDINARY])
   })
 
-  it('sorts the floor slots into what they actually are', () => {
-    const kinds = archetypeOf('floor').slots.reduce<Record<string, number>>((acc, s) => ({ ...acc, [s.note ?? '']: (acc[s.note ?? ''] ?? 0) + 1 }), {})
+  it('sorts the fifteen arrangements into what they actually are, which is not a vocabulary anybody owns', () => {
+    // The fifteen used to be listed as the floor's slots. They are neither the floor's nor slots: they are
+    // the ways ANY surface meets what is beside it, because every face is meshed through the same dual grid.
+    const all = arrangements()
+    expect(all.map((a) => a.mask)).toEqual(Array.from({ length: 15 }, (_, i) => i + 1))
+    const kinds = all.reduce<Record<string, number>>((acc, a) => ({ ...acc, [a.kind]: (acc[a.kind] ?? 0) + 1 }), {})
     expect(kinds).toEqual({ interior: 1, 'outside corner': 4, edge: 4, 'inside corner': 4, diagonal: 2 })
+    expect(maskKind(15)).toBe('interior')
+    expect(maskKind(9)).toBe('diagonal')
+    expect(archetypes().every((a) => a.slots.length < all.length)).toBe(true)
   })
 
   it('gives a ramp taller tiles than the density, and the others square ones', () => {
@@ -173,15 +196,15 @@ describe('archetypes and assembling a patch', () => {
   it('assembles a patch of cells into the tiles a map would draw, and shows the holes', () => {
     const set = groundSet()
     // A 2 x 2 block of grass: the corner grid around it is 3 x 3.
-    const patch = assemble(set, [['grass', 'grass'], ['grass', 'grass']])
+    const patch = assemble(set, [[GRASS, GRASS], [GRASS, GRASS]])
     expect(patch).toHaveLength(9)
     // The middle corner has grass on all four sides, so it is the interior tile.
     const middle = patch.find((p) => p.column === 1 && p.row === 1)
-    expect(middle?.corners).toEqual(['grass', 'grass', 'grass', 'grass'])
+    expect(middle?.corners).toEqual([GRASS, GRASS, GRASS, GRASS])
     expect(middle?.tile).not.toBeNull()
     // The top-left corner has grass only at its SE, which is an outside corner and authored.
     const nw = patch.find((p) => p.column === 0 && p.row === 0)
-    expect(nw?.corners).toEqual([null, null, null, 'grass'])
+    expect(nw?.corners).toEqual([null, null, null, GRASS])
     expect(nw?.tile).not.toBeNull()
     // Every corner of the patch is answered, so nothing would composite.
     expect(patch.filter((p) => p.tile === null && p.corners.some((c) => c !== null))).toEqual([])
@@ -190,9 +213,9 @@ describe('archetypes and assembling a patch', () => {
   it('answers null where nothing is tagged, which is exactly what would composite', () => {
     const set = groundSet()
     // Dirt has an edge set but no pair with path, so where they meet there is no tile.
-    const patch = assemble(set, [['dirt', 'path']])
+    const patch = assemble(set, [[DIRT, PATH]])
     const between = patch.find((p) => p.column === 1 && p.row === 0)
-    expect(between?.corners).toEqual([null, null, 'dirt', 'path'])
+    expect(between?.corners).toEqual([null, null, DIRT, PATH])
     expect(between?.tile).toBeNull()
     // An all-nothing corner is not a hole; it is simply outside the patch.
     const outside = assemble(set, [[null]])

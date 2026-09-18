@@ -64,6 +64,22 @@ const imageTerrain = z
       ctx.issues.push({ code: 'custom', input: ctx.value, message: error instanceof Error ? error.message : String(error) })
     }
   })
+/**
+ * The convention an image was laid out to, or `null` for one tagged by hand.
+ *
+ * This was missing while the schema was `.strict()`, which made
+ * `project.images.set` refuse every entry that carried one — including the
+ * entries `newTemplateImage` dispatches, since drawing a template is exactly
+ * what puts a layout on an image. It never type-errored because the machine
+ * stores the result through an `as ImageEntry` cast.
+ */
+const imageLayout = z
+  .object({ convention: z.string().min(1), origin: axes, materials: z.array(z.int().min(0)) })
+  .strict()
+  .nullable()
+  // Missing means the same as `null`: an image tagged by hand. Every other field of an entry is
+  // required because leaving one out is a mistake; leaving this one out is just saying there is none.
+  .default(null)
 const imageEntry = z
   .object({
     path: relativePath,
@@ -71,6 +87,7 @@ const imageEntry = z
     kind: z.enum(['tileset', 'sprites', 'texture']),
     hash: z.string().min(1).nullable(),
     grid,
+    layout: imageLayout,
     terrain: imageTerrain,
   })
   .strict()

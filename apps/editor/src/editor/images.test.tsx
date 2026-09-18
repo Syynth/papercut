@@ -75,35 +75,45 @@ describe('the image library', () => {
     expect(open).toBeDefined()
     act(() => open?.click())
 
-    // The dialog says what the sheet will be, from the convention and the terrain count, before it is drawn.
+    // The dialog says what the sheet will be, from the convention and how many materials are picked,
+    // before it is drawn. It starts on the first two of the project's library.
     expect(text()).toContain('New tileset from a template')
-    // Two terrains plus nothing: C(3,2) pair blocks of 5 x 3 and C(3,3) of 6 x 6, so 11 x 9 tiles at 16 px.
+    // Two materials plus nothing: C(3,2) pair blocks of 5 x 3 and C(3,3) of 6 x 6, so 11 x 9 tiles at 16 px.
     expect(text()).toContain('11 × 9 tiles')
     expect(text()).toContain('176 × 144 px')
 
-    // Adding a terrain grows it, and the arithmetic follows: three terrains plus nothing is
+    // Picking a third grows it, and the arithmetic follows: three materials plus nothing is
     // C(4,3) = 4 triple blocks of six rows, which outgrows the C(4,2) = 6 pair blocks of three.
-    act(() => button('Add terrain')?.click())
+    act(() => button('Stone')?.click())
     expect(text()).toContain('11 × 24 tiles')
   })
 
-  it('refuses two terrains that would share an id, rather than writing a sheet and finding out', async () => {
+  it('lays the blocks out in the order the materials were picked, not the library order', async () => {
     const fs = new MemoryFs()
     await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 16, placeholder: { set: { sheet: 'ground.png', tile: 16, columns: 1, rows: 1, tiles: new Map() }, image: { width: 16, height: 16, data: new Uint8ClampedArray(16 * 16 * 4) } } }, rawImageCodec)
     const live = session(fs)
     mount(() => <ImagesSettings session={live} sets={[]} warning={null} selected={null} onSelect={() => undefined} />)
     act(() => button('New from template…')?.click())
 
-    const fields = [...window.document.querySelectorAll('input')]
-    const second = fields.find((f) => (f as HTMLInputElement).value === 'Sand') as HTMLInputElement | undefined
-    expect(second).toBeDefined()
-    act(() => {
-      // React's own setter, so the change event the component listens for is the one it gets.
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value')?.set
-      setter?.call(second, 'Grass')
-      second?.dispatchEvent(new window.Event('input', { bubbles: true }))
-    })
-    expect(text()).toContain('Two terrains would have the same id')
+    // Grass and Dirt are picked to start, so Path joins them third. The order is what a block's
+    // position on the sheet is derived from, so the dialog has to show it rather than sort it away.
+    act(() => button('Path')?.click())
+    const order = [...window.document.querySelectorAll('.ui-tagger-item.is-active')].map((row) => (row.textContent ?? '').trim())
+    expect(order).toEqual(['Grass1', 'Dirt2', 'Path3'])
+  })
+
+  it('refuses a template with nothing to lay out, rather than writing an empty sheet', async () => {
+    const fs = new MemoryFs()
+    await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 16, placeholder: { set: { sheet: 'ground.png', tile: 16, columns: 1, rows: 1, tiles: new Map() }, image: { width: 16, height: 16, data: new Uint8ClampedArray(16 * 16 * 4) } } }, rawImageCodec)
+    const live = session(fs)
+    mount(() => <ImagesSettings session={live} sets={[]} warning={null} selected={null} onSelect={() => undefined} />)
+    act(() => button('New from template…')?.click())
+
+    // Two materials naming the same terrain used to be the thing to catch here. Materials have ids,
+    // so that cannot happen; what can is picking none, which would draw a sheet with no blocks.
+    act(() => button('Grass')?.click())
+    act(() => button('Dirt')?.click())
+    expect(text()).toContain('Pick at least one material to lay out')
     expect((button('Draw the template') as HTMLButtonElement).disabled).toBe(true)
   })
 })

@@ -4,7 +4,7 @@ import { applyPatches, History, inversePatch, patchAddress, type Patch, type Str
 import { createMap, defaultFacing, NO_RAMP, type MapDoc, type MapObject, type ReadonlyMapDoc } from './document'
 import { childrenOf, descendantsOf, outlineOf, type VoxelStructure } from './structure'
 import { deserialize, LoadError, serialize } from './io'
-import { createProject, parseProject, serializeProject, sheetName, stemOf } from './project'
+import { PROJECT_FORMAT_VERSION, createProject, parseProject, serializeProject, sheetName, stemOf, tagOf } from './project'
 import { addObject, addSketchPoint, addStructure, brushCells, clearRampRun, closeSketch, columnPatches, createSketch, deleteSketchPoint, fillCells, flatten, paintFace, placeStructureOnto, raise, rampPlan, rampRun, rampRunBlocked, rampRunLength, removeObject, removeStructure, reparentStructure, setSketch, updateObject } from './ops'
 import { FACE_TOP, countDormant, faceKey, parseFaceKey } from './paint'
 import { EditorStore } from './store'
@@ -824,7 +824,7 @@ describe('a project file is checked before it is believed', () => {
     bare.materials = []
     expect(() => parseProject(JSON.stringify(bare))).toThrow(/at least one material/)
     const shared = raw()
-    shared.materials = [{ id: 1, top: { sheet: 'g.png', terrain: 'a' } }, { id: 1, top: { sheet: 'g.png', terrain: 'b' } }]
+    shared.materials = [{ id: 1, name: 'A' }, { id: 1, name: 'B' }]
     expect(() => parseProject(JSON.stringify(shared))).toThrow(/share the id 1/)
     const outside = raw()
     outside.maps = ['../elsewhere.map.json']
@@ -836,23 +836,37 @@ describe('a project file is checked before it is believed', () => {
   })
 
   it('defaults what a sparse file leaves out — an image gets its stem as a name and a plain grid — and never an image without a tile size', () => {
-    const sparse = parseProject(JSON.stringify({ formatVersion: 2, name: 'Sparse' }))
+    const sparse = parseProject(JSON.stringify({ formatVersion: PROJECT_FORMAT_VERSION, name: 'Sparse' }))
     expect(sparse.resolution).toEqual({ texelDensity: 16, filtering: 'nearest' })
     expect(sparse.materials.length).toBeGreaterThan(0)
     expect(sparse.images).toEqual([])
     expect(sparse.maps).toEqual([])
-    expect(() => parseProject(JSON.stringify({ formatVersion: 2, images: [{ path: 'sheets/a.png' }] }))).toThrow(/no tile size/)
-    const terse = parseProject(JSON.stringify({ formatVersion: 2, images: [{ path: 'sheets/mz/Outside_A2.png', grid: { tile: 48, margin: 2, spacing: { x: 1, y: 0 } } }] }))
-    expect(terse.images[0]).toEqual({ path: 'sheets/mz/Outside_A2.png', name: 'Outside_A2', kind: 'tileset', hash: null, grid: { tile: 48, margin: { x: 2, y: 2 }, spacing: { x: 1, y: 0 } }, layout: null, terrain: { terrains: [], tiles: {} } })
+    expect(() => parseProject(JSON.stringify({ formatVersion: PROJECT_FORMAT_VERSION, images: [{ path: 'sheets/a.png' }] }))).toThrow(/no tile size/)
+    const terse = parseProject(JSON.stringify({ formatVersion: PROJECT_FORMAT_VERSION, images: [{ path: 'sheets/mz/Outside_A2.png', grid: { tile: 48, margin: 2, spacing: { x: 1, y: 0 } } }] }))
+    expect(terse.images[0]).toEqual({ path: 'sheets/mz/Outside_A2.png', name: 'Outside_A2', kind: 'tileset', hash: null, grid: { tile: 48, margin: { x: 2, y: 2 }, spacing: { x: 1, y: 0 } }, layout: null, terrain: { tiles: {} } })
   })
 
-  it('checks a terrain set as the image carries it: unique ids, four tags a tile, tags that name a terrain the image has', () => {
-    const image = (terrain: unknown) => JSON.stringify({ formatVersion: 2, images: [{ path: 'sheets/a.png', grid: { tile: 16 }, terrain }] })
-    expect(() => parseProject(image({ terrains: [{ id: 'g' }, { id: 'g' }] }))).toThrow(/lists the terrain g twice/)
-    expect(() => parseProject(image({ terrains: [{ id: 'g' }], tiles: { 0: ['g', null, null] } }))).toThrow(/four corner tags/)
-    expect(() => parseProject(image({ terrains: [{ id: 'g' }], tiles: { 0: ['g', 'x', null, null] } }))).toThrow(/names a terrain the image does not have/)
-    expect(() => parseProject(image({ terrains: [{ id: 'g' }], tiles: { '-1': ['g', 'g', 'g', 'g'] } }))).toThrow(/not a tile index/)
-    const ok = parseProject(image({ terrains: [{ id: 'g' }], tiles: { 5: ['g', null, null, null], 0: [null, null, null, null] } }))
-    expect(ok.images[0].terrain).toEqual({ terrains: [{ id: 'g', name: 'g', color: '#808080' }], tiles: { 5: ['g', null, null, null], 0: [null, null, null, null] } })
+  it('checks the tags as the image carries them: four a tile, each naming a material, on a real tile index', () => {
+    const image = (terrain: unknown) => JSON.stringify({ formatVersion: PROJECT_FORMAT_VERSION, materials: [{ id: 0, name: 'Grass' }], images: [{ path: 'sheets/a.png', grid: { tile: 16 }, terrain }] })
+    const g = tagOf(0)
+    expect(() => parseProject(image({ tiles: { 0: [g, null, null] } }))).toThrow(/four corner tags/)
+    expect(() => parseProject(image({ tiles: { 0: [g, 'grass', null, null] } }))).toThrow(/names no material/)
+    expect(() => parseProject(image({ tiles: { '-1': [g, g, g, g] } }))).toThrow(/not a tile index/)
+    const ok = parseProject(image({ tiles: { 5: [g, null, null, null], 0: [null, null, null, null] } }))
+    expect(ok.images[0].terrain).toEqual({ tiles: { 5: [g, null, null, null], 0: [null, null, null, null] } })
+    // A slot rides on the tag, and the material it names is what has to exist.
+    expect(parseProject(image({ tiles: { 1: [tagOf(0, 'convex'), null, null, null] } })).images[0].terrain.tiles['1']).toEqual([tagOf(0, 'convex'), null, null, null])
+  })
+
+  it('refuses a tag, a layout or a side naming a material the project does not have', () => {
+    // A tag names a material of the project (ruling of 2026-09-17), so an id nothing defines would send the
+    // atlas looking for art that cannot exist, silently, one corner at a time. The file is refused by name instead.
+    const project = (materials: unknown[], image: Record<string, unknown>) => JSON.stringify({ formatVersion: PROJECT_FORMAT_VERSION, materials, images: [{ path: 'sheets/a.png', grid: { tile: 16 }, ...image }] })
+    expect(() => parseProject(project([{ id: 0, name: 'Grass' }], { terrain: { tiles: { 0: [tagOf(7), null, null, null] } } }))).toThrow(/tagged with material 7, which the project does not have/)
+    expect(() => parseProject(project([{ id: 0, name: 'Grass' }], { layout: { convention: 'corner-blocks', materials: [0, 7] } }))).toThrow(/lays out material 7/)
+    expect(() => parseProject(project([{ id: 0, name: 'Grass', side: 7 }], {}))).toThrow(/cuts its sides with material 7/)
+    // The same file with the material present is read, and `side` is kept as the id it is.
+    const ok = parseProject(project([{ id: 0, name: 'Grass', side: 7 }, { id: 7, name: 'Dirt' }], { terrain: { tiles: { 0: [tagOf(7), null, null, null] } } }))
+    expect(ok.materials[0].side).toBe(7)
   })
 })

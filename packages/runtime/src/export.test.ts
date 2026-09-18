@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { DEFAULT_MATERIALS, PLACEHOLDER_SHEET, createMap, defaultFacing, type RgbaImage, type SpriteAsset } from '@papercut/document'
-import { addTerrain, createTerrainSet, stampTemplate, type LoadedSet } from '@papercut/geometry'
+import { DEFAULT_MATERIALS, PLACEHOLDER_SHEET, createMap, defaultFacing, tagOf, type RgbaImage, type SpriteAsset } from '@papercut/document'
+import { createTerrainSet, stampTemplate, type LoadedSet } from '@papercut/geometry'
 import { buildExportScene, exportGltf, type ExportOptions } from './export'
 
 // `parse` needs to be reconfigurable per test (success vs. error), and
@@ -36,15 +36,15 @@ function solid(width: number, height: number, rgba: [number, number, number, num
 const TILE = 4
 
 /**
- * A stand-in for the placeholder terrain set the default materials point
- * into: the five terrains, each with an edge set stamped on its own 4×4 block
- * of a 16-column sheet, over one flat colour.
+ * A stand-in for the placeholder terrain set the default materials draw from:
+ * the five materials, each with an edge set stamped on its own 4×4 block of a
+ * 16-column sheet, over one flat colour.
  */
 function terrainSet(rgba: [number, number, number, number] = [0, 255, 0, 255]): LoadedSet {
   let set = createTerrainSet(PLACEHOLDER_SHEET, TILE, 16, 8)
-  ;['grass', 'dirt', 'stone', 'sand', 'path'].forEach((id, i) => {
-    set = addTerrain(set, { id, name: id, color: '#808080' })
-    set = stampTemplate(set, (i % 4) * 4, Math.floor(i / 4) * 4, null, id)
+  // A tag names a material of the project (ruling of 2026-09-17), so the blocks are the default materials by id.
+  DEFAULT_MATERIALS.forEach((material, i) => {
+    set = stampTemplate(set, (i % 4) * 4, Math.floor(i / 4) * 4, null, tagOf(material.id))
   })
   return { set, image: solid(16 * TILE, 8 * TILE, rgba) }
 }
