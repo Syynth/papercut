@@ -661,3 +661,11 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** The Materials screen shows a material as the patch it actually draws — a blob of it run through its archetype's slots and blitted from the real sheet, in the orientation the archetype calls for — beside the raw slot strip, with everything it meets listed to the side. The Meets list is grouped by the archetype each pairing is drawn in, and each group says how many slots that archetype owes. Selecting a pairing swaps the preview to the two materials together. A corner nothing is drawn for shows as a hole in the patch rather than being filled in.
 - **WHY:** A swatch cannot tell you whether a material is finished; an assembled patch can, and a hole in it is the fastest way to see a slot nobody drew. Grouping Meets by archetype is what says how much art each pairing is asking for, since a floor pairing owes fifteen slots and a wall pairing seven.
+
+## An assembled preview and the slots it was built from point at each other
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui
+- **SCOPE:** minor/local (follows "The materials screen shows the patch a material draws", same day)
+- **WHAT:** Wherever the editor shows the same art twice — an assembled preview beside the raw slots it was built from — the two point at each other. Hovering a slot lights every place in the preview drawn with it; hovering a place in the preview lights its slot. Both directions drive one piece of state, and the preview lights by darkening everything else rather than brightening the matches. The readout beside the strip becomes the hovered slot's name, what kind of thing it is, and how much of the preview it accounts for.
+- **WHY:** An assembled preview and a slot table say the same thing in two languages, and the work is translating between them — finding which tile drew that corner, or where a tile you are unhappy with actually lands. Hover is the cheapest way to ask. Darkening rather than brightening because a slot is often only a few tiles in a hundred, and a few bright tiles in a lit field are harder to find than a few lit tiles in a dark one.
