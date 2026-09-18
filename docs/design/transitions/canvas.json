@@ -95,7 +95,7 @@
       "x": 2800,
       "y": 0,
       "w": 340,
-      "text": "THE SCREEN. A material shows the patch it actually draws — its archetype's slots, assembled — beside the raw slots, and a Meets list of everything it can touch.\n\nPicking a pairing swaps the preview for that transition. Same screen, same shape; one material became two and the empty half of each slot filled in. The list is a way of looking, not a form."
+      "text": "THE SCREEN. A material shows the patch it actually draws — its archetype's slots, assembled — beside the raw slots, and a Meets list of everything it can touch.\n\nMeets is GROUPED BY ARCHETYPE, because the archetype decides the shape of the art: a floor pairing is 15 slots, a wall pairing 7, a ramp pairing 4. The same pairing can appear under two headings, since a transition's archetype belongs to the transition rather than to its materials.\n\nPicking a pairing swaps the preview. Same screen, same shape; one material became two and the empty half of each slot filled in."
     },
     {
       "id": "note-arc",
