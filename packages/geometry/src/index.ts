@@ -24,6 +24,7 @@ export {
   exactTile,
   pairAuthored,
   removeMaterial,
+  stampBlock,
   stampTemplate,
   tagCorner,
   templateTags,
@@ -35,7 +36,7 @@ export { cutGrid, fitsOf, gridCells, remapTags } from './grid'
 export { ORDINARY, RAMP_RISE, archetypeOf, archetypes, arrangements, maskKind, requiredSlots, slotSize } from './archetype'
 export type { Archetype, Arrangement, Slot } from './archetype'
 export { CORNER_BLOCKS, conventionOf, conventions, layoutTags, terrainFromLayout } from './layout'
-export type { Convention, LayoutBlock, LayoutSpec, LayoutTile } from './layout'
+export type { BlockShape, Convention, LayoutBlock, LayoutSpec, LayoutTile } from './layout'
 export { renderTemplate } from './template'
 export type { Template, TemplateMaterial, TemplateOptions } from './template'
 export type { GridCells, Remapped } from './grid'

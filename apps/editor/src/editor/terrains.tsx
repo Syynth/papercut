@@ -27,7 +27,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 
 import { sheetName, slotOfTag, tagOf, type RgbaImage } from '@papercut/document'
 import { useHost, useProject } from '@papercut/editor-host'
-import { archetypeOf, cornerAt, tagCorner, type LoadedSet, type Tag, type TerrainSet } from '@papercut/geometry'
+import { archetypeOf, conventionOf, cornerAt, stampBlock, tagCorner, type LoadedSet, type Tag, type TerrainSet } from '@papercut/geometry'
 import { Action, AssetPicker, Note, Tagger, TaggerItem } from '@papercut/ui'
 
 import { run } from './commands'
@@ -67,7 +67,7 @@ interface History {
  * corner under the pointer outlined. Drawn whole on every change; a sheet is
  * a few hundred tiles, which is nothing to a canvas.
  */
-function draw(canvas: HTMLCanvasElement, image: RgbaImage, set: TerrainSet, colours: ReadonlyMap<Tag, string>, scale: number, hover: Corner | null): void {
+function draw(canvas: HTMLCanvasElement, image: RgbaImage, set: TerrainSet, colours: ReadonlyMap<Tag, string>, scale: number, hover: Corner | null, pending: Pending | null): void {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   const width = Math.round(image.width * scale)
@@ -111,13 +111,39 @@ function draw(canvas: HTMLCanvasElement, image: RgbaImage, set: TerrainSet, colo
     }
     ctx.stroke()
   }
-  if (hover) {
+  // In block mode the pointer stands for a whole block, so it is the block that is outlined, and
+  // the colours of what it would tag are struck across it. A block that would leave the sheet is
+  // drawn in the warn colour rather than silently not happening.
+  if (pending) {
+    const x = pending.column * t
+    const y = pending.row * t
+    const w = pending.columns * t
+    const h = pending.rows * t
+    ctx.globalAlpha = 0.18
+    ctx.fillStyle = pending.fits ? '#e9a23b' : '#e5636f'
+    ctx.fillRect(x, y, w, h)
+    ctx.globalAlpha = 1
+    ctx.setLineDash([4, 3])
+    ctx.strokeStyle = pending.fits ? '#e9a23b' : '#e5636f'
+    ctx.lineWidth = 2
+    ctx.strokeRect(x + 1, y + 1, w - 2, h - 2)
+    ctx.setLineDash([])
+  } else if (hover) {
     const x = (hover.index % set.columns) * t + (hover.corner & 1) * half
     const y = Math.floor(hover.index / set.columns) * t + (hover.corner >> 1) * half
     ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)'
     ctx.lineWidth = 1.5
     ctx.strokeRect(x + 0.75, y + 0.75, half - 1.5, half - 1.5)
   }
+}
+
+/** The block the pointer is standing over, in block mode: where it would land and whether it fits. */
+interface Pending {
+  column: number
+  row: number
+  columns: number
+  rows: number
+  fits: boolean
 }
 
 const nearestZoom = (scale: number): number => ZOOMS.reduce<number>((best, z) => (Math.abs(z - scale) < Math.abs(best - scale) ? z : best), ZOOMS[0])
@@ -133,6 +159,15 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
   const [sheet, setSheet] = useState<string | null>(null)
   /** The tag the pointer paints; `null` is Nothing. */
   const [brush, setBrush] = useState<Tag>(null)
+  /**
+   * Corner mode tags one quadrant at a time. BLOCK mode tags a whole block of
+   * the convention where the artist drew it, which is what bringing in a sheet
+   * made in another tool comes down to: papercut knows a block's shape and
+   * will not guess its place, so the artist points at the place.
+   */
+  const [mode, setMode] = useState<'corner' | 'block'>('corner')
+  /** The block's values, under first: `[null, over]` for a block drawn against nothing. */
+  const [values, setValues] = useState<Tag[]>([null, null])
   const [zoom, setZoom] = useState<number | null>(null)
   /** The corner under the pointer, with where the pointer is in the stage's scroll box; `flip` when a tooltip to its right would leave the box. */
   const [hover, setHover] = useState<(Corner & { x: number; y: number; flip: boolean }) | null>(null)
@@ -240,10 +275,22 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
     return counts
   }, [set])
 
+  const shape = useMemo(() => {
+    const convention = conventionOf('corner-blocks')
+    const arity = values.filter((v, i) => i === 0 || v !== null).length
+    return convention ? convention.blockShape(values[0] === null && values.length === 2 ? 2 : arity) : null
+  }, [values])
+  /** Where the block under the pointer would land. The pointer names its top-left tile. */
+  const pending = useMemo((): Pending | null => {
+    if (mode !== 'block' || !hover || !set || !shape) return null
+    const column = hover.index % set.columns
+    const row = Math.floor(hover.index / set.columns)
+    return { column, row, columns: shape.columns, rows: shape.rows, fits: column + shape.columns <= set.columns && row + shape.rows <= set.rows }
+  }, [mode, hover, set, shape])
   useEffect(() => {
     const canvas = canvasRef.current
-    if (canvas && loaded && set) draw(canvas, loaded.image, set, colours, scale, hover)
-  }, [loaded, set, colours, scale, hover])
+    if (canvas && loaded && set) draw(canvas, loaded.image, set, colours, scale, hover, pending)
+  }, [loaded, set, colours, scale, hover, pending])
 
   /** Listed tilesets the viewport could not draw: named in the picker's footer with the fix in Images. */
   const notDrawn = images.filter((i) => i.kind === 'tileset' && !sets.some((s) => s.set.sheet === sheetName(i.path))).map((i) => i.name)
@@ -251,6 +298,21 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
     if (!set) return null
     const rect = event.currentTarget.getBoundingClientRect()
     return cornerAt(set, (event.clientX - rect.left) / scale, (event.clientY - rect.top) / scale)
+  }
+  const placeBlock = (): void => {
+    if (!set || !shape || !pending?.fits) return
+    // Every value after the first must name something, or the block would tag corners as nothing
+    // that the artist meant as a material.
+    if (values.slice(1).some((v) => v === null)) {
+      notify('Pick what the block is drawn in before placing it.')
+      return
+    }
+    try {
+      commit(stampBlock(set, shape, values, pending.column, pending.row))
+      notify(`${shape.columns} × ${shape.rows} block placed at ${pending.column}, ${pending.row}`)
+    } catch (error) {
+      notify(messageOf(error))
+    }
   }
   const apply = (corner: Corner): void => {
     const current = stroke.current
@@ -266,6 +328,11 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
     if (!set || (event.button !== 0 && event.button !== 2)) return
     const corner = cornerUnder(event)
     if (!corner) return
+    // A block lands whole on one click; there is no stroke to drag.
+    if (mode === 'block') {
+      if (event.button === 0) placeBlock()
+      return
+    }
     event.currentTarget.setPointerCapture(event.pointerId)
     stroke.current = { tag: event.button === 2 ? null : brush, set, last: null }
     apply(corner)
@@ -310,6 +377,9 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
           <span>
             {set.columns} × {set.rows} tiles · {set.tile} px
           </span>
+          <span className="ui-tagger-divider" />
+          <Action title="Corners" tone={mode === 'corner' ? 'accent' : 'default'} onClick={() => setMode('corner')} />
+          <Action title="Block" tone={mode === 'block' ? 'accent' : 'default'} onClick={() => setMode('block')} />
           <span className="ui-tagger-grow" />
           <Action title="Undo" kbd="⌘Z" disabled={history.past.length === 0} onClick={undo} />
           <Action title="Redo" kbd="⌘⇧Z" disabled={history.future.length === 0} onClick={redo} />
@@ -322,22 +392,58 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
       side={
         <>
           <div className="ui-tagger-list">
-            <TaggerItem name="Nothing" swatch={null} active={brush === null} onClick={() => setBrush(null)} />
-            {palette.map((entry) => (
-              <TaggerItem
-                key={entry.tag}
-                name={entry.name}
-                swatch={entry.colour}
-                active={brush === entry.tag}
-                dim={!drawn.has(entry.tag)}
-                meta={drawn.get(entry.tag) ?? 0}
-                onClick={() => setBrush(entry.tag)}
-              />
-            ))}
+            {mode === 'block' ? (
+              <>
+                <div className="ui-k" style={{ padding: '2px 8px 4px' }}>Drawn over</div>
+                <TaggerItem name="Nothing" swatch={null} active={values[0] === null} onClick={() => setValues([null, ...values.slice(1)])} />
+                {palette.map((entry) => (
+                  <TaggerItem key={`u-${entry.tag}`} name={entry.name} swatch={entry.colour} active={values[0] === entry.tag} onClick={() => setValues([entry.tag, ...values.slice(1)])} />
+                ))}
+                <div className="ui-k" style={{ padding: '10px 8px 4px' }}>Drawn in</div>
+                {values.slice(1).map((value, at) => (
+                  <div key={at} className="ui-tagger-item">
+                    <span className={`ui-tagger-swatch ${value === null ? 'is-none' : ''}`} style={value === null ? undefined : { background: palette.find((p) => p.tag === value)?.colour, cursor: 'default' }} />
+                    <select
+                      className="ui-tagger-rename"
+                      value={value ?? ''}
+                      onChange={(event) => setValues(values.map((v, i) => (i === at + 1 ? (event.currentTarget.value || null) : v)))}
+                    >
+                      <option value="">Pick a material…</option>
+                      {palette.map((entry) => (
+                        <option key={entry.tag} value={entry.tag ?? ''}>
+                          {entry.name}
+                        </option>
+                      ))}
+                    </select>
+                    {values.length > 2 ? <Action title="−" onClick={() => setValues(values.filter((_, i) => i !== at + 1))} /> : null}
+                  </div>
+                ))}
+                <div style={{ padding: '6px 8px' }}>
+                  <Action title="Add a third" disabled={values.length >= 3} onClick={() => setValues([...values, null])} />
+                </div>
+              </>
+            ) : (
+              <>
+                <TaggerItem name="Nothing" swatch={null} active={brush === null} onClick={() => setBrush(null)} />
+                {palette.map((entry) => (
+                  <TaggerItem
+                    key={entry.tag}
+                    name={entry.name}
+                    swatch={entry.colour}
+                    active={brush === entry.tag}
+                    dim={!drawn.has(entry.tag)}
+                    meta={drawn.get(entry.tag) ?? 0}
+                    onClick={() => setBrush(entry.tag)}
+                  />
+                ))}
+              </>
+            )}
           </div>
           <div className="ui-tagger-add">
             <span className="ui-hint-line">
-              The project&rsquo;s materials. Edit them in Materials; what an image draws is whatever is tagged here.
+              {mode === 'block'
+                ? 'Papercut knows a block’s shape and will not guess where an artist put it. Point at its top-left tile.'
+                : 'The project’s materials. Edit them in Materials; what an image draws is whatever is tagged here.'}
             </span>
           </div>
         </>
@@ -360,7 +466,18 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
       }
       foot={
         <>
-          <b>{brushName}</b> · click or drag over corners · right-click for nothing · ⌘ wheel to zoom
+          {mode === 'block' ? (
+            <>
+              <b>
+                {values.slice(1).map((v) => nameOfTag(v)).join(' + ') || 'nothing picked'} over {nameOfTag(values[0])}
+              </b>{' '}
+              · {shape ? `${shape.columns} × ${shape.rows}` : 'no block'} · click its top-left tile · ⌘ wheel to zoom
+            </>
+          ) : (
+            <>
+              <b>{brushName}</b> · click or drag over corners · right-click for nothing · ⌘ wheel to zoom
+            </>
+          )}
         </>
       }
     />

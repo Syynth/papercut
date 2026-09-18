@@ -26,6 +26,8 @@
 
 import { materialOfTag, type CornerTags, type ImageTerrain, type Tag } from '@papercut/document'
 
+import type { BlockShape } from './layout'
+
 export type { CornerTags, Tag }
 
 /** The bit each corner holds in a template mask, in `CornerTags` order. */
@@ -89,6 +91,35 @@ export function stampTemplate(set: TerrainSet, column: number, row: number, unde
   if (column < 0 || row < 0 || column + 4 > set.columns || row + 4 > set.rows) throw new TerrainSetError(`A 4×4 block at ${column},${row} does not fit a ${set.columns}×${set.rows} sheet.`)
   const tiles = new Map(set.tiles)
   for (let mask = 0; mask < 16; mask++) tiles.set((row + (mask >> 2)) * set.columns + column + (mask & 3), templateTags(mask, under, over))
+  return { ...set, tiles }
+}
+
+/**
+ * Tag one BLOCK of an artist's sheet, where they actually drew it.
+ *
+ * A generated template puts every block at a position papercut chose, so its
+ * tags follow from the layout alone. A sheet made in somebody else's tool has
+ * the same blocks somewhere else, and papercut does not read positions out of
+ * pixels (ruling of 2026-09-17). This is the other half: the artist says
+ * "that five by three, there, is grass meeting dirt", and the fifteen tags
+ * follow from the block's shape.
+ *
+ * `values` are the tags the block's value indexes mean, `null` first for a
+ * block drawn against nothing. Refused when the block would leave the sheet,
+ * because half a block of tags is worse than none.
+ */
+export function stampBlock(set: TerrainSet, shape: BlockShape, values: readonly Tag[], column: number, row: number): TerrainSet {
+  if (column < 0 || row < 0 || column + shape.columns > set.columns || row + shape.rows > set.rows) {
+    throw new TerrainSetError(`A ${shape.columns}×${shape.rows} block at ${column},${row} does not fit a ${set.columns}×${set.rows} sheet.`)
+  }
+  const tiles = new Map(set.tiles)
+  for (const cell of shape.cells) {
+    const corners = cell.corners.map((v) => values[v] ?? null) as unknown as CornerTags
+    // The all-over tile is that material's own, not this pairing's, so a block drawn over
+    // something leaves it alone rather than claiming a tile the other block already answers.
+    if (values[0] !== null && corners.every((t) => t === corners[0])) continue
+    tiles.set((row + cell.row) * set.columns + column + cell.column, corners)
+  }
   return { ...set, tiles }
 }
 

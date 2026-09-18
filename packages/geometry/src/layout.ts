@@ -42,6 +42,22 @@ export interface LayoutTile {
   block: string
 }
 
+/**
+ * What one block looks like in its OWN coordinates, apart from where it sits.
+ *
+ * A generated layout computes every block's position. An artist's sheet has
+ * the same blocks somewhere else, because they laid it out in their own tool,
+ * and papercut does not infer positions from pixels (ruling of 2026-09-17).
+ * So a block's SHAPE and a block's PLACE are separate questions, and this
+ * answers the first one, which is the half that is the same either way.
+ */
+export interface BlockShape {
+  columns: number
+  rows: number
+  /** Per tile of the block, its offset and the four corners as indexes into the block's values. */
+  cells: ReadonlyArray<{ column: number; row: number; corners: [number, number, number, number] }>
+}
+
 export interface Convention {
   readonly id: string
   readonly title: string
@@ -50,6 +66,8 @@ export interface Convention {
   extent(count: number): { columns: number; rows: number }
   blocks(count: number): LayoutBlock[]
   tiles(count: number): LayoutTile[]
+  /** The shape a block of `arity` values takes, or `null` for an arity this convention does not draw. */
+  blockShape(arity: number): BlockShape | null
 }
 
 const choose = (values: readonly number[], k: number): number[][] => {
@@ -114,28 +132,41 @@ export const CORNER_BLOCKS: Convention = {
       ...triples.map((values, i) => ({ key: keyOf(values), values, column: PAIR_W, row: i * TRIPLE_H, columns: TRIPLE_W, rows: TRIPLE_H })),
     ]
   },
+  blockShape(arity) {
+    if (arity === 2) {
+      const cells = []
+      for (let r = 0; r < PAIR_H; r++) {
+        for (let c = 0; c < PAIR_W; c++) {
+          const mask = PAIR_MASKS[r][c]
+          cells.push({ column: c, row: r, corners: [0, 1, 2, 3].map((k) => ((mask >> k) & 1 ? 1 : 0)) as [number, number, number, number] })
+        }
+      }
+      return { columns: PAIR_W, rows: PAIR_H, cells }
+    }
+    if (arity === 3) {
+      const cells = []
+      for (let r = 0; r < TRIPLE_H; r++) {
+        for (let c = 0; c < TRIPLE_W; c++) {
+          const cell = TRIPLE_CELLS[r][c]
+          cells.push({ column: c, row: r, corners: [0, 1, 2, 3].map((k) => Number(cell[k])) as [number, number, number, number] })
+        }
+      }
+      return { columns: TRIPLE_W, rows: TRIPLE_H, cells }
+    }
+    // Four different values at one corner are not drawn; that is the case the atlas composites.
+    return null
+  },
   tiles(count) {
     const out: LayoutTile[] = []
     for (const block of this.blocks(count)) {
-      if (block.values.length === 2) {
-        const [under, over] = block.values
-        for (let r = 0; r < PAIR_H; r++) {
-          for (let c = 0; c < PAIR_W; c++) {
-            const mask = PAIR_MASKS[r][c]
-            // The all-over tile belongs to that terrain's own block against nothing, so a two-terrain block leaves it out.
-            if (mask === 15 && under !== 0) continue
-            const corners = [0, 1, 2, 3].map((k) => ((mask >> k) & 1 ? over : under)) as [number, number, number, number]
-            out.push({ column: block.column + c, row: block.row + r, corners, block: block.key })
-          }
-        }
-      } else {
-        for (let r = 0; r < TRIPLE_H; r++) {
-          for (let c = 0; c < TRIPLE_W; c++) {
-            const cell = TRIPLE_CELLS[r][c]
-            const corners = [0, 1, 2, 3].map((k) => block.values[Number(cell[k])]) as [number, number, number, number]
-            out.push({ column: block.column + c, row: block.row + r, corners, block: block.key })
-          }
-        }
+      const shape = this.blockShape(block.values.length)
+      if (!shape) continue
+      const [under] = block.values
+      for (const cell of shape.cells) {
+        const corners = cell.corners.map((v) => block.values[v]) as [number, number, number, number]
+        // The all-over tile belongs to that value's own block against nothing, so a two-value block leaves it out.
+        if (block.values.length === 2 && under !== 0 && corners.every((v) => v === corners[0])) continue
+        out.push({ column: block.column + cell.column, row: block.row + cell.row, corners, block: block.key })
       }
     }
     return out
