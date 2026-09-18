@@ -9,65 +9,82 @@
       "title": "The model"
     },
     {
-      "file": "Blocks.dc.html",
+      "file": "Grid.dc.html",
       "x": 1280,
       "y": 0,
       "w": 1180,
       "h": 900,
-      "title": "The blocks"
+      "title": "The corner blocks"
     },
     {
-      "file": "Authoring.dc.html",
+      "file": "Blocks.dc.html",
       "x": 0,
       "y": 1000,
       "w": 1240,
-      "h": 760,
-      "title": "Project settings › Transitions"
+      "h": 800,
+      "title": "A block is what you place"
+    },
+    {
+      "file": "Shapes.dc.html",
+      "x": 1340,
+      "y": 1000,
+      "w": 1240,
+      "h": 800,
+      "title": "Shape and material"
+    },
+    {
+      "file": "Layers.dc.html",
+      "x": 0,
+      "y": 1900,
+      "w": 1240,
+      "h": 860,
+      "title": "How the pieces sit"
+    },
+    {
+      "file": "Authoring.dc.html",
+      "x": 1340,
+      "y": 1900,
+      "w": 1240,
+      "h": 800,
+      "title": "Transitions, as first sketched"
     },
     {
       "file": "Format.dc.html",
-      "x": 1360,
-      "y": 1000,
+      "x": 0,
+      "y": 2860,
       "w": 1120,
       "h": 760,
-      "title": "The format"
+      "title": "The format, as first sketched"
     }
   ],
   "annotations": [
     {
-      "id": "note-why",
-      "x": 2560,
-      "y": 0,
-      "w": 320,
-      "text": "The hard limit this exists to remove: atlas.ts takes an authored tile only when `sheets.size === 1`. Two materials drawn on different sheets can never meet today, whatever anyone draws."
-    },
-    {
-      "id": "note-closes",
-      "x": 2560,
-      "y": 260,
-      "w": 320,
-      "text": "The model terminates. A corner has four positions, so four materials is the most that can meet at one, and a four-material block is exactly 4! = 24 tiles. There is no fifth case to design."
-    },
-    {
-      "id": "note-orientation",
-      "x": 2560,
-      "y": 520,
-      "w": 320,
-      "text": "Orientation does two jobs: it says where a material belongs (what `role` does today) and it disambiguates two transitions over the same materials — one for the floor, one for the wall."
-    },
-    {
-      "id": "note-naming",
-      "x": 1280,
-      "y": 960,
-      "w": 320,
-      "text": "Terrain stops being a noun the artist meets. It survives only inside a block, as how its tiles are read. Material is the one word for what a voxel is made of and what a transition is between."
-    },
-    {
-      "id": "note-open",
-      "x": 2560,
+      "id": "note-arc",
+      "x": 2680,
       "y": 1000,
       "w": 320,
-      "text": "OPEN: what happens to a project's existing per-sheet tags, and whether a run of tags that happens to cover a block should be recognised automatically or left for the artist to point at."
+      "text": "The archetype is papercut's, not the project's — a fixed set to start, extensible later. What the artist meets is the block and the material."
+    },
+    {
+      "id": "note-split",
+      "x": 2680,
+      "y": 1300,
+      "w": 320,
+      "text": "The split that makes inside corners, outside corners and edge tiles stop being special cases: they are SHAPES, not material combinations. Nothing was ever a material."
+    },
+    {
+      "id": "note-sketch",
+      "x": 2680,
+      "y": 1900,
+      "w": 320,
+      "text": "Authoring and Format were drawn before the block, archetype and shape/material split. They are kept for the GID scheme and the block geometry, and will be redrawn once the model settles."
+    },
+    {
+      "id": "note-blocks",
+      "x": 1280,
+      "y": 1840,
+      "w": 320,
+      "text": "OPEN: is a block a brush that paints once, or a type the voxel remembers and re-derives? That is the largest remaining fork."
     }
   ],
   "launch": {

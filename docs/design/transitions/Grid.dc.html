@@ -1,0 +1,60 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font: 13px/1.5 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; background: #15171c; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    .k { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, monospace; }
+    .note { font-size: 11.5px; line-height: 1.55; color: #7b8294; }
+    h2 { font-size: 15px; font-weight: 600; margin: 0; }
+    h3 { font-size: 13px; font-weight: 600; margin: 0; }
+    p { margin: 0; font-size: 12.5px; line-height: 1.6; color: #aab0c0; }
+    .px { image-rendering: pixelated; display: block; }
+    .card { border: 1px solid #353b4a; border-radius: 8px; background: #1b1e25; padding: 14px; display: grid; gap: 10px; align-content: start; }
+    .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; }
+    .tag { display: inline-block; font: 500 10px/1 'IBM Plex Mono', Menlo, monospace; border: 1px solid #414859; border-radius: 3px; padding: 3px 5px; color: #aab0c0; }
+    .tag.no { color: #e5636f; border-color: #e5636f; }
+    .row { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 10px; align-items: start; }
+    .row .n { font: 600 12px/1.5 'IBM Plex Mono', Menlo, monospace; color: #e9a23b; }
+    code { font-family: 'IBM Plex Mono', Menlo, monospace; color: #e8eaf0; font-size: 12px; }
+    pre { margin: 0; font: 11.5px/1.6 'IBM Plex Mono', Menlo, monospace; color: #aab0c0; background: #0f1115; border: 1px solid #353b4a; border-radius: 6px; padding: 12px; overflow: hidden; }
+    pre .c { color: #7b8294; }
+    pre .s { color: #e9a23b; }
+    table { border-collapse: collapse; font-size: 12px; }
+    th { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; text-align: left; padding: 0 14px 6px 0; }
+    td { padding: 5px 14px 5px 0; color: #aab0c0; border-top: 1px solid #2c3140; }
+    td.first { color: #e8eaf0; }
+  </style>
+</helmet>
+<div style="width: 1180px; padding: 30px 34px; box-sizing: border-box; display: grid; gap: 22px; align-content: start;">
+  <div>
+    <div class="k">The blocks</div>
+    <h2 style="margin-top: 6px;">Three shapes, and the model closes at four</h2>
+    <p style="max-width: 86ch; margin-top: 8px;">A block holds every corner arrangement that uses <b style="color:#e8eaf0;">all</b> of its materials; an arrangement using fewer belongs to a smaller block. A corner has four positions, so four materials is the most that can meet at one. There is no five-material block and nothing is left over.</p>
+  </div>
+  <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px;"><div class="card"><div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;"><h3>Edge set: a material against nothing</h3><span class="note mono">15 tiles &middot; 5 &times; 3</span></div><div><span class="tag"><span class="sw" style="background:#6aa84f;"></span>Grass</span> <span class="tag"><span class="sw" style="background:#2c3140;"></span>nothing</span></div><img class="px" src="block-2-nothing.png" width="200" height="120" style="border:1px solid #353b4a; border-radius:4px;"><p class="note">Every way the material can meet the outside. Transparent where nothing is, so the silhouette of each piece reads.</p></div>
+<div class="card"><div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;"><h3>Two materials</h3><span class="note mono">14 tiles &middot; 5 &times; 3</span></div><div><span class="tag"><span class="sw" style="background:#6aa84f;"></span>Grass</span> <span class="tag"><span class="sw" style="background:#d9c27e;"></span>Sand</span></div><img class="px" src="block-2.png" width="200" height="120" style="border:1px solid #353b4a; border-radius:4px;"><p class="note">The centre is blank: all-Grass and all-Sand each belong to their own edge set, not to this block.</p></div>
+<div class="card"><div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;"><h3>Three materials</h3><span class="note mono">36 tiles &middot; 6 &times; 6</span></div><div><span class="tag"><span class="sw" style="background:#6aa84f;"></span>Grass</span> <span class="tag"><span class="sw" style="background:#d9c27e;"></span>Sand</span> <span class="tag"><span class="sw" style="background:#8e8e8e;"></span>Stone</span></div><img class="px" src="block-3.png" width="240" height="240" style="border:1px solid #353b4a; border-radius:4px;"><p class="note">Every arrangement in which all three appear. This is what papercut composites today.</p></div>
+<div class="card"><div style="display:flex; align-items:baseline; justify-content:space-between; gap:10px;"><h3>Four materials</h3><span class="note mono">24 tiles &middot; 6 &times; 4</span></div><div><span class="tag"><span class="sw" style="background:#6aa84f;"></span>Grass</span> <span class="tag"><span class="sw" style="background:#d9c27e;"></span>Sand</span> <span class="tag"><span class="sw" style="background:#8e8e8e;"></span>Stone</span> <span class="tag"><span class="sw" style="background:#5f8fb0;"></span>Water</span></div><img class="px" src="block-4.png" width="240" height="160" style="border:1px solid #353b4a; border-radius:4px;"><p class="note">The 24 permutations. With this block nothing composites: every corner a map can make has art that holds it.</p></div></div>
+  <div class="card" style="border-color:#414859;">
+    <div class="k">Why those counts</div>
+    <table>
+      <tr><th>materials</th><th>arrangements</th><th>using all of them</th><th>block</th><th></th></tr>
+      <tr><td class="first">2, one is nothing</td><td class="mono">16</td><td class="mono">15</td><td class="mono">5 &times; 3</td><td class="note">the all-nothing tile is not drawn</td></tr>
+      <tr><td class="first">2 materials</td><td class="mono">16</td><td class="mono">14</td><td class="mono">5 &times; 3</td><td class="note">the two pure tiles live in their own edge sets</td></tr>
+      <tr><td class="first">3</td><td class="mono">81</td><td class="mono">36</td><td class="mono">6 &times; 6</td><td class="note">fits exactly</td></tr>
+      <tr><td class="first">4</td><td class="mono">256</td><td class="mono">24</td><td class="mono">6 &times; 4</td><td class="note">four distinct values in four positions, so 4! permutations</td></tr>
+      <tr><td class="first">5</td><td class="mono">&mdash;</td><td class="mono">0</td><td class="mono">&mdash;</td><td class="note"><span class="tag no">impossible</span> a corner has four positions</td></tr>
+    </table>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
