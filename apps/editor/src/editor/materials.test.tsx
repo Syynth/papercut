@@ -118,7 +118,7 @@ describe('the materials screen', () => {
     // Grass has drawn its meeting with Dirt and nothing else.
     expect(inMeets('Dirt')).toBeDefined()
     expect(text()).toContain('drawn')
-    expect(text()).toContain('composites')
+    expect(text()).toContain('missing')
   })
 
   it('takes an authored tile from another sheet, which is what the terrain layer used to prevent', () => {

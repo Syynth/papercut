@@ -160,8 +160,12 @@ export interface ViewportOptions {
   /** Cells the brush would affect, previewed under the cursor. */
   brushPreview: ReadonlyArray<readonly [number, number]>
   showGrid: boolean
-  /** Mark every corner the atlas had to compose: the transitions still to draw. */
+  /** Mark every corner no tile answers: the transitions still to draw. */
   showMissing: boolean
+  /** The colour a face with nothing on it, and a corner no tile answers, is drawn. */
+  fallback: number
+  /** Which material layers are drawn, bottom first; a hidden one is still in the document. */
+  materialLayers: readonly boolean[]
   /** Clamp the editor camera to what the game rig allows. */
   gameCamera: boolean
   /** How the free editor camera projects. Under `gameCamera` and in play the rig's own projection is used instead. */
@@ -199,6 +203,8 @@ const DEFAULT_OPTIONS: ViewportOptions = {
   brushPreview: [],
   showGrid: true,
   showMissing: false,
+  fallback: 0xff00ff,
+  materialLayers: [true, true, true, true],
   gameCamera: false,
   projection: 'perspective',
   play: null,
@@ -417,12 +423,15 @@ export class Viewport {
     const wasPlaying = this.playing
     const wasLayers = this.options.layers
     const wasShowMissing = this.options.showMissing
+    const was = this.options
     this.options = { ...this.options, ...options }
     if (this.playing !== wasPlaying) this.togglePlay(this.options.play)
     // The range is a section cut on the GPU: a plane and a uniform, nothing rebuilt.
     const layers = this.options.layers
     if (layers?.lo !== wasLayers?.lo || layers?.hi !== wasLayers?.hi) this.scene.setLayerRange(layers)
     if (this.options.showMissing !== wasShowMissing) this.scene.setShowMissing(this.options.showMissing)
+    if (this.options.fallback !== was.fallback) this.scene.setFallback(this.options.fallback)
+    if (this.options.materialLayers.some((shown, layer) => shown !== was.materialLayers[layer])) this.scene.setMaterialLayersShown(this.options.materialLayers)
   }
 
   /** A session is running. The flag this replaced was a second copy of the same fact. */

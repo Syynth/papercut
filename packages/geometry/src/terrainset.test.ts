@@ -221,8 +221,7 @@ describe('tags follow their pixels when the grid changes', () => {
 })
 
 describe('the runtime atlas', () => {
-  const priority = (key: Tag) => [GRASS, DIRT, PATH].indexOf(key)
-  /** What a composite's report calls a material, which the look reads off the material library. */
+  /** What the missing report calls a material, which the look reads off the material library. */
   const NAMES = new Map<Tag, string>([[GRASS, 'grass'], [PATH, 'path'], [DIRT, 'dirt']])
   const nameOf = (key: Tag): string => NAMES.get(key) ?? String(key)
   // A corner tagged nothing is transparent, as an artist's edge set would be; everything else is opaque.
@@ -236,11 +235,11 @@ describe('the runtime atlas', () => {
   }
 
   it('holds every tagged tile from the start and answers an authored corner without growing', () => {
-    const atlas = new TerrainAtlas([{ set: groundSet(), image: image() }], priority)
+    const atlas = new TerrainAtlas([{ set: groundSet(), image: image() }])
     const before = atlas.version
     const corner: CornerKeys = [GRASS, GRASS, PATH, PATH]
-    const { tile, composite } = atlas.tileFor(corner)
-    expect(composite).toBe(false)
+    const { tile, missing } = atlas.tileFor(corner)
+    expect(missing).toBe(false)
     expect(atlas.version).toBe(before)
     // The atlas tile carries the sheet tile's pixels: its red channel is the sheet index.
     const [u0, , , v1] = atlas.uv(tile, -1)
@@ -263,7 +262,7 @@ describe('the runtime atlas', () => {
       for (let i = 1; i < sheet.data.length; i += 4) sheet.data[i] = green
       return sheet
     }
-    const atlas = new TerrainAtlas([{ set: edges, image: marked(10) }, { set: pair, image: marked(20) }], priority)
+    const atlas = new TerrainAtlas([{ set: edges, image: marked(10) }, { set: pair, image: marked(20) }])
     const sourceOf = (tile: number): [number, number] => {
       const [u0, , , v1] = atlas.uv(tile, -1)
       const px = Math.round(u0 * atlas.image.width)
@@ -272,53 +271,53 @@ describe('the runtime atlas', () => {
       return [atlas.image.data[at], atlas.image.data[at + 1]]
     }
     const half = atlas.tileFor([GRASS, GRASS, PATH, PATH])
-    expect(half.composite).toBe(false)
+    expect(half.missing).toBe(false)
     // Path over the bottom half is mask 12, tile 12 of the pair sheet.
     expect(sourceOf(half.tile)).toEqual([12, 20])
     const corner = atlas.tileFor([GRASS, null, null, null])
-    expect(corner.composite).toBe(false)
+    expect(corner.missing).toBe(false)
     // Grass at the NW only is mask 1, tile 1 of the edge sheet.
     expect(sourceOf(corner.tile)).toEqual([1, 10])
   })
 
-  it('bakes a composite for a pair nobody drew, from edge sets in priority order, once', () => {
-    const atlas = new TerrainAtlas([{ set: groundSet(), image: image() }], priority, () => null, nameOf)
+  it('draws the fallback for a pair nobody drew, composites nothing, and names it once', () => {
+    const atlas = new TerrainAtlas([{ set: groundSet(), image: image() }], { nameOf, fallback: 0x123456 })
     const corner: CornerKeys = [GRASS, GRASS, DIRT, DIRT]
     const first = atlas.tileFor(corner)
-    const again = atlas.tileFor(corner)
-    expect(first.composite).toBe(true)
-    expect(again).toBe(first)
-    expect(atlas.compositeReport()).toEqual([{ combo: 'grass · dirt', tile: first.tile }])
-    // Grass is lowest: its full edge tile (mask 15, sheet index 27) goes under. Dirt's edge tile for SW + SE
-    // (mask 12, sheet index 60) goes over it, opaque in the bottom half only.
+    expect(first.missing).toBe(true)
+    expect(atlas.tileFor(corner)).toBe(first)
+    expect(first.tile).toBe(atlas.fallbackTile())
+    expect(atlas.missingReport()).toEqual([{ combo: 'dirt · grass' }])
+    // Flat, the fallback colour, every pixel: nothing of either material's art is stacked into it.
     const width = atlas.image.width
     const columns = width / T
     const dx = (first.tile % columns) * T
     const dy = Math.floor(first.tile / columns) * T
-    const at = (x: number, y: number) => atlas.image.data.subarray(((dy + y) * width + dx + x) * 4, ((dy + y) * width + dx + x) * 4 + 4)
-    expect([at(0, 0)[0], at(0, 0)[3]]).toEqual([27, 255])
-    expect([at(0, T - 1)[0], at(0, T - 1)[3]]).toEqual([60, 255])
+    const at = (x: number, y: number) => [...atlas.image.data.subarray(((dy + y) * width + dx + x) * 4, ((dy + y) * width + dx + x) * 4 + 4)]
+    expect(at(0, 0)).toEqual([0x12, 0x34, 0x56, 255])
+    expect(at(T - 1, T - 1)).toEqual([0x12, 0x34, 0x56, 255])
   })
 
-  it('names a corner that meets nothing with "edge", and keeps every UV where it was as it fills', () => {
-    const atlas = new TerrainAtlas([{ set: groundSet(), image: image() }], priority, () => null, nameOf)
+  it('names a corner that meets nothing with "edge", and never grows or moves a UV however many are missing', () => {
+    const atlas = new TerrainAtlas([{ set: groundSet(), image: image() }], { nameOf })
     const authored = atlas.tileFor([GRASS, GRASS, PATH, PATH]).tile
     const uvBefore = atlas.uv(authored, 0)
     const { height, data } = atlas.image
+    atlas.fallbackTile()
     const used = atlas.used
     for (let i = 0; i < 40; i++) atlas.tileFor([GRASS, i % 2 ? PATH : DIRT, DIRT, null])
-    // Two combinations composited: the image is the same buffer at the same size, so nothing meshed before moved.
-    expect(atlas.used).toBe(used + 2)
+    // Every missing corner shares the one fallback tile.
+    expect(atlas.used).toBe(used)
     expect(atlas.image.height).toBe(height)
     expect(atlas.image.data).toBe(data)
     expect(atlas.uv(authored, 0)).toEqual(uvBefore)
     expect(atlas.tileFor([GRASS, GRASS, PATH, PATH]).tile).toBe(authored)
-    expect(atlas.compositeReport().map((c) => c.combo)).toContain('grass · dirt · edge')
-    expect(atlas.compositeReport().map((c) => c.combo)).toContain('grass · dirt · path · edge')
+    expect(atlas.missingReport().map((c) => c.combo)).toContain('dirt · grass · edge')
+    expect(atlas.missingReport().map((c) => c.combo)).toContain('dirt · grass · path · edge')
   })
 
   it('quadrant UVs tile the whole rect and sit inside it by half a texel', () => {
-    const atlas = new TerrainAtlas([{ set: groundSet(), image: image() }], priority)
+    const atlas = new TerrainAtlas([{ set: groundSet(), image: image() }])
     const whole = atlas.uv(5, -1)
     const nw = atlas.uv(5, 0)
     const se = atlas.uv(5, 3)

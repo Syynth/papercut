@@ -213,7 +213,7 @@ export interface PatchCorner {
   column: number
   row: number
   corners: CornerTags
-  /** The tile tagged exactly so, or `null` when nothing is — which is what the atlas would composite. */
+  /** The tile tagged exactly so, or `null` when nothing is — which is where the atlas draws the fallback. */
   tile: number | null
 }
 
@@ -223,7 +223,7 @@ export interface PatchCorner {
  * The editor's preview is this: give it a shape drawn in terrain ids and it answers with the tiles
  * a map would actually use, so what the artist sees is their own art assembled rather than a swatch
  * of the material's colour. A corner nothing is tagged for comes back `null`, which is precisely the
- * hole the atlas fills by compositing — so an incomplete set shows its gaps instead of hiding them.
+ * hole the atlas fills with the fallback — so an incomplete set shows its gaps instead of hiding them.
  *
  * `cells` is row-major and may hold `null` for nothing. The corner grid is one larger in each
  * direction, because corners sit between cells and around the outside.

@@ -261,8 +261,8 @@ export interface BackdropCard {
  * looks like on a wall is its own wall art, not a pointer to another material.
  *
  * The order of the project's materials is their priority: the shape a
- * template takes when it is placed for a pair, and the layering of a
- * composited corner.
+ * template takes when it is placed for a pair. It no longer layers anything
+ * when drawn; the artist's material layers do (ruling of 2026-09-18).
  */
 export interface MaterialDef {
   /**

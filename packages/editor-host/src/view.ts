@@ -32,8 +32,10 @@ const layerRange = z
 const viewSettings = z
   .object({
     showGrid: z.boolean().exactOptional(),
-    /** Mark every corner the terrain atlas had to compose because no transition tile is authored for it. */
+    /** Mark every corner no transition tile is authored for, where the terrain draws the fallback. */
     showMissing: z.boolean().exactOptional(),
+    /** The colour, 0xRRGGBB, a face with nothing on it and a corner no tile answers are drawn: magenta unless set. */
+    fallback: z.int().min(0).max(0xffffff).exactOptional(),
     gameCamera: z.boolean().exactOptional(),
     /** How the editor camera projects while free: the view cube's second click flips it. The game's rig has its own. */
     projection: z.enum(['perspective', 'orthographic']).exactOptional(),
@@ -109,7 +111,7 @@ export const viewLogic = setup({
   },
 }).createMachine({
   id: 'view',
-  context: { showGrid: true, showMissing: false, gameCamera: false, projection: 'perspective', inspector: 'properties', layers: null, levelOpen: false, notice: null, settings: null, dialog: null, selection: null, selectedObjectId: null },
+  context: { showGrid: true, showMissing: false, fallback: 0xff00ff, gameCamera: false, projection: 'perspective', inspector: 'properties', layers: null, levelOpen: false, notice: null, settings: null, dialog: null, selection: null, selectedObjectId: null },
   initial: 'ready',
   states: {
     ready: {

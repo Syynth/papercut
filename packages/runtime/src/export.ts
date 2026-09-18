@@ -58,6 +58,9 @@ function geometryFrom(buffers: MeshBuffers): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.BufferAttribute(buffers.positions, 3))
   geometry.setAttribute('normal', new THREE.BufferAttribute(buffers.normals, 3))
+  // The first material layer only. The editor stacks all four in a shader (`stack.ts`), which a glTF
+  // consumer does not have; how the layers above travel to the game — baked, or as TEXCOORD_1–3 with a
+  // shader of its own — is not decided yet, and until it is an export draws what the bottom layer holds.
   geometry.setAttribute('uv', new THREE.BufferAttribute(buffers.uvs, 2))
   // Baked AO and tint travel as COLOR_0, exactly as the mapping table says.
   geometry.setAttribute('color', new THREE.BufferAttribute(buffers.colors, 3))

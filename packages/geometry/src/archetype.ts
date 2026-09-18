@@ -130,7 +130,7 @@ export function slotSize(archetype: Archetype, density: number): { width: number
   return { width: Math.round(density * archetype.aspect.width), height: Math.round(density * archetype.aspect.height) }
 }
 
-/** The slots that must be drawn before nothing composites: the optional ones do not count. */
+/** The slots that must be drawn before no corner falls back: the optional ones do not count. */
 export function requiredSlots(archetype: Archetype): Slot[] {
   return archetype.slots.filter((s) => !s.optional)
 }

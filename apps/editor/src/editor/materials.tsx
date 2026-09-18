@@ -133,7 +133,7 @@ export function MaterialsPicker({ active, sets }: { active: number; sets: readon
  * masks, so a slot nobody drew shows up in the patch rather than only in the
  * strip. The MEETING shape keeps the second material strictly inside the
  * first, because a corner where three things meet is one no two-material
- * tile can answer — that is the compositor's job, not a hole in the art.
+ * tile can answer, and is drawn from layers rather than from one tile.
  */
 const BLOB = [
   '..####....',
@@ -248,7 +248,7 @@ function PatchPreview({ tile, corners, columns, rows, scale, mine, theirs, lit, 
       const dy = corner.row * step
       if (corner.found === null) {
         if (corner.corners.every((c) => c === null)) return
-        // Nothing is tagged for it on any sheet, so the atlas would composite it: show it as missing.
+        // Nothing is tagged for it on any sheet, so the terrain draws the fallback there: show it as missing.
         ctx.fillStyle = 'rgba(229, 99, 111, 0.22)'
         ctx.fillRect(dx, dy, step, step)
         ctx.strokeStyle = 'rgba(229, 99, 111, 0.85)'
@@ -561,7 +561,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
         <TextInput value={material.name} onChange={(name) => (name.trim() ? change({ name }) : undefined)} />
       </Field>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <Field label="Swatch" hint="Where no art covers a corner">
+        <Field label="Swatch" hint="Its colour in lists and chips">
           <ColorInput value={material.color} onChange={(color) => change({ color })} />
         </Field>
         <Field label="Archetype" hint={archetype.note}>
@@ -584,7 +584,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
                 <button type="button" className="ui-tagger-name" onClick={() => { setMeeting(meeting === m.other.id ? null : m.other.id); setLit(null) }}>
                   {m.other.name}
                 </button>
-                <Status tone={m.drawn === m.owed ? 'ok' : m.drawn === 0 ? 'muted' : 'warn'}>{m.drawn === m.owed ? 'drawn' : m.drawn === 0 ? 'composites' : `${m.drawn} / ${m.owed}`}</Status>
+                <Status tone={m.drawn === m.owed ? 'ok' : m.drawn === 0 ? 'muted' : 'warn'}>{m.drawn === m.owed ? 'drawn' : m.drawn === 0 ? 'missing' : `${m.drawn} / ${m.owed}`}</Status>
               </div>
             ))}
           </div>
@@ -593,7 +593,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
 
       <div className="ui-k" style={{ marginTop: 4 }}>Priority</div>
       <div className="ui-hint-line">
-        {position + 1} of {materials.length} — higher draws over lower where a corner nobody drew is composited.
+        {position + 1} of {materials.length} — the order a transition's layout places a pair in when Create writes its tags.
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         <Action title="Move up" disabled={position <= 0} onClick={() => move(position - 1)} />

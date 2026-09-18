@@ -42,17 +42,19 @@ import {
   columnHeights,
   type MaterialDef,
 } from '@papercut/document'
-import { createTerrainLook, meshSketch, meshTerrainChunk, type EdgeSpec, type LoadedSet, type MeshBuffers, type SketchMesh, type TerrainLook } from '@papercut/geometry'
+import { DEFAULT_FALLBACK, createTerrainLook, meshSketch, meshTerrainChunk, type EdgeSpec, type LoadedSet, type MeshBuffers, type SketchMesh, type TerrainLook } from '@papercut/geometry'
 import { ObjectView, releaseReplaced, releaseTexture, rgbaTexture, spriteImages, type ObjectViewContext } from './billboard'
 import { withinLayers, type LayerRange } from './layers'
 import { SectionCut, VoxelCap, type SketchCap } from './section'
 import { Sky, sunDirection } from './sky'
+import { setStackUvs, stackLayers } from './stack'
 
 function buildGeometry(buffers: MeshBuffers): THREE.BufferGeometry {
   const geometry = new THREE.BufferGeometry()
   geometry.setAttribute('position', new THREE.BufferAttribute(buffers.positions, 3))
   geometry.setAttribute('normal', new THREE.BufferAttribute(buffers.normals, 3))
   geometry.setAttribute('uv', new THREE.BufferAttribute(buffers.uvs, 2))
+  setStackUvs(geometry, buffers)
   geometry.setAttribute('color', new THREE.BufferAttribute(buffers.colors, 3))
   geometry.setIndex(new THREE.BufferAttribute(buffers.indices, 1))
   geometry.computeBoundingSphere()
@@ -62,10 +64,10 @@ function buildGeometry(buffers: MeshBuffers): THREE.BufferGeometry {
 interface ChunkView {
   solid: THREE.Mesh
   water: THREE.Mesh | null
-  /** A dot on every corner the atlas composited, shown while the editor asks for them. */
+  /** A dot on every corner no tile answered, shown while the editor asks for them. */
   marks: THREE.Points | null
-  /** The distinct combinations this chunk composited, by name. */
-  composites: readonly string[]
+  /** The distinct combinations no tile answered in this chunk, by name. */
+  missing: readonly string[]
   faceAddr: Int32Array
   waterFaceAddr: Int32Array | null
   triangleCount: number
@@ -107,6 +109,8 @@ export interface SceneAssets {
   materials: readonly MaterialDef[]
   /** The project's resolution profile's filtering: nearest for pixel art. */
   filtering: 'nearest' | 'linear'
+  /** The colour a face with nothing on it, and a corner no tile answers, is drawn: `DEFAULT_FALLBACK` unless given. */
+  fallback?: number
   sprites: Record<string, SpriteAsset>
   /** Fill-and-edge textures by the names the document's surface materials use. */
   textures: Record<string, RgbaImage>
@@ -167,7 +171,7 @@ export class RuntimeScene {
   private views = new Map<string, ObjectView>()
   private terrainMaterial: THREE.MeshStandardMaterial
   private waterMaterial: THREE.MeshStandardMaterial
-  /** The composited-corner marks: drawn over everything, sized in pixels, magenta so they cannot be mistaken for art. */
+  /** The marks on corners no tile answered: drawn over everything, sized in pixels, magenta so they cannot be mistaken for art. */
   private markMaterial = new THREE.PointsMaterial({ color: 0xe04fc0, size: 7, sizeAttenuation: false, depthTest: false, transparent: true })
   private showMissing = false
   private surfaceMaterials = new Map<string, THREE.MeshStandardMaterial>()
@@ -177,6 +181,10 @@ export class RuntimeScene {
   /** The project's materials the look was built from. */
   private materials: readonly MaterialDef[]
   private filtering: 'nearest' | 'linear'
+  /** The colour a face with nothing on it, and a corner no tile answers, is drawn. */
+  private fallback: number
+  /** Which material layers the terrain shader draws: one 0-or-1 per layer (`stack.ts`). */
+  private stackShown: { value: THREE.Vector4 }
   /** The atlas image on the GPU, and the atlas version it was taken at. */
   private atlasImage: RgbaImage | null = null
   private atlasVersion = -1
@@ -194,7 +202,8 @@ export class RuntimeScene {
     this.sets = assets.terrain
     this.materials = assets.materials
     this.filtering = assets.filtering
-    this.look = createTerrainLook(this.materials, this.sets)
+    this.fallback = assets.fallback ?? DEFAULT_FALLBACK
+    this.look = createTerrainLook(this.materials, this.sets, this.fallback)
     this.sprites = assets.sprites
     this.textures = assets.textures
 
@@ -216,6 +225,7 @@ export class RuntimeScene {
       depthWrite: false,
     })
     this.section.solid(this.terrainMaterial)
+    this.stackShown = stackLayers(this.terrainMaterial)
     this.section.clip(this.waterMaterial)
 
     this.sun.castShadow = true
@@ -271,15 +281,27 @@ export class RuntimeScene {
     this.sky.apply(this.doc.atmosphere, this.sprites, this.filtering === 'nearest')
   }
 
-  /** The transitions composed somewhere on screen, named once each: the artist's to-do list (spec §3). Counted over the chunks as they stand, so painting a corner over takes it off the list. */
+  /** The transitions no tile answers somewhere on screen, named once each: the artist's to-do list (spec §3). Counted over the chunks as they stand, so painting a corner over takes it off the list. */
   missingTransitions(): readonly string[] {
     const names = new Set<string>()
-    for (const view of this.structures.values()) for (const chunk of view.chunks.values()) for (const combo of chunk.composites) names.add(combo)
+    for (const view of this.structures.values()) for (const chunk of view.chunks.values()) for (const combo of chunk.missing) names.add(combo)
     return [...names].sort()
   }
 
+  /** The colour a face with nothing on it, and a corner no tile answers, is drawn: a new atlas, so everything remeshes. */
+  setFallback(color: number): void {
+    if (color === this.fallback) return
+    this.fallback = color
+    this.relook()
+  }
+
+  /** Show or hide each material layer in the view: four flags, bottom layer first. Nothing is remeshed. */
+  setMaterialLayersShown(shown: readonly boolean[]): void {
+    this.stackShown.value.set(...([0, 1, 2, 3].map((l) => (shown[l] === false ? 0 : 1)) as [number, number, number, number]))
+  }
+
   private relook(): void {
-    this.look = createTerrainLook(this.materials, this.sets)
+    this.look = createTerrainLook(this.materials, this.sets, this.fallback)
     for (const [id, view] of this.structures) {
       const voxel = this.doc.structures[id]
       if (!voxel || voxel.kind !== 'voxel') continue
@@ -299,8 +321,8 @@ export class RuntimeScene {
   }
 
   /**
-   * Upload the atlas when it changed: a composite baked mid-stroke grows it,
-   * and a new look replaces it. `force` re-uploads an unchanged atlas, for a
+   * Upload the atlas when it changed: the fallback tile, made the first
+   * time a corner needs it, fills it, and a new look replaces it. `force` re-uploads an unchanged atlas, for a
    * filtering change. Each upload is a new image object, so the texture it
    * replaces is released by hand.
    */
@@ -355,7 +377,7 @@ export class RuntimeScene {
     this.section.set(range)
   }
 
-  /** Show or hide the marks on composited corners: the artist's map of which transitions to draw. */
+  /** Show or hide the marks on corners no tile answers: the artist's map of which transitions to draw. */
   setShowMissing(show: boolean): void {
     this.showMissing = show
     for (const view of this.structures.values()) for (const chunk of view.chunks.values()) if (chunk.marks) chunk.marks.visible = show
@@ -492,7 +514,7 @@ export class RuntimeScene {
       marks.raycast = () => undefined
       view.group.add(marks)
     }
-    view.chunks.set(key, { solid, water, marks, composites: mesh.composites, faceAddr: mesh.solid.faceAddr, waterFaceAddr: mesh.water?.faceAddr ?? null, triangleCount: mesh.solid.triangleCount })
+    view.chunks.set(key, { solid, water, marks, missing: mesh.missing, faceAddr: mesh.solid.faceAddr, waterFaceAddr: mesh.water?.faceAddr ?? null, triangleCount: mesh.solid.triangleCount })
   }
 
   private surfaceMaterial(textureName: string | null, band: boolean): THREE.MeshStandardMaterial {
