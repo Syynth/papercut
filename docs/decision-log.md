@@ -733,3 +733,11 @@ Each entry:
 - **SCOPE:** minor/local (follows "Terrain paint has explicit layers", same day)
 - **WHAT:** The paint layers live in a collapsing widget in a corner of the viewport. Open, it lists the four layers topmost first; clicking a row makes it the one painting goes to, and an eye on each row toggles its visibility in the view without changing anything saved. Collapsed, it still names the active layer and shows the stack as four marks, the active one highlighted and hidden ones dimmed. The paint toolbar shows the target layer and opens the widget.
 - **WHY:** Choosing which layer to paint to and hiding layers to see underneath are frequent while painting, so they belong on the stage beside the work rather than in a panel, and a widget that collapses keeps them from covering the map when not in use.
+
+## Material Layers and Z Layers
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui / terminology
+- **SCOPE:** moderate
+- **WHAT:** The four per-face paint slots are "Material Layers"; the height slices the stage's right-hand strip shows are "Z Layers". Each name says what it is a layer of, and the bare word "layer" is not used for either on its own. Code follows the names: the file format's `PaintLayers` record, which today holds face paint and tint, is renamed so it does not become a third meaning.
+- **WHY:** "Layer" already meant two things, the height slices and a record in the file format, and the material slots would have made three. A third meaning causes mistakes in code and in conversation; naming each by what it layers keeps them apart.
