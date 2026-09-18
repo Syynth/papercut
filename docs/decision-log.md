@@ -741,3 +741,11 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** The four per-face paint slots are "Material Layers"; the height slices the stage's right-hand strip shows are "Z Layers". Each name says what it is a layer of, and the bare word "layer" is not used for either on its own. Code follows the names: the file format's `PaintLayers` record, which today holds face paint and tint, is renamed so it does not become a third meaning.
 - **WHY:** "Layer" already meant two things, the height slices and a record in the file format, and the material slots would have made three. A third meaning causes mistakes in code and in conversation; naming each by what it layers keeps them apart.
+
+## A material spans archetypes; the archetype is named per corner
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model / document format
+- **SCOPE:** architectural (reshapes "A material fills an archetype's slots, and the archetype is per face", 2026-09-17)
+- **WHAT:** A material is not tied to one archetype. A face's archetype comes from its geometry — a top is floor, a cliff is wall, a slope is ramp — and a material has art for as many archetypes as someone has drawn. The archetype is named per CORNER in a tag, `5@wall`, because a dual-grid tile is centred on a corner and, at a fold, spans two faces: the tile where a grass floor meets a rock wall is tagged `[5@floor, 5@floor, 2@wall, 2@wall]`, and each face draws its own half of it. A corner with no archetype means any. The mesher's corners cross the fold to read the neighbouring face's stack. Lookup is specific before general: an exact join, then corners left as any, then the far side of the fold treated as nothing, then the fallback. A material's `side` pointer is replaced by its own wall art.
+- **WHY:** `side` mixed up which material a face holds with how that material looks on a wall. And the join between two faces is real art that artists draw, mid-tile, across the fold; a model where each tile belonged to a single face could not describe it.
