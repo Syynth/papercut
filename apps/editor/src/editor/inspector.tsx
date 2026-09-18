@@ -11,7 +11,7 @@
 
 import { useMemo } from 'react'
 
-import { materialById, type Atmosphere, type CameraRig, type DeepReadonly, type MapObject, type MaterialDef, type Placement, type ReadonlyMapDoc, type ReadonlyProjectDoc } from '@papercut/document'
+import { type Atmosphere, type CameraRig, type DeepReadonly, type MapObject, type MaterialDef, type Placement, type ReadonlyMapDoc, type ReadonlyProjectDoc } from '@papercut/document'
 import { useDocument, useHost, useProject, useToolsSelector, useViewSelector, type Selection } from '@papercut/editor-host'
 import { mergeParams, type EditorParams } from './params'
 import { chordFor, type Platform } from '@papercut/registry'
@@ -181,8 +181,8 @@ export function Inspector({
       {isTerrain ? <MaterialsPicker active={params.material} sets={terrain} /> : null}
 
       {isTerrain ? (
-        <Section title="Terrain sets" summary={materialById(materials, params.material)?.top.sheet ?? '—'} defaultOpen={false}>
-          <Note>Every material draws from a terrain set: a sheet and the sidecar that tags its tiles. The project's sheets are managed in Project settings.</Note>
+        <Section title="Tile sets" summary={`${terrain.length} ${terrain.length === 1 ? 'sheet' : 'sheets'}`} defaultOpen={false}>
+          <Note>A material&rsquo;s art is wherever tiles are tagged with it, on any of the project&rsquo;s images. The images are managed in Project settings.</Note>
           {terrainWarning ? <Note tone="warn">{terrainWarning}</Note> : null}
           <Actions>
             <Action title="Sheets…" onClick={onSettings} />

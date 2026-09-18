@@ -2489,3 +2489,11 @@ body {
 .ui-patch {
   cursor: crosshair;
 }
+.ui-tagger-item.is-dim .ui-tagger-name {
+  color: var(--ui-ink-3);
+}
+.ui-tagger-meta {
+  font: 500 10.5px var(--ui-font-mono);
+  color: var(--ui-ink-3);
+  font-variant-numeric: tabular-nums;
+}

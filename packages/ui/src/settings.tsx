@@ -179,7 +179,7 @@ export function Tagger({ tools, side, stage, foot, stageRef }: { tools: ReactNod
  * one a remove mark. Double-click the name to rename it in place; click the
  * swatch to recolour it. `swatch` is `null` for the entry that tags nothing.
  */
-export function TaggerItem({ name, swatch, active, onClick, onRename, onRecolour, onRemove, removeTitle }: { name: string; swatch: string | null; active: boolean; onClick: () => void; onRename?: (name: string) => void; onRecolour?: (hex: string) => void; onRemove?: (() => void) | null; removeTitle?: string }) {
+export function TaggerItem({ name, swatch, active, dim, meta, onClick, onRename, onRecolour, onRemove, removeTitle }: { name: string; swatch: string | null; active: boolean; /** Nothing on this sheet is tagged with it yet. */ dim?: boolean; /** How many corners of this sheet carry it. */ meta?: ReactNode; onClick: () => void; onRename?: (name: string) => void; onRecolour?: (hex: string) => void; onRemove?: (() => void) | null; removeTitle?: string }) {
   const [editing, setEditing] = useState<string | null>(null)
   const input = useRef<HTMLInputElement>(null)
   useEffect(() => {
@@ -191,7 +191,7 @@ export function TaggerItem({ name, swatch, active, onClick, onRename, onRecolour
     if (next && next !== name) onRename?.(next)
   }
   return (
-    <div className={`ui-tagger-item ${active ? 'is-active' : ''}`}>
+    <div className={`ui-tagger-item ${active ? 'is-active' : ''} ${dim ? 'is-dim' : ''}`}>
       {swatch === null ? (
         <span className="ui-tagger-swatch is-none" />
       ) : onRecolour ? (
@@ -223,6 +223,8 @@ export function TaggerItem({ name, swatch, active, onClick, onRename, onRecolour
         <button type="button" className="ui-tagger-remove" disabled={onRemove === null} title={removeTitle} onClick={onRemove ?? undefined} aria-label="Remove terrain">
           <Icon name="close" size={11} />
         </button>
+      ) : meta !== undefined ? (
+        <span className="ui-tagger-meta">{meta}</span>
       ) : null}
     </div>
   )

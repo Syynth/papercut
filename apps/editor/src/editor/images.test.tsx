@@ -66,7 +66,7 @@ const button = (label: string): HTMLButtonElement | undefined => [...window.docu
 describe('the image library', () => {
   it('offers a template, and says what the layout comes to before anything is written', async () => {
     const fs = new MemoryFs()
-    await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 16, placeholder: { set: { sheet: 'ground.png', tile: 16, columns: 1, rows: 1, terrains: [], tiles: new Map() }, image: { width: 16, height: 16, data: new Uint8ClampedArray(16 * 16 * 4) } } }, rawImageCodec)
+    await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 16, placeholder: { set: { sheet: 'ground.png', tile: 16, columns: 1, rows: 1, tiles: new Map() }, image: { width: 16, height: 16, data: new Uint8ClampedArray(16 * 16 * 4) } } }, rawImageCodec)
     const live = session(fs)
     mount(() => <ImagesSettings session={live} sets={[]} warning={null} selected={null} onSelect={() => undefined} />)
 
@@ -89,7 +89,7 @@ describe('the image library', () => {
 
   it('refuses two terrains that would share an id, rather than writing a sheet and finding out', async () => {
     const fs = new MemoryFs()
-    await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 16, placeholder: { set: { sheet: 'ground.png', tile: 16, columns: 1, rows: 1, terrains: [], tiles: new Map() }, image: { width: 16, height: 16, data: new Uint8ClampedArray(16 * 16 * 4) } } }, rawImageCodec)
+    await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 16, placeholder: { set: { sheet: 'ground.png', tile: 16, columns: 1, rows: 1, tiles: new Map() }, image: { width: 16, height: 16, data: new Uint8ClampedArray(16 * 16 * 4) } } }, rawImageCodec)
     const live = session(fs)
     mount(() => <ImagesSettings session={live} sets={[]} warning={null} selected={null} onSelect={() => undefined} />)
     act(() => button('New from template…')?.click())

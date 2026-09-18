@@ -452,8 +452,8 @@ export interface TemplateSpec {
   file: string
   name: string
   convention: string
-  /** The terrains it lays out, in the convention's order. */
-  terrains: ReadonlyArray<{ id: string; name: string; color: string }>
+  /** The materials it lays out, by id, in the convention's order. */
+  materials: readonly number[]
 }
 
 /**
@@ -462,6 +462,10 @@ export interface TemplateSpec {
  * The image is drawn at the project's density with every block of the convention in place, so the
  * sheet an artist opens already says what belongs in each cell — and, because its entry carries the
  * layout rather than hundreds of tags, every corner it covers is answered before a pixel is drawn.
+ *
+ * The blocks are of MATERIALS (ruling of 2026-09-17), so the template is drawn in their swatches and
+ * its tags name them. Placing one is the automation a transition is: the tags it writes are the
+ * transition, and there is nothing else kept beside them.
  */
 export async function newTemplateImage(host: Host, session: Session, spec: TemplateSpec): Promise<{ columns: number; rows: number }> {
   const { folder } = location(host)
@@ -470,7 +474,8 @@ export async function newTemplateImage(host: Host, session: Session, spec: Templ
   if (!convention) throw new Error(`No layout convention called ${spec.convention}.`)
   if (project.images.some((i) => sheetName(i.path) === spec.file)) throw new Error(`An image called ${spec.file} is already listed.`)
   const tile = project.resolution.texelDensity
-  const template = renderTemplate(spec.convention, spec.terrains.map((t) => ({ id: t.id, color: t.color })), { tile })
+  const swatch = (id: number): string => `#${(project.materials.find((m) => m.id === id)?.color ?? 0x808080).toString(16).padStart(6, '0')}`
+  const template = renderTemplate(spec.convention, spec.materials.map((id) => ({ id, color: swatch(id) })), { tile })
   session.lastWriteAt = Date.now()
   const next = await addImage(session.fs, folder, project, {
     file: spec.file,
@@ -478,8 +483,8 @@ export async function newTemplateImage(host: Host, session: Session, spec: Templ
     grid: plainGrid(tile),
     name: spec.name,
     kind: 'tileset',
-    layout: { convention: spec.convention, origin: { x: 0, y: 0 }, terrains: spec.terrains.map((t) => t.id), unauthored: [] },
-    terrain: { terrains: spec.terrains.map((t) => ({ ...t })), tiles: {} },
+    layout: { convention: spec.convention, origin: { x: 0, y: 0 }, materials: [...spec.materials] },
+    terrain: { tiles: {} },
   })
   host.dispatch('project.images.set', { images: next.images })
   await reloadImages(host, session, folder)
