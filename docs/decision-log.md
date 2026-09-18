@@ -677,3 +677,11 @@ Each entry:
 - **SCOPE:** minor/local
 - **WHAT:** The built-chunk ceiling is 750 kB, a number chosen for papercut rather than Vite's default warning threshold. Vendor code stays split out of the entry chunk, but the reason is what an UPDATE costs, not first paint: the editor loads from local disk over `app://`, while an installed app fetches its UI bundle from the Pages deploy file by content hash and skips whatever it already has, so keeping three.js, React and Mantine out of the entry chunk means a UI-only change re-ships about 154 kB gzipped instead of 469. The ceiling's job is to catch an import dragging a library into the entry chunk. It is not a budget to design around, and a change that needs a bit more room gets the room.
 - **WHY:** 500,000 was Vite's `chunkSizeWarningLimit`, a heuristic about one script blocking first paint over a mobile connection, adopted to silence a warning rather than from any measurement of this app. At 497 kB of 500 it had started shaping the code instead of catching anything.
+
+## A transition's layout is automation for applying tags, and sits on top of them
+- **WHEN:** 2026-09-17
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model
+- **SCOPE:** architectural (follows "Transitions exist in every archetype", same day)
+- **WHAT:** Corner tags stay the ground truth for what a tile means. A transition's fixed slot layout is AUTOMATION that writes those tags and sits on top of them: placing a transition tags its block, the tags it wrote are visible and editable in the tagger, and an explicit tag overrides what the layout derived. The atlas and the mesher keep resolving a corner by matching tags. They never look a transition up.
+- **WHY:** One resolution path instead of two. A transition that resolved separately would give the atlas a second way to answer the same corner, and the two could disagree. Writing tags keeps hand-tagging working unchanged, makes a generated transition something you can correct a tile of or walk away from entirely, and means the automation can be wrong without the renderer being wrong. It is the same derive-plus-override shape already ruled for layouts, stated for transitions.
