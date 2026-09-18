@@ -16,6 +16,7 @@ import {
   allChunkKeys,
   createMap,
   fillColumn,
+  tagOf,
   type MapDoc,
   type ReadonlyMapDoc,
   type RgbaImage,
@@ -24,7 +25,7 @@ import {
 import type { LoadedSet } from './atlas'
 import { createTerrainLook } from './look'
 import { meshTerrainChunk } from './terrain'
-import { addTerrain, createTerrainSet, stampTemplate } from './terrainset'
+import { createTerrainSet, stampTemplate } from './terrainset'
 
 /** The root voxel volume a fresh level has, mutable for setup: `createMap` names it `ground`. */
 const ground = (doc: ReadonlyMapDoc | MapDoc): VoxelStructure => doc.structures.ground as VoxelStructure
@@ -33,17 +34,17 @@ const ground = (doc: ReadonlyMapDoc | MapDoc): VoxelStructure => doc.structures.
 const TILE = 16
 
 /**
- * A stand-in for the placeholder terrain set the default materials point
- * into: the five terrains, each with an edge set on its own 4×4 block, over
- * one flat colour. The look is built once; a pair the mesher meets is baked
+ * A stand-in for the placeholder terrain set the default materials draw from:
+ * the five materials, each with an edge set on its own 4×4 block, over one
+ * flat colour. The look is built once; a pair the mesher meets is baked
  * into its atlas on first sight and answered from cache after, so the
  * timings below are the mesher's, not the atlas's.
  */
 function placeholderSet(): LoadedSet {
   let set = createTerrainSet(PLACEHOLDER_SHEET, TILE, 16, 8)
-  ;['grass', 'dirt', 'stone', 'sand', 'path'].forEach((id, i) => {
-    set = addTerrain(set, { id, name: id, color: '#808080' })
-    set = stampTemplate(set, (i % 4) * 4, Math.floor(i / 4) * 4, null, id)
+  // A tag names a material of the project (ruling of 2026-09-17), so the blocks are the default materials by id.
+  DEFAULT_MATERIALS.forEach((material, i) => {
+    set = stampTemplate(set, (i % 4) * 4, Math.floor(i / 4) * 4, null, tagOf(material.id))
   })
   const image: RgbaImage = { width: 16 * TILE, height: 8 * TILE, data: new Uint8ClampedArray(16 * TILE * 8 * TILE * 4).fill(255) }
   return { set, image }

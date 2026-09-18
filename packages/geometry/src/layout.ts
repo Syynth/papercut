@@ -8,20 +8,21 @@
  * than hundreds of entries — and, because papercut can also DRAW the layout,
  * an artist starts from a template whose tags are right before a pixel exists.
  *
- * The values a layout arranges are `nothing` and the terrains, in that order:
- * value 0 is nothing — the edge of the ground — and value k is the k-th
- * terrain of the layout's list. A BLOCK is one combination of those values,
- * and holds every tile in which exactly those values meet at a corner.
+ * The values a layout arranges are `nothing` and the materials, in that
+ * order: value 0 is nothing — the edge of the ground — and value k is the
+ * k-th material of the layout's list. A BLOCK is one combination of those
+ * values, and holds every tile in which exactly those values meet at a
+ * corner.
  *
  * Papercut does not infer a convention from an existing sheet's pixels; a
  * sheet is brought in by generating the template and moving the art into it.
  */
 
-import type { Axes, ImageTerrain, Tag } from '@papercut/document'
+import { tagOf, type Axes, type ImageTerrain, type Tag } from '@papercut/document'
 
 /** A block of a layout: the values that meet in it, and where it sits. */
 export interface LayoutBlock {
-  /** Names the block in an entry's `unauthored` list: the values, joined, as `0+1` or `1+2+3`. */
+  /** Names the block: the values, joined, as `0+1` or `1+2+3`. */
   key: string
   /** Indexes into [nothing, ...terrains]; 0 is nothing. */
   values: number[]
@@ -154,24 +155,25 @@ export function conventionOf(id: string): Convention | null {
 export interface LayoutSpec {
   convention: string
   origin: Axes
-  terrains: string[]
-  unauthored: string[]
+  /** The materials it lays out, by id, in the convention's order. */
+  materials: number[]
 }
 
 /**
- * The tags a layout puts on an image, as an `ImageTerrain`'s `tiles`: every tile of every block the
- * artist has drawn, placed from the layout's origin on a grid `columns` wide. A block named
- * unauthored contributes nothing, so the corners it would have covered composite and are reported
- * as still to author — which is the truth about a sheet with a block left blank.
+ * The tags a layout puts on an image, as an `ImageTerrain`'s `tiles`: every tile of every block,
+ * placed from the layout's origin on a grid `columns` wide.
+ *
+ * There is no list of blocks left undrawn any more (ruling of 2026-09-17). A block nobody drew is
+ * still tagged here, because the layout says what the sheet IS; whether art exists for a corner is
+ * a question about pixels, and what is still to author is a query over the tags rather than a list
+ * kept beside them.
  */
 export function layoutTags(spec: LayoutSpec, columns: number, rows: number): Record<string, [Tag, Tag, Tag, Tag]> {
   const convention = conventionOf(spec.convention)
   if (!convention) return {}
-  const skip = new Set(spec.unauthored)
   const tiles: Record<string, [Tag, Tag, Tag, Tag]> = {}
-  const name = (value: number): Tag => (value === 0 ? null : (spec.terrains[value - 1] ?? null))
-  for (const tile of convention.tiles(spec.terrains.length)) {
-    if (skip.has(tile.block)) continue
+  const name = (value: number): Tag => (value === 0 ? null : (spec.materials[value - 1] === undefined ? null : tagOf(spec.materials[value - 1])))
+  for (const tile of convention.tiles(spec.materials.length)) {
     const column = spec.origin.x + tile.column
     const row = spec.origin.y + tile.row
     if (column >= columns || row >= rows) continue
@@ -182,5 +184,5 @@ export function layoutTags(spec: LayoutSpec, columns: number, rows: number): Rec
 
 /** A layout's tags with the entry's own on top: the layout describes the sheet, the entry corrects it. */
 export function terrainFromLayout(spec: LayoutSpec, overrides: ImageTerrain, columns: number, rows: number): ImageTerrain {
-  return { terrains: overrides.terrains.map((t) => ({ ...t })), tiles: { ...layoutTags(spec, columns, rows), ...overrides.tiles } }
+  return { tiles: { ...layoutTags(spec, columns, rows), ...overrides.tiles } }
 }

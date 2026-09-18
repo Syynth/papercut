@@ -265,7 +265,7 @@ export async function addImage(fs: ProjectFs, folder: string, project: ReadonlyP
     hash: await hashBytes(image.bytes),
     grid: image.grid,
     layout: image.layout === undefined ? (previous?.layout ?? null) : image.layout,
-    terrain: image.terrain ?? previous?.terrain ?? { terrains: [], tiles: {} },
+    terrain: image.terrain ?? previous?.terrain ?? { tiles: {} },
   }
   const next = withEntry(project, entry)
   await writeProject(fs, folder, next)
@@ -276,7 +276,7 @@ export async function addImage(fs: ProjectFs, folder: string, project: ReadonlyP
 export async function listImage(fs: ProjectFs, folder: string, project: ReadonlyProjectDoc, path: string, grid: Grid, options: { name?: string; kind?: ImageKind } = {}): Promise<ProjectDoc> {
   const file = sheetName(path)
   if (project.images.some((i) => sheetName(i.path) === file)) throw new Error(`An image called ${file} is already listed.`)
-  const entry: ImageEntry = { path, name: options.name ?? stemOf(path), kind: options.kind ?? 'tileset', hash: await hashBytes(await fs.readFile(joinPath(folder, path))), grid, layout: null, terrain: { terrains: [], tiles: {} } }
+  const entry: ImageEntry = { path, name: options.name ?? stemOf(path), kind: options.kind ?? 'tileset', hash: await hashBytes(await fs.readFile(joinPath(folder, path))), grid, layout: null, terrain: { tiles: {} } }
   const next = withEntry(project, entry)
   await writeProject(fs, folder, next)
   return next

@@ -95,11 +95,9 @@ export interface SceneStats {
   lastMeshMs: number
 }
 
-const sameRef = (a: MaterialDef['top'] | undefined, b: MaterialDef['top'] | undefined): boolean => a?.sheet === b?.sheet && a?.terrain === b?.terrain
-
-/** Whether two material lists draw the same: same ids in the same order, each with the same terrains and colour. */
+/** Whether two material lists draw the same: same ids in the same order, each with the same side material and colour. */
 export function sameLook(a: readonly MaterialDef[], b: readonly MaterialDef[]): boolean {
-  return a.length === b.length && a.every((m, i) => m.id === b[i].id && m.color === b[i].color && sameRef(m.top, b[i].top) && sameRef(m.side, b[i].side))
+  return a.length === b.length && a.every((m, i) => m.id === b[i].id && m.color === b[i].color && m.side === b[i].side)
 }
 
 export interface SceneAssets {

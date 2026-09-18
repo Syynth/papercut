@@ -68,7 +68,7 @@ export function ProjectSettings({ session, platform }: { session: Session; platf
     general: `${project.maps.length} ${project.maps.length === 1 ? 'map' : 'maps'}`,
     resolution: `${project.resolution.texelDensity} px · ${project.resolution.filtering}`,
     images: `${project.images.length} ${project.images.length === 1 ? 'image' : 'images'}${missingCount ? ` · ${missingCount} with a problem` : ''}`,
-    terrains: `${art.loadedTerrain.length} ${art.loadedTerrain.length === 1 ? 'set' : 'sets'} · ${art.loadedTerrain.reduce((n, s) => n + s.set.terrains.length, 0)} terrains`,
+    terrains: `${art.loadedTerrain.length} ${art.loadedTerrain.length === 1 ? 'sheet' : 'sheets'} · ${art.loadedTerrain.reduce((n, s) => n + s.set.tiles.size, 0)} tagged`,
     materials: `${project.materials.length} materials · priority top to bottom`,
     camera: `${project.camera.projection} · ${project.camera.fov}°`,
     editor: 'This machine',

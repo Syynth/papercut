@@ -1,18 +1,20 @@
 import { describe, expect, it } from 'vitest'
 
-import { PROJECT_FILE, createMap, parseProject, plainGrid, type RgbaImage } from '@papercut/document'
-import { CORNER_BLOCKS, addTerrain, createTerrainSet, exactTile, renderTemplate, stampTemplate, terrainOf, type LoadedSet } from '@papercut/geometry'
+import { PROJECT_FILE, createMap, parseProject, plainGrid, tagOf, type RgbaImage } from '@papercut/document'
+import { CORNER_BLOCKS, createTerrainSet, exactTile, renderTemplate, stampTemplate, terrainOf, type LoadedSet } from '@papercut/geometry'
 
 import { rawImageCodec } from './codec'
 import { addImage, addMap, createProjectFolder, hashBytes, listImage, listImageFiles, mapPathFor, openProject, readMap, slugOf, writeMap } from './folder'
 import { FsError, MemoryFs, joinPath, parentPath } from './fs'
 import { forget, parseRecents, remember } from './recents'
 
-/** A stand-in for the placeholder set: one terrain, its edge set, over a flat image. */
+/** Grass, which is material 0 of the default library every project starts with. */
+const GRASS = tagOf(0)
+
+/** A stand-in for the placeholder set: one material, its edge set, over a flat image. */
 function placeholder(tile = 4): LoadedSet {
   let set = createTerrainSet('ground.png', tile, 4, 4)
-  set = addTerrain(set, { id: 'grass', name: 'Grass', color: '#6aa84f' })
-  set = stampTemplate(set, 0, 0, null, 'grass')
+  set = stampTemplate(set, 0, 0, null, GRASS)
   const image: RgbaImage = { width: 4 * tile, height: 4 * tile, data: new Uint8ClampedArray(4 * tile * 4 * tile * 4).fill(200) }
   return { set, image }
 }
@@ -79,8 +81,8 @@ describe('a project folder', () => {
     const fs = new MemoryFs()
     await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)
     const project = parseProject(await fs.readTextFile('/p/papercut.json'))
-    project.images.push({ path: 'sheets/cliffs.png', name: 'Cliffs', kind: 'tileset', hash: null, grid: plainGrid(4), layout: null, terrain: { terrains: [], tiles: {} } })
-    project.images.push({ path: 'sheets/props.png', name: 'Props', kind: 'tileset', hash: null, grid: plainGrid(3), layout: null, terrain: { terrains: [], tiles: {} } })
+    project.images.push({ path: 'sheets/cliffs.png', name: 'Cliffs', kind: 'tileset', hash: null, grid: plainGrid(4), layout: null, terrain: { tiles: {} } })
+    project.images.push({ path: 'sheets/props.png', name: 'Props', kind: 'tileset', hash: null, grid: plainGrid(3), layout: null, terrain: { tiles: {} } })
     await fs.writeFile('/p/sheets/props.png', await rawImageCodec.encode(placeholder(3).image))
     // The placeholder's tags describe a 4×4 grid; listed at 8 px it is 2×2, so twelve tags fall past the edge.
     project.images[0].grid = plainGrid(8)
@@ -99,7 +101,7 @@ describe('a project folder', () => {
     ])
     // At the density with a grid too coarse for its tags, the set loads with the tags past the edge dropped and named.
     project.images[0].grid = plainGrid(4)
-    project.images[0].terrain.tiles['99'] = ['grass', null, null, null]
+    project.images[0].terrain.tiles['99'] = [GRASS, null, null, null]
     await fs.writeFile('/p/papercut.json', JSON.stringify(project))
     const again = await openProject(fs, '/p', rawImageCodec)
     expect(again.sets[0].set.tiles.size).toBe(16)
@@ -171,7 +173,7 @@ describe('a project folder', () => {
     const withImage = await addImage(fs, '/p', added.project, { file: 'cliffs.png', bytes: await rawImageCodec.encode(cliffs.image), grid: plainGrid(4), name: 'Cliff faces', terrain: terrainOf(cliffs.set) })
     expect(withImage.images.map((i) => i.path)).toEqual(['sheets/ground.png', 'sheets/cliffs.png'])
     expect(withImage.images[1]).toMatchObject({ path: 'sheets/cliffs.png', name: 'Cliff faces', kind: 'tileset', grid: plainGrid(4) })
-    expect(withImage.images[1].terrain.terrains.map((t) => t.id)).toEqual(['grass'])
+    expect(withImage.images[1].terrain).toEqual(terrainOf(cliffs.set))
     const reopened = await openProject(fs, '/p', rawImageCodec)
     expect(reopened.sets.map((s) => s.set.sheet)).toEqual(['ground.png', 'cliffs.png'])
     // Adding an image of the same file name replaces its file and grid and keeps its name and tags: what Replace image… does.
@@ -184,7 +186,7 @@ describe('a project folder', () => {
     await fs.writeFile('/p/sheets/props.png', await rawImageCodec.encode(placeholder(2).image))
     expect((await openProject(fs, '/p', rawImageCodec)).unlisted).toEqual(['sheets/props.png'])
     const listed = await listImage(fs, '/p', replaced, 'sheets/props.png', plainGrid(2))
-    expect(listed.images[2]).toMatchObject({ path: 'sheets/props.png', name: 'props', kind: 'tileset', terrain: { terrains: [], tiles: {} } })
+    expect(listed.images[2]).toMatchObject({ path: 'sheets/props.png', name: 'props', kind: 'tileset', terrain: { tiles: {} } })
     expect(listed.images[2].hash).toMatch(/^sha256:/)
     await expect(listImage(fs, '/p', listed, 'sheets/props.png', plainGrid(2))).rejects.toThrow(/already listed/)
     expect((await openProject(fs, '/p', rawImageCodec)).unlisted).toEqual([])
@@ -192,45 +194,49 @@ describe('a project folder', () => {
 })
 
 describe('an image laid out to a convention', () => {
-  it('derives its tags from its layout, and the entry\'s own tags win over them', async () => {
+  it("derives its tags from its layout, and the entry's own tags win over them", async () => {
     const fs = new MemoryFs()
     const { project } = await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 8, placeholder: placeholder(8) }, rawImageCodec)
-    const terrains = [{ id: 'a', name: 'A', color: '#6aa84f' }, { id: 'b', name: 'B', color: '#d9c27e' }]
-    const template = renderTemplate('corner-blocks', terrains, { tile: 8 })
+    // A layout names the project's materials by id (ruling of 2026-09-17): grass and dirt, the first two of the default library.
+    const layout = { convention: 'corner-blocks', origin: { x: 0, y: 0 }, materials: [0, 1] }
+    const [A, B] = layout.materials.map((id) => tagOf(id))
+    const template = renderTemplate('corner-blocks', [{ id: 0, color: '#6aa84f' }, { id: 1, color: '#d9c27e' }], { tile: 8 })
     const next = await addImage(fs, '/p', project, {
       file: 'kit.png',
       bytes: await rawImageCodec.encode(template.image),
       grid: plainGrid(8),
       name: 'Kit',
-      layout: { convention: 'corner-blocks', origin: { x: 0, y: 0 }, terrains: ['a', 'b'], unauthored: [] },
-      terrain: { terrains, tiles: {} },
+      layout,
+      terrain: { tiles: {} },
     })
     // The entry stays small: the layout is the tags, not a list of them.
     expect(next.images[1].terrain.tiles).toEqual({})
-    expect(next.images[1].layout).toEqual({ convention: 'corner-blocks', origin: { x: 0, y: 0 }, terrains: ['a', 'b'], unauthored: [] })
+    expect(next.images[1].layout).toEqual(layout)
 
     const opened = await openProject(fs, '/p', rawImageCodec)
     expect(opened.warnings).toEqual([])
     const kit = opened.sets.find((s) => s.set.sheet === 'kit.png')
     expect(kit).toBeDefined()
     expect(kit?.set.tiles.size).toBe(CORNER_BLOCKS.tiles(2).length)
-    // Every corner of one or two of these terrains is answered by a real tile.
-    expect(exactTile(kit!.set, ['a', 'a', 'a', 'a'])).not.toBeNull()
-    expect(exactTile(kit!.set, ['a', null, null, null])).not.toBeNull()
-    expect(exactTile(kit!.set, ['a', 'b', 'a', 'b'])).not.toBeNull()
+    // Every corner of one or two of these materials is answered by a real tile.
+    expect(exactTile(kit!.set, [A, A, A, A])).not.toBeNull()
+    expect(exactTile(kit!.set, [A, null, null, null])).not.toBeNull()
+    expect(exactTile(kit!.set, [A, B, A, B])).not.toBeNull()
 
-    // An entry tag on the same tile wins; a block named unauthored stops tagging at all.
+    // An entry tag on the same tile wins, and it is the only tile that changes.
     const reopened = parseProject(await fs.readTextFile('/p/papercut.json'))
     const image = reopened.images[1]
-    image.terrain.tiles['0'] = ['b', 'b', 'b', 'b']
-    image.layout!.unauthored = ['1+2']
+    image.terrain.tiles['0'] = [B, B, B, B]
     await fs.writeFile('/p/papercut.json', JSON.stringify(reopened))
     const again = await openProject(fs, '/p', rawImageCodec)
     const set = again.sets.find((s) => s.set.sheet === 'kit.png')!.set
-    expect(set.tiles.get(0)).toEqual(['b', 'b', 'b', 'b'])
-    // The a+b block is gone, so a corner where both meet has no tile of its own any more.
-    expect(exactTile(set, ['a', 'b', 'a', 'b'])).toBeNull()
-    expect(exactTile(set, ['a', null, null, null])).not.toBeNull()
+    expect(set.tiles.get(0)).toEqual([B, B, B, B])
+    // There is no list of blocks left undrawn any more (ruling of 2026-09-17). The layout says what the sheet
+    // IS, so every block it lays out stays tagged whether or not anybody has painted it, and an override
+    // corrects exactly the tile it names.
+    expect(set.tiles.size).toBe(CORNER_BLOCKS.tiles(2).length)
+    expect(exactTile(set, [A, B, A, B])).not.toBeNull()
+    expect(exactTile(set, [A, null, null, null])).not.toBeNull()
   })
 })
 

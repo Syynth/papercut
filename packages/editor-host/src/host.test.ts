@@ -1,4 +1,4 @@
-import { FORMAT_VERSION, HALF, addObject, createDocument, createMap, createProject, serializeProject, defaultFacing, frameOf, groundHeight, materialById, raise, removeObject, serialize, topHeight, type MapDoc, type MapObject, type Patch, type ProjectDoc, type ReadonlyMapDoc, type SurfaceAddress, type SurfaceKind, type VoxelStructure } from '@papercut/document'
+import { FORMAT_VERSION, HALF, addObject, createDocument, createMap, createProject, serializeProject, defaultFacing, frameOf, groundHeight, materialById, raise, removeObject, serialize, tagOf, topHeight, type MapDoc, type MapObject, type Patch, type ProjectDoc, type ReadonlyMapDoc, type SurfaceAddress, type SurfaceKind, type Tag, type VoxelStructure } from '@papercut/document'
 import { commands, defineFeature, dispose, provideFeature, type HotHandle, reserveOwner, tools as toolDeclarations } from '@papercut/registry'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { SimulatedClock, setup as setupMachine, types, type AnyActorRef } from 'xstate'
@@ -144,10 +144,14 @@ describe('the document commands, routed to the document actor', () => {
     // The list's order is only its priority: a voxel names its material by id, so no voxel changed what it is made of.
     expect(ground(host.reader.doc).voxels.material).toEqual(voxels)
     expect(materialById(project().materials, voxels[0])?.name).toBe(materialById(before, voxels[0])?.name)
-    // A material that names no terrain is not a material.
+    // A material owes the slots of an archetype papercut ships, so one naming anything else is not a material.
     expect(dispatch('project.materials.set', { materials: [{ id: 9, name: 'X', color: 0, archetype: 'any' }] })).toMatchObject({ ok: false, kind: 'invalid-args' })
     // And two materials may not share an id: a voxel names its material by it.
     expect(dispatch('project.materials.set', { materials: [before[0], { ...before[1], id: before[0].id }] })).toMatchObject({ ok: false, kind: 'invalid-args' })
+    // `side` is another material by id (ruling of 2026-09-17), so one naming an id the list does not hold would
+    // send the mesher looking for art that cannot exist, and is refused here rather than at the cliff.
+    expect(dispatch('project.materials.set', { materials: [{ id: 9, name: 'X', color: 0, archetype: 'floor', side: 11 }] })).toMatchObject({ ok: false, kind: 'invalid-args' })
+    expect(dispatch('project.materials.set', { materials: [{ id: 9, name: 'X', color: 0, archetype: 'floor', side: 9 }] })).toEqual({ ok: true })
   })
 
   it('holds the project the app opened, and takes its settings and lists as commands', () => {
@@ -162,11 +166,18 @@ describe('the document commands, routed to the document actor', () => {
     expect(project().maps).toEqual(['maps/a.map.json', 'maps/b.map.json'])
     // Paths stay inside the folder, and a sheet is named by its file name, so two cannot share one.
     expect(dispatch('project.maps.set', { maps: ['../outside.map.json'] })).toMatchObject({ ok: false, kind: 'invalid-args' })
-    const image = (path: string, terrain: { terrains: Array<{ id: string; name: string; color: string }>; tiles: Record<string, [string | null, string | null, string | null, string | null]> } = { terrains: [], tiles: {} }) => ({ path, name: 'A', kind: 'tileset', hash: null, grid: { tile: 16, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, terrain })
+    const image = (path: string, terrain: { tiles: Record<string, [Tag, Tag, Tag, Tag]> } = { tiles: {} }) => ({ path, name: 'A', kind: 'tileset', hash: null, grid: { tile: 16, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, terrain })
     expect(dispatch('project.images.set', { images: [image('sheets/a.png'), image('other/a.png')] })).toMatchObject({ ok: false, kind: 'invalid-args' })
-    expect(dispatch('project.images.set', { images: [image('sheets/a.png', { terrains: [{ id: 'g', name: 'G', color: '#0f0' }], tiles: { 0: ['g', 'x', null, null] } })] })).toMatchObject({ ok: false, kind: 'invalid-args' })
-    expect(dispatch('project.images.set', { images: [image('sheets/a.png', { terrains: [{ id: 'g', name: 'G', color: '#0f0' }], tiles: { 0: ['g', null, null, null] } })] })).toEqual({ ok: true })
-    expect(project().images).toEqual([image('sheets/a.png', { terrains: [{ id: 'g', name: 'G', color: '#0f0' }], tiles: { 0: ['g', null, null, null] } })])
+    // A tag names a material (ruling of 2026-09-17), so a word that is nobody's id is refused.
+    expect(dispatch('project.images.set', { images: [image('sheets/a.png', { tiles: { 0: [tagOf(0), 'grass', null, null] } })] })).toMatchObject({ ok: false, kind: 'invalid-args' })
+    const tagged = image('sheets/a.png', { tiles: { 0: [tagOf(0), tagOf(2, 'convex'), null, null] } })
+    expect(dispatch('project.images.set', { images: [tagged] })).toEqual({ ok: true })
+    // An entry always carries a layout; leaving it out means there is none, and it comes back as `null`.
+    expect(project().images).toEqual([{ ...tagged, layout: null }])
+    // A layout names its materials by id, and rides through the command the same way the tags do.
+    const laid = { ...tagged, layout: { convention: 'corner-blocks', origin: { x: 0, y: 0 }, materials: [0, 2] } }
+    expect(dispatch('project.images.set', { images: [laid] })).toEqual({ ok: true })
+    expect(project().images).toEqual([laid])
     host.stop()
   })
 

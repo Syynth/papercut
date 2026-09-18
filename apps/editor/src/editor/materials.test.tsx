@@ -14,6 +14,7 @@
 
 import { createDocument, createMap } from '@papercut/document'
 import { HostProvider, createHost, type Host } from '@papercut/editor-host'
+import { tagOf } from '@papercut/document'
 import { templateTags, type CornerTags, type LoadedSet } from '@papercut/geometry'
 import { MemoryFs, rawImageCodec } from '@papercut/project'
 import { UiProvider } from '@papercut/ui'
@@ -63,22 +64,25 @@ function session(): Session {
 }
 
 /**
- * The placeholder sheet as a set that has drawn something: grass alone, and
- * grass over dirt, but nothing for stone — so the screen has one pairing that
- * is finished and several that are not.
+ * A sheet that has drawn something: for each pair given, the fifteen
+ * arrangements of the first material over the second, tagged with material
+ * ids. `null` as the second is the material on its own against nothing.
  */
-function ground(drawn: ReadonlyArray<readonly [string, string | null]>): LoadedSet {
+function sheet(name: string, drawn: ReadonlyArray<readonly [number, number | null]>): LoadedSet {
   const tile = 4
   const columns = 15
-  const rows = drawn.length
+  const rows = Math.max(1, drawn.length)
   const tiles = new Map<number, CornerTags>()
   drawn.forEach(([over, under], row) => {
-    for (let mask = 1; mask <= 15; mask++) tiles.set(row * columns + (mask - 1), templateTags(mask, under, over))
+    for (let mask = 1; mask <= 15; mask++) tiles.set(row * columns + (mask - 1), templateTags(mask, under === null ? null : tagOf(under), tagOf(over)))
   })
   const width = columns * tile
   const height = rows * tile
-  return { set: { sheet: 'ground.png', tile, columns, rows, terrains: [], tiles }, image: { width, height, data: new Uint8ClampedArray(width * height * 4) } }
+  return { set: { sheet: name, tile, columns, rows, tiles }, image: { width, height, data: new Uint8ClampedArray(width * height * 4) } }
 }
+
+/** Grass alone and grass over dirt, both on one sheet: the ordinary case. */
+const ground = (drawn: ReadonlyArray<readonly [number, number | null]>): LoadedSet[] => [sheet('ground.png', drawn)]
 
 function mount(ui: (host: Host) => ReactNode): HTMLElement {
   const host = createHost({ document: createDocument(createMap(8, 8)), features })
@@ -96,18 +100,20 @@ const named = (label: string): HTMLButtonElement | undefined => [...window.docum
 const inMeets = (label: string): HTMLButtonElement | undefined => [...(window.document.querySelector('.ui-library-form')?.querySelectorAll('button') ?? [])].find((b) => (b.textContent ?? '').trim() === label)
 
 describe('the materials screen', () => {
-  it("reports a material's art against its own archetype's slots, and groups Meets by archetype", () => {
-    const sets = [ground([['grass', null], ['grass', 'dirt']])]
+  it("reports a material's art against the fifteen arrangements, and groups Meets by archetype", () => {
+    // Grass (0) alone, and grass over dirt (1). Stone, Sand and Path have nothing drawn.
+    const sets = ground([
+      [0, null],
+      [0, 1],
+    ])
     mount(() => <MaterialsSettings session={session()} selected={0} onSelect={() => undefined} sets={sets} />)
 
-    // Grass is a floor, so it owes the fifteen corner masks and has drawn all of them.
-    expect(text()).toContain('15 slots · 15 of 15 drawn')
+    expect(text()).toContain('15 of 15 arrangements drawn')
 
-    // Meets is grouped by the archetype each pairing is drawn in, and every
-    // archetype's heading says what it owes even when nothing meets there.
-    expect(text()).toContain('Floor · 15 slots')
-    expect(text()).toContain('Wall · 7 slots')
-    expect(text()).toContain('Ramp · 4 slots')
+    // Meets is grouped by the archetype each pairing is drawn on, and every archetype has a heading.
+    expect(text()).toContain('Floor')
+    expect(text()).toContain('Wall')
+    expect(text()).toContain('Ramp')
 
     // Grass has drawn its meeting with Dirt and nothing else.
     expect(inMeets('Dirt')).toBeDefined()
@@ -115,43 +121,39 @@ describe('the materials screen', () => {
     expect(text()).toContain('composites')
   })
 
-  it('swaps the preview to the two materials together when a pairing is picked', () => {
-    const sets = [ground([['grass', null], ['grass', 'dirt']])]
+  it('takes an authored tile from another sheet, which is what the terrain layer used to prevent', () => {
+    // Grass's own art is on one image and its meeting with Dirt on a second. Before a tag named a
+    // material, an authored tile only counted when every terrain at the corner was on ONE image, so
+    // this pairing could never resolve and always composited. Nothing about that was a decision.
+    const sets = [sheet('ground.png', [[0, null]]), sheet('cliffs.png', [[0, 1]])]
     mount(() => <MaterialsSettings session={session()} selected={0} onSelect={() => undefined} sets={sets} />)
 
-    expect(text()).not.toContain('meets')
     act(() => inMeets('Dirt')?.click())
-
-    // The header now reads as the pairing, and the patch is the two of them.
-    expect(text()).toContain('meets')
-    expect(text()).toContain('how the two draw where they meet')
-    expect(text()).toContain('15 slots · 15 of 15 drawn')
-
-    // And it goes back.
-    act(() => named('Back to the material')?.click())
-    expect(text()).toContain('how it draws')
+    // Fourteen, not fifteen: the all-grass arrangement is grass's own tile, not something the pairing owes.
+    expect(text()).toContain('14 of 14 arrangements drawn')
+    expect(text()).toContain('cliffs.png')
   })
 
-  it("keeps the side terrain editable, because the mesher still draws cliffs with it", () => {
-    const sets = [ground([['grass', null]])]
+  it("keeps the cliff material editable, because the mesher still draws vertical faces with it", () => {
+    const sets = ground([[0, null]])
     mount(() => <MaterialsSettings session={session()} selected={0} onSelect={() => undefined} sets={sets} />)
 
-    // Grass ships with a side terrain of its own, and `look.ts` reads `side ?? top`
-    // for every vertical face, so a screen with no control for it strands live data.
-    expect(text()).toContain('Side art')
+    // Grass ships cutting its cliffs with Dirt, and the look reads that for every vertical face, so
+    // a screen with no control for it strands live data.
+    expect(text()).toContain('Cliffs')
     const options = [...window.document.querySelectorAll('select')].flatMap((s) => [...s.options].map((o) => o.label))
-    expect(options).toContain('Same as the top')
+    expect(options).toContain('Made of this one')
   })
 
-  it('lights a slot from the strip and says how much of the patch it draws', () => {
-    const sets = [ground([['grass', null]])]
+  it('lights an arrangement from the strip and says how much of the patch it draws', () => {
+    const sets = ground([[0, null]])
     mount(() => <MaterialsSettings session={session()} selected={0} onSelect={() => undefined} sets={sets} />)
 
     const slots = [...window.document.querySelectorAll('.ui-slot')]
     expect(slots).toHaveLength(15)
 
-    // Every one of the fifteen corner masks is somewhere in the preview shape, so
-    // hovering any slot names it and counts the corners of the patch it draws.
+    // Every one of the fifteen corner masks is somewhere in the preview shape, so hovering any of
+    // them names it and counts the corners of the patch it draws.
     for (const [index, slot] of slots.entries()) {
       act(() => slot.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true })))
       expect(slot.className).toContain('is-lit')
@@ -159,19 +161,35 @@ describe('the materials screen', () => {
       expect(text()).toContain(`mask ${index + 1} ·`)
       expect(Number(count?.[1] ?? 0)).toBeGreaterThan(0)
     }
-
-    // And the readout goes back to the summary when the pointer leaves the strip.
-    act(() => window.document.querySelector('.ui-slots')?.parentElement?.dispatchEvent(new window.MouseEvent('pointerout', { bubbles: true })))
-    expect(text()).toContain('15 slots · 15 of 15 drawn')
   })
 
-  it('says a pairing drawn in a wall owes the wall vocabulary, not fifteen corners', () => {
-    const sets = [ground([['grass', null]])]
+  it('swaps the preview to the two materials together when a pairing is picked', () => {
+    const sets = ground([
+      [0, null],
+      [0, 1],
+    ])
     mount(() => <MaterialsSettings session={session()} selected={0} onSelect={() => undefined} sets={sets} />)
 
-    // Stone is the one wall in the default library, so Grass meets it in the wall's seven slots.
+    expect(text()).not.toContain('meets')
+    act(() => inMeets('Dirt')?.click())
+
+    expect(text()).toContain('meets')
+    expect(text()).toContain('how the two draw where they meet')
+    expect(text()).toContain('14 of 14 arrangements drawn')
+
+    act(() => named('Back to the material')?.click())
+    expect(text()).toContain('how it draws')
+  })
+
+  it('says what a wall archetype adds beyond the corner model, and does not pretend to author it', () => {
+    const sets = ground([[0, null]])
+    mount(() => <MaterialsSettings session={session()} selected={0} onSelect={() => undefined} sets={sets} />)
+
+    // Stone is the one wall in the default library. Its extra parts are the two seams, which are
+    // the cases no arrangement of four coplanar corners can express.
     act(() => inMeets('Stone')?.click())
-    expect(text()).toContain('7 slots')
-    expect(text()).toContain('seams mitred when empty')
+    expect(text()).toContain('Convex seam')
+    expect(text()).toContain('Concave seam')
+    expect(text()).toContain('Nothing authors these yet')
   })
 })

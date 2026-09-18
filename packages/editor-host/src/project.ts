@@ -32,16 +32,14 @@ export const projectKeys = {
 
 const relativePath = z.string().min(1).refine((p) => !p.startsWith('/') && !p.includes('\\') && !p.split('/').includes('..'), { message: 'a path inside the project' })
 
-/** A terrain reference: the sheet's file name and the terrain's id in its sidecar. */
-const terrainRef = z.object({ sheet: z.string().min(1), terrain: z.string().min(1) }).strict()
 const materialDef = z
   .object({
     id: z.int().min(0),
     name: z.string().min(1),
     color: z.int().min(0).max(0xffffff),
     archetype: z.enum(['floor', 'wall', 'ramp']),
-    top: terrainRef,
-    side: terrainRef.exactOptional(),
+    /** Another material by id: what a voxel of this one cuts its cliffs with. */
+    side: z.int().min(0).exactOptional(),
   })
   .strict()
 /** The whole list, replaced: its order is the materials' priority, so a reorder is as much an edit as a rename. */
@@ -49,14 +47,15 @@ const materialsSet = z
   .object({ materials: z.array(materialDef).min(1) })
   .strict()
   .refine(({ materials }) => new Set(materials.map((m) => m.id)).size === materials.length, { message: 'material ids must be unique' })
+  .refine(({ materials }) => materials.every((m) => m.side === undefined || materials.some((o) => o.id === m.side)), { message: 'a side names a material the project does not have' })
 
 const axes = z.object({ x: z.int().min(0), y: z.int().min(0) }).strict()
 const grid = z.object({ tile: z.int().min(1), margin: axes, spacing: axes }).strict()
-const terrainDef = z.object({ id: z.string().min(1), name: z.string().min(1), color: z.string().min(1) }).strict()
+/** A material id, optionally with a slot of its archetype: `"3"` or `"3:convex"`. */
 const cornerTag = z.string().min(1).nullable()
-/** An image's terrain set, checked the way the project file's parser checks it: unique ids, and tags that name only those. */
+/** An image's tags, checked the way the project file's parser checks them. Whether the materials exist is the host's business, not the schema's. */
 const imageTerrain = z
-  .object({ terrains: z.array(terrainDef), tiles: z.record(z.string(), z.tuple([cornerTag, cornerTag, cornerTag, cornerTag])) })
+  .object({ tiles: z.record(z.string(), z.tuple([cornerTag, cornerTag, cornerTag, cornerTag])) })
   .strict()
   .check((ctx) => {
     try {
@@ -65,6 +64,22 @@ const imageTerrain = z
       ctx.issues.push({ code: 'custom', input: ctx.value, message: error instanceof Error ? error.message : String(error) })
     }
   })
+/**
+ * The convention an image was laid out to, or `null` for one tagged by hand.
+ *
+ * This was missing while the schema was `.strict()`, which made
+ * `project.images.set` refuse every entry that carried one — including the
+ * entries `newTemplateImage` dispatches, since drawing a template is exactly
+ * what puts a layout on an image. It never type-errored because the machine
+ * stores the result through an `as ImageEntry` cast.
+ */
+const imageLayout = z
+  .object({ convention: z.string().min(1), origin: axes, materials: z.array(z.int().min(0)) })
+  .strict()
+  .nullable()
+  // Missing means the same as `null`: an image tagged by hand. Every other field of an entry is
+  // required because leaving one out is a mistake; leaving this one out is just saying there is none.
+  .default(null)
 const imageEntry = z
   .object({
     path: relativePath,
@@ -72,6 +87,7 @@ const imageEntry = z
     kind: z.enum(['tileset', 'sprites', 'texture']),
     hash: z.string().min(1).nullable(),
     grid,
+    layout: imageLayout,
     terrain: imageTerrain,
   })
   .strict()

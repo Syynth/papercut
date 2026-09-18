@@ -15,6 +15,7 @@ import {
   materialAt,
   rampShape,
   readAddress,
+  tagOf,
   topHeight,
   SURFACE_CLIFF,
   SURFACE_TOP,
@@ -23,10 +24,10 @@ import {
   type RgbaImage,
   type VoxelStructure,
 } from '@papercut/document'
-import { terrainKey, type LoadedSet } from './atlas'
+import { type LoadedSet } from './atlas'
 import { createTerrainLook } from './look'
 import { meshTerrainChunk, type MeshBuffers, type TerrainChunkMesh } from './terrain'
-import { addTerrain, createTerrainSet, stampTemplate } from './terrainset'
+import { createTerrainSet, stampTemplate } from './terrainset'
 
 /** The root voxel volume a fresh level has, mutable for setup: `createMap` names it `ground`. */
 const ground = (doc: ReadonlyMapDoc | MapDoc): VoxelStructure => doc.structures.ground as VoxelStructure
@@ -40,17 +41,17 @@ function solid(width: number, height: number, rgba: [number, number, number, num
 }
 
 /**
- * A stand-in for the placeholder terrain set the default materials point
- * into: the five terrains, each with an edge set stamped on its own 4×4
- * block (four blocks per block-row on a 16-column sheet), over one flat
- * colour. Every corner the mesher asks for resolves — exact for one terrain,
- * a composite for a pair — so the look never refuses.
+ * A stand-in for the placeholder terrain set the default materials draw from:
+ * the five materials, each with an edge set stamped on its own 4×4 block
+ * (four blocks per block-row on a 16-column sheet), over one flat colour.
+ * Every corner the mesher asks for resolves — exact for one material, a
+ * composite for a pair — so the look never refuses.
  */
 function placeholderSet(): LoadedSet {
   let set = createTerrainSet(PLACEHOLDER_SHEET, TILE, 16, 8)
-  ;['grass', 'dirt', 'stone', 'sand', 'path'].forEach((id, i) => {
-    set = addTerrain(set, { id, name: id, color: '#808080' })
-    set = stampTemplate(set, (i % 4) * 4, Math.floor(i / 4) * 4, null, id)
+  // A tag names a material of the project (ruling of 2026-09-17), so the blocks are the default materials by id.
+  DEFAULT_MATERIALS.forEach((material, i) => {
+    set = stampTemplate(set, (i % 4) * 4, Math.floor(i / 4) * 4, null, tagOf(material.id))
   })
   return { set, image: solid(16 * TILE, 8 * TILE, [0, 255, 0, 255]) }
 }
@@ -437,11 +438,14 @@ describe('walls beside slopes', () => {
   })
 })
 
-describe('a material whose sheet is not loaded', () => {
+describe('a material nothing is tagged with', () => {
   it('draws as its colour rather than as a hole', () => {
-    const materials = [{ id: 0, name: 'Grass', color: 0x6aa84f, archetype: 'floor' as const, top: { sheet: 'ground.png', terrain: 'grass' } }, { id: 1, name: 'Moss', color: 0x336633, archetype: 'floor' as const, top: { sheet: 'gone.png', terrain: 'moss' } }]
+    // A material no longer points at a sheet, so what used to be "its sheet is not loaded" is now the only
+    // way a material can have no art: no tile anywhere is tagged with it. Moss is such a material.
+    const materials = [{ id: 0, name: 'Grass', color: 0x6aa84f, archetype: 'floor' as const }, { id: 9, name: 'Moss', color: 0x336633, archetype: 'floor' as const }]
     const look = createTerrainLook(materials, [placeholderSet()])
-    const answer = look.atlas.tileFor([terrainKey('gone.png', 'moss'), terrainKey('gone.png', 'moss'), terrainKey('gone.png', 'moss'), terrainKey('gone.png', 'moss')])
+    const moss = tagOf(9)
+    const answer = look.atlas.tileFor([moss, moss, moss, moss])
     expect(answer.composite).toBe(true)
     const [u0, v0] = look.atlas.uv(answer.tile, 0)
     const { width, height, data } = look.atlas.image

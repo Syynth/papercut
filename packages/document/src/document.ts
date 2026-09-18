@@ -214,18 +214,19 @@ export interface BackdropCard {
   opacity: number
 }
 
-/** A terrain in a terrain set: the sheet's file name and the terrain's id in its sidecar (spec §2). */
-export interface TerrainRef {
-  sheet: string
-  terrain: string
-}
-
 /**
- * A terrain material: what a voxel is made of, and which terrains draw it.
- * `top` draws its top faces and, unless `side` says otherwise, its sides;
- * grass-topped dirt is one material with both. The order of the project's
- * materials is their priority: which is the shape when a template is placed
- * for a pair, and the layering of a composited corner.
+ * A material: what a face of a voxel is made of (ruling of 2026-09-17).
+ *
+ * A material does not point at its art. Its art is wherever tiles tagged
+ * with it are, on any image the project has — which is why there is no
+ * terrain here any more, and why two materials can meet in an authored tile
+ * however their sheets are organised. `side` is not art indirection: it says
+ * what a voxel of this material cuts its CLIFFS with, which is another
+ * material, because a material belongs to a face rather than to a voxel.
+ *
+ * The order of the project's materials is their priority: the shape a
+ * template takes when it is placed for a pair, and the layering of a
+ * composited corner.
  */
 export interface MaterialDef {
   /**
@@ -245,8 +246,8 @@ export interface MaterialDef {
    * a material belonged without saying what it owed.
    */
   archetype: ArchetypeId
-  top: TerrainRef
-  side?: TerrainRef
+  /** The material this one's vertical faces are made of; absent means they are made of this one. */
+  side?: number
 }
 
 /** The surface vocabularies papercut ships. `@papercut/geometry` says what each owes. */
@@ -322,17 +323,15 @@ export function worldHeight(halfTiles: number): number {
   return halfTiles * HALF
 }
 
-/** The placeholder terrain set's sheet, which the default materials point into. */
+/** The sheet the generated placeholder art is written to, which a fresh project starts tagged against. */
 export const PLACEHOLDER_SHEET = 'ground.png'
 
-const placeholder = (terrain: string): TerrainRef => ({ sheet: PLACEHOLDER_SHEET, terrain })
-
 export const DEFAULT_MATERIALS: MaterialDef[] = [
-  { id: 0, name: 'Grass', color: 0x6aa84f, archetype: 'floor', top: placeholder('grass'), side: placeholder('dirt') },
-  { id: 1, name: 'Dirt', color: 0x8b6b45, archetype: 'floor', top: placeholder('dirt') },
-  { id: 2, name: 'Stone', color: 0x8e8e8e, archetype: 'wall', top: placeholder('stone') },
-  { id: 3, name: 'Sand', color: 0xd9c27e, archetype: 'floor', top: placeholder('sand'), side: placeholder('dirt') },
-  { id: 4, name: 'Path', color: 0xb08f5e, archetype: 'floor', top: placeholder('path'), side: placeholder('dirt') },
+  { id: 0, name: 'Grass', color: 0x6aa84f, archetype: 'floor', side: 1 },
+  { id: 1, name: 'Dirt', color: 0x8b6b45, archetype: 'floor' },
+  { id: 2, name: 'Stone', color: 0x8e8e8e, archetype: 'wall' },
+  { id: 3, name: 'Sand', color: 0xd9c27e, archetype: 'floor', side: 1 },
+  { id: 4, name: 'Path', color: 0xb08f5e, archetype: 'floor', side: 1 },
 ]
 
 /** The material a voxel names, by id; `undefined` for an id the project no longer has. */

@@ -2,8 +2,8 @@
  * Drawing a layout: the template an artist paints into (ruling of 2026-09-17).
  *
  * Papercut does not read a convention out of someone else's sheet; it writes
- * one. From a convention and a list of terrains it draws every block in
- * place, each tile showing which terrains meet at its corner as four
+ * one. From a convention and a list of materials it draws every block in
+ * place, each tile showing which materials meet at its corner as four
  * quadrants, so the sheet an artist opens already says what belongs in every
  * cell — and its tags are right before a pixel is drawn.
  *
@@ -16,8 +16,8 @@ import type { RgbaImage } from '@papercut/document'
 
 import { conventionOf, type Convention } from './layout'
 
-export interface TemplateTerrain {
-  id: string
+export interface TemplateMaterial {
+  id: number
   /** `#rrggbb`, what its quadrants are filled with. */
   color: string
 }
@@ -42,21 +42,21 @@ const rgb = (hex: string): [number, number, number] => {
 }
 
 /**
- * Draw a convention's whole layout for `terrains`: one image, tiles edge to edge, every block in
+ * Draw a convention's whole layout for `materials`: one image, tiles edge to edge, every block in
  * the convention's order. A corner showing nothing is left transparent, which is what nothing IS —
  * so an artist can see the silhouette of every edge piece before drawing it.
  */
-export function renderTemplate(conventionId: string, terrains: readonly TemplateTerrain[], options: TemplateOptions): Template {
+export function renderTemplate(conventionId: string, materials: readonly TemplateMaterial[], options: TemplateOptions): Template {
   const convention = conventionOf(conventionId)
   if (!convention) throw new Error(`No layout convention called ${conventionId}.`)
-  if (terrains.length < 1) throw new Error('A template lays out at least one terrain.')
+  if (materials.length < 1) throw new Error('A template lays out at least one material.')
   const { tile, rules = true } = options
   if (!Number.isInteger(tile) || tile < 2) throw new Error(`A template's tile is a whole number of pixels, not ${tile}.`)
-  const { columns, rows } = convention.extent(terrains.length)
+  const { columns, rows } = convention.extent(materials.length)
   const width = columns * tile
   const height = rows * tile
   const data = new Uint8ClampedArray(width * height * 4)
-  const colours = terrains.map((t) => rgb(t.color))
+  const colours = materials.map((t) => rgb(t.color))
   const half = tile / 2
 
   const fill = (x0: number, y0: number, w: number, h: number, [r, g, b]: [number, number, number], a: number): void => {
@@ -71,7 +71,7 @@ export function renderTemplate(conventionId: string, terrains: readonly Template
     }
   }
 
-  for (const t of convention.tiles(terrains.length)) {
+  for (const t of convention.tiles(materials.length)) {
     const px = t.column * tile
     const py = t.row * tile
     t.corners.forEach((value, k) => {
@@ -83,7 +83,7 @@ export function renderTemplate(conventionId: string, terrains: readonly Template
 
   if (rules) {
     // A hairline between blocks, drawn over the fill, so the bands and their blocks are visible.
-    for (const block of convention.blocks(terrains.length)) {
+    for (const block of convention.blocks(materials.length)) {
       const x0 = block.column * tile
       const y0 = block.row * tile
       const w = block.columns * tile

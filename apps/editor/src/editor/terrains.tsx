@@ -25,10 +25,9 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
-import { sheetName, type RgbaImage } from '@papercut/document'
+import { sheetName, slotOfTag, tagOf, type RgbaImage } from '@papercut/document'
 import { useHost, useProject } from '@papercut/editor-host'
-import { addTerrain, cornerAt, removeTerrain, tagCorner, type LoadedSet, type Tag, type TerrainDef, type TerrainSet } from '@papercut/geometry'
-import { slugOf } from '@papercut/project'
+import { archetypeOf, cornerAt, tagCorner, type LoadedSet, type Tag, type TerrainSet } from '@papercut/geometry'
 import { Action, AssetPicker, Note, Tagger, TaggerItem } from '@papercut/ui'
 
 import { run } from './commands'
@@ -36,7 +35,6 @@ import { rgbaToCanvas } from './rgba'
 import { setImageTerrain, type Session } from './session'
 import { thumbOf } from './images'
 
-const TERRAIN_COLOURS = ['#6aa84f', '#8b6b45', '#8e8e8e', '#d9c27e', '#b08f5e', '#5f8fb0', '#a06060', '#7a6a52']
 const CORNER_NAMES = ['NW', 'NE', 'SW', 'SE'] as const
 /** The zoom steps − and + walk, and ⌘ wheel. */
 const ZOOMS = [0.25, 0.5, 1, 2, 3, 4, 6, 8] as const
@@ -69,7 +67,7 @@ interface History {
  * corner under the pointer outlined. Drawn whole on every change; a sheet is
  * a few hundred tiles, which is nothing to a canvas.
  */
-function draw(canvas: HTMLCanvasElement, image: RgbaImage, set: TerrainSet, scale: number, hover: Corner | null): void {
+function draw(canvas: HTMLCanvasElement, image: RgbaImage, set: TerrainSet, colours: ReadonlyMap<Tag, string>, scale: number, hover: Corner | null): void {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   const width = Math.round(image.width * scale)
@@ -83,7 +81,6 @@ function draw(canvas: HTMLCanvasElement, image: RgbaImage, set: TerrainSet, scal
   ctx.drawImage(canvasOf(image), 0, 0, width, height)
   const t = set.tile * scale
   const half = t / 2
-  const colours = new Map(set.terrains.map((terrain) => [terrain.id, terrain.color]))
   ctx.lineWidth = 1
   for (const [index, tags] of set.tiles) {
     const x = (index % set.columns) * t
@@ -134,10 +131,9 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
   const materials = useProject((p) => p.materials)
   const images = useProject((p) => p.images)
   const [sheet, setSheet] = useState<string | null>(null)
-  /** The terrain the pointer tags; `null` is Nothing. */
+  /** The tag the pointer paints; `null` is Nothing. */
   const [brush, setBrush] = useState<Tag>(null)
   const [zoom, setZoom] = useState<number | null>(null)
-  const [newName, setNewName] = useState('')
   /** The corner under the pointer, with where the pointer is in the stage's scroll box; `flip` when a tooltip to its right would leave the box. */
   const [hover, setHover] = useState<(Corner & { x: number; y: number; flip: boolean }) | null>(null)
   /** The set as the stroke in progress has it, until the write lands. */
@@ -149,7 +145,7 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
   const stroke = useRef<{ tag: Tag; set: TerrainSet; last: Corner | null } | null>(null)
   const histories = useRef(new Map<string, History>())
 
-  const loaded = sets.find((s) => s.set.sheet === sheet) ?? sets.find((s) => s.set.terrains.length > 0) ?? sets[0]
+  const loaded = sets.find((s) => s.set.sheet === sheet) ?? sets.find((s) => s.set.tiles.size > 0) ?? sets[0]
   const set = draft ?? loaded?.set
   const history: History = loaded ? (histories.current.get(loaded.set.sheet) ?? { past: [], future: [] }) : { past: [], future: [] }
   const scale = zoom ?? (loaded && loaded.set.tile <= 16 ? 2 : 1)
@@ -189,10 +185,10 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
 
   // The write comes back as a new set on the viewport: the draft has served.
   useEffect(() => setDraft(null), [loaded?.set])
-  // A brush that is not in the shown set — after a sheet change or a removal — falls back to the set's first terrain, or Nothing.
+  // A brush naming a material the project no longer has falls back to Nothing.
   useEffect(() => {
-    if (brush !== null && !set?.terrains.some((t) => t.id === brush)) setBrush(set?.terrains[0]?.id ?? null)
-  }, [brush, set])
+    if (brush !== null && !materials.some((m) => tagOf(m.id, slotOfTag(brush)) === brush)) setBrush(null)
+  }, [brush, materials])
 
   // ⌘Z / ⌘⇧Z are the tagger's while it is open: taken on the way down, before the editor's keymap on window sees them.
   useEffect(() => {
@@ -222,25 +218,35 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
     return () => stage.removeEventListener('wheel', onWheel)
   }, [scale])
 
+  /** Every tag the palette offers: each material's ordinary surface, then the slots its archetype adds. */
+  const palette = useMemo(
+    () =>
+      materials.flatMap((m) =>
+        archetypeOf(m.archetype).slots.map((slot) => ({
+          tag: tagOf(m.id, slot.ordinary ? null : slot.id),
+          name: slot.ordinary ? m.name : `${m.name} · ${slot.name}`,
+          colour: `#${m.color.toString(16).padStart(6, '0')}`,
+          slot,
+        })),
+      ),
+    [materials],
+  )
+  const colours = useMemo(() => new Map(palette.map((p) => [p.tag, p.colour] as const)), [palette])
+  /** How many corners of THIS sheet each tag is on: what says which of the project's materials this image draws. */
+  const drawn = useMemo(() => {
+    const counts = new Map<Tag, number>()
+    if (!set) return counts
+    for (const tags of set.tiles.values()) for (const tag of tags) if (tag !== null) counts.set(tag, (counts.get(tag) ?? 0) + 1)
+    return counts
+  }, [set])
+
   useEffect(() => {
     const canvas = canvasRef.current
-    if (canvas && loaded && set) draw(canvas, loaded.image, set, scale, hover)
-  }, [loaded, set, scale, hover])
+    if (canvas && loaded && set) draw(canvas, loaded.image, set, colours, scale, hover)
+  }, [loaded, set, colours, scale, hover])
 
-  const selected = set?.terrains.find((t) => t.id === brush)
   /** Listed tilesets the viewport could not draw: named in the picker's footer with the fix in Images. */
   const notDrawn = images.filter((i) => i.kind === 'tileset' && !sets.some((s) => s.set.sheet === sheetName(i.path))).map((i) => i.name)
-  const usedBy = useMemo(() => {
-    const users = new Map<string, string[]>()
-    if (!loaded) return users
-    for (const m of materials) {
-      for (const ref of [m.top, m.side]) {
-        if (ref && ref.sheet === loaded.set.sheet) users.set(ref.terrain, [...(users.get(ref.terrain) ?? []), m.name])
-      }
-    }
-    return users
-  }, [materials, loaded])
-
   const cornerUnder = (event: ReactPointerEvent<HTMLCanvasElement>): Corner | null => {
     if (!set) return null
     const rect = event.currentTarget.getBoundingClientRect()
@@ -281,33 +287,12 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
     else setDraft(null)
   }
 
-  const add = (): void => {
-    if (!set) return
-    const label = newName.trim()
-    if (!label) return
-    const id = slugOf(label)
-    if (set.terrains.some((t) => t.id === id)) {
-      notify(`${set.sheet} already has a terrain called ${id}.`)
-      return
-    }
-    setNewName('')
-    commit(addTerrain(set, { id, name: label, color: TERRAIN_COLOURS[set.terrains.length % TERRAIN_COLOURS.length] }))
-    setBrush(id)
-  }
-  const change = (terrain: TerrainDef, changes: Partial<TerrainDef>): void => {
-    if (set) commit({ ...set, terrains: set.terrains.map((t) => (t.id === terrain.id ? { ...t, ...changes } : t)) })
-  }
-  const remove = (terrain: TerrainDef): void => {
-    if (!set) return
-    commit(removeTerrain(set, terrain.id))
-    setBrush(null)
-  }
-
   if (!loaded || !set) return <Note>No sheet is loaded. Add one in Sheets to tag it.</Note>
 
+  const nameOfTag = (tag: Tag): string => (tag === null ? 'nothing' : (palette.find((p) => p.tag === tag)?.name ?? tag))
   const hovered = hover ? (set.tiles.get(hover.index)?.[hover.corner] ?? null) : null
-  const hoveredName = hovered === null ? 'nothing' : (set.terrains.find((t) => t.id === hovered)?.name ?? hovered)
-  const brushName = brush === null ? 'Nothing' : (selected?.name ?? brush)
+  const hoveredName = nameOfTag(hovered)
+  const brushName = brush === null ? 'Nothing' : nameOfTag(brush)
   return (
     <Tagger
       stageRef={stageRef}
@@ -317,7 +302,7 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
             value={loaded.set.sheet}
             options={sets.map((s) => {
               const entry = images.find((i) => sheetName(i.path) === s.set.sheet)
-              return { value: s.set.sheet, name: entry?.name ?? s.set.sheet, meta: `${s.set.sheet} · ${entry?.grid.tile ?? s.set.tile} px${entry && entry.grid.tile !== s.set.tile ? ` · ${s.set.tile / entry.grid.tile}×` : ''} · ${s.set.terrains.length} ${s.set.terrains.length === 1 ? 'terrain' : 'terrains'}`, thumb: thumbOf(s) }
+              return { value: s.set.sheet, name: entry?.name ?? s.set.sheet, meta: `${s.set.sheet} · ${entry?.grid.tile ?? s.set.tile} px${entry && entry.grid.tile !== s.set.tile ? ` · ${s.set.tile / entry.grid.tile}×` : ''} · ${s.set.tiles.size} tagged`, thumb: thumbOf(s) }
             })}
             onChange={setSheet}
             footer={notDrawn.length ? `${notDrawn.length} ${notDrawn.length === 1 ? 'image' : 'images'} in Images ${notDrawn.length === 1 ? 'does' : 'do'} not draw in this project — ${notDrawn.join(', ')}` : undefined}
@@ -338,32 +323,23 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
         <>
           <div className="ui-tagger-list">
             <TaggerItem name="Nothing" swatch={null} active={brush === null} onClick={() => setBrush(null)} />
-            {set.terrains.map((t) => {
-              const users = usedBy.get(t.id) ?? []
-              return (
-                <TaggerItem
-                  key={t.id}
-                  name={t.name}
-                  swatch={t.color}
-                  active={brush === t.id}
-                  onClick={() => setBrush(t.id)}
-                  onRename={(name) => change(t, { name })}
-                  onRecolour={(color) => change(t, { color })}
-                  onRemove={users.length ? null : () => remove(t)}
-                  removeTitle={users.length ? `Used by ${users.join(', ')}` : 'Remove terrain'}
-                />
-              )
-            })}
+            {palette.map((entry) => (
+              <TaggerItem
+                key={entry.tag}
+                name={entry.name}
+                swatch={entry.colour}
+                active={brush === entry.tag}
+                dim={!drawn.has(entry.tag)}
+                meta={drawn.get(entry.tag) ?? 0}
+                onClick={() => setBrush(entry.tag)}
+              />
+            ))}
           </div>
-          <form
-            className="ui-tagger-add"
-            onSubmit={(event) => {
-              event.preventDefault()
-              add()
-            }}
-          >
-            <input value={newName} placeholder="New terrain…" onChange={(event) => setNewName(event.currentTarget.value)} onKeyDown={(event) => event.stopPropagation()} />
-          </form>
+          <div className="ui-tagger-add">
+            <span className="ui-hint-line">
+              The project&rsquo;s materials. Edit them in Materials; what an image draws is whatever is tagged here.
+            </span>
+          </div>
         </>
       }
       stage={

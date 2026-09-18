@@ -134,5 +134,5 @@ export function remapTags(terrain: ImageTerrain, from: Grid, to: Grid, width: nu
     tiles[String(landed)] = [...tags]
     moved += 1
   }
-  return { terrain: { terrains: terrain.terrains.map((t) => ({ ...t })), tiles }, moved, dropped }
+  return { terrain: { tiles }, moved, dropped }
 }

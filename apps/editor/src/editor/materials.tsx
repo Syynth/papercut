@@ -15,9 +15,9 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
-import { AIR, PLACEHOLDER_SHEET, materialById, nextMaterialId, type MaterialDef, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage, type TerrainRef } from '@papercut/document'
+import { AIR, materialById, nextMaterialId, tagOf, type MaterialDef, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage, type Tag } from '@papercut/document'
 import { useDocumentSelector, useHost, useProject, type SettingsSection } from '@papercut/editor-host'
-import { CORNER_BITS, archetypeOf, archetypes, assemble, exactTile, requiredSlots, templateTags, terrainKey, type Archetype, type LoadedSet, type PatchCorner, type Tag } from '@papercut/geometry'
+import { CORNER_BITS, archetypeOf, archetypes, arrangements, exactTile, templateTags, type Archetype, type CornerTags, type LoadedSet } from '@papercut/geometry'
 import { Action, Actions, ColorInput, Dialog, Field, Item, Library, LibraryGroup, List, Note, Section, Select, Status, TextInput } from '@papercut/ui'
 
 import { run } from './commands'
@@ -46,17 +46,29 @@ function tileUrl(loaded: LoadedSet, index: number): string {
   return url
 }
 
-/** The swatch a terrain reference shows: its full tile, or nothing when its set is not loaded. */
-export function swatchFor(sets: readonly LoadedSet[], ref: TerrainRef): string | undefined {
-  const loaded = sets.find((s) => s.set.sheet === ref.sheet)
-  if (!loaded) return undefined
-  const index = exactTile(loaded.set, [ref.terrain, ref.terrain, ref.terrain, ref.terrain])
-  return index === null ? undefined : `url(${tileUrl(loaded, index)}) center / cover`
+/**
+ * The tile tagged exactly so, wherever it was drawn.
+ *
+ * A tag names a material rather than something local to an image (ruling of
+ * 2026-09-17), so a corner's art can be on any of the project's sheets and
+ * the search is across all of them. The first sheet that has it wins, in the
+ * project's image order, which is the same rule the atlas follows.
+ */
+function findTile(sets: readonly LoadedSet[], tags: CornerTags): { loaded: LoadedSet; index: number } | null {
+  for (const loaded of sets) {
+    const index = exactTile(loaded.set, tags)
+    if (index !== null) return { loaded, index }
+  }
+  return null
+}
+
+/** The swatch a material shows: its own solid tile, or nothing when nobody has drawn one. */
+export function swatchFor(sets: readonly LoadedSet[], material: number): string | undefined {
+  const found = findTile(sets, templateTags(15, null, tagOf(material)))
+  return found === null ? undefined : `url(${tileUrl(found.loaded, found.index)}) center / cover`
 }
 
 const cssColor = (color: number): string => `#${color.toString(16).padStart(6, '0')}`
-const refKey = (ref: TerrainRef): string => terrainKey(ref.sheet, ref.terrain)
-const parseRef = (key: string): TerrainRef => ({ sheet: key.slice(0, key.lastIndexOf('/')), terrain: key.slice(key.lastIndexOf('/') + 1) })
 const materialsOf = (project: ReadonlyProjectDoc): readonly MaterialDef[] => project.materials
 
 /** How many voxels and face overrides of the open map use each material, by id. Walks every voxel, so it is selected settled. */
@@ -88,7 +100,7 @@ export function MaterialsPicker({ active, sets }: { active: number; sets: readon
     <Section title="Materials" summary={material ? `${materials.length} · ${material.name}` : materials.length}>
       <List>
         {[...materials].reverse().map((m) => (
-          <Item key={m.id} name={m.name} meta={`${m.archetype} · ${counts[m.id] ?? 0}`} swatch={swatchFor(sets, m.top) ?? cssColor(m.color)} active={m.id === active} onClick={() => select(m.id)} />
+          <Item key={m.id} name={m.name} meta={`${m.archetype} · ${counts[m.id] ?? 0}`} swatch={swatchFor(sets, m.id) ?? cssColor(m.color)} active={m.id === active} onClick={() => select(m.id)} />
         ))}
       </List>
       <Note>The project's library, shared by every map in it. Top of the list draws over what is below it where two meet in a corner nobody has drawn.</Note>
@@ -151,34 +163,64 @@ const cellsOf = (shape: readonly string[], first: string, second: string | null)
   shape.map((row) => [...row].map((ch) => (ch === '1' ? first : ch === '2' ? second : null)))
 
 /**
- * Which of the archetype's slots a corner of the patch is: the bits of the
- * corner that are THIS material, which is exactly how `coverageOf` asked for
- * its tile. `null` for a corner that is none of it — the inside of the other
- * material's island — because that is the other material's art, not a slot of
- * this one.
+ * Which ARRANGEMENT a corner of the patch is: the bits of the corner that are
+ * THIS material, which is exactly how the coverage query asked for its tile.
+ *
+ * `null` for a corner that is none of it — the inside of the other material's
+ * island — because that is the other material's art, not part of this pairing.
+ * An arrangement is not a slot: a slot is a part of one material's surface,
+ * and every archetype's slots but its ordinary one are still undrawable today.
  */
-function slotAt(corner: PatchCorner, mine: string): string | null {
+function maskAt(corner: Assembled, mine: Tag): number | null {
   const mask = CORNER_BITS.reduce((m, bit, i) => (corner.corners[i] === mine ? m | bit : m), 0)
-  return mask === 0 ? null : `mask:${mask}`
+  return mask === 0 ? null : mask
+}
+
+/** One corner of the assembled patch, with the tile that draws it and the sheet that tile is on. */
+interface Assembled {
+  column: number
+  row: number
+  corners: CornerTags
+  found: { loaded: LoadedSet; index: number } | null
+}
+
+/**
+ * Lay a patch of cells out through the dual grid and find each corner's tile across every sheet.
+ *
+ * `geometry`'s own `assemble` answers within one set, which is all the mesher ever needed. The
+ * screen has to search them all, because a pairing's art can sit on a different sheet from either
+ * material's own — which is the thing that just became possible.
+ */
+function assembleAcross(sets: readonly LoadedSet[], cells: Tag[][]): Assembled[] {
+  const rows = cells.length
+  const columns = rows === 0 ? 0 : cells[0].length
+  const at = (r: number, c: number): Tag => (r < 0 || c < 0 || r >= rows || c >= columns ? null : (cells[r][c] ?? null))
+  const out: Assembled[] = []
+  for (let r = 0; r <= rows; r++) {
+    for (let c = 0; c <= columns; c++) {
+      const corners: CornerTags = [at(r - 1, c - 1), at(r - 1, c), at(r, c - 1), at(r, c)]
+      out.push({ column: c, row: r, corners, found: corners.every((t) => t === null) ? null : findTile(sets, corners) })
+    }
+  }
+  return out
 }
 
 /**
  * The patch, on a canvas: one tile blitted per corner, and a cross-hatch where nothing is tagged
  * so a gap reads as a gap. Scaled by whole numbers, because this is pixel art.
  *
- * Hovering a corner names the slot it came from, and a named slot lights every
- * corner drawn with it, so the strip and the patch point at each other. The
- * light is the rest of the patch going dark rather than the matches going
- * bright, because at one tile in forty the bright version is the harder read.
+ * Hovering a corner names the arrangement it came from, and a named arrangement lights every corner
+ * drawn with it, so the strip and the patch point at each other. The light is the rest of the patch
+ * going dark rather than the matches going bright, because at one tile in forty the bright version
+ * is the harder read.
  */
-function PatchPreview({ loaded, corners, columns, rows, scale, mine, lit, onLight }: { loaded: LoadedSet; corners: readonly PatchCorner[]; columns: number; rows: number; scale: number; mine: string; lit: string | null; onLight: (slot: string | null) => void }) {
+function PatchPreview({ tile, corners, columns, rows, scale, mine, lit, onLight }: { tile: number; corners: readonly Assembled[]; columns: number; rows: number; scale: number; mine: Tag; lit: number | null; onLight: (mask: number | null) => void }) {
   const ref = useRef<HTMLCanvasElement>(null)
 
   useEffect(() => {
     const canvas = ref.current
     if (!canvas) return
-    const t = loaded.set.tile
-    const step = t * scale
+    const step = tile * scale
     const w = columns * step
     const h = rows * step
     if (canvas.width !== w || canvas.height !== h) {
@@ -189,14 +231,13 @@ function PatchPreview({ loaded, corners, columns, rows, scale, mine, lit, onLigh
     if (!ctx) return
     ctx.imageSmoothingEnabled = false
     ctx.clearRect(0, 0, w, h)
-    const source = tileCanvas(loaded)
 
-    const paint = (corner: PatchCorner): void => {
+    const paint = (corner: Assembled): void => {
       const dx = corner.column * step
       const dy = corner.row * step
-      if (corner.tile === null) {
+      if (corner.found === null) {
         if (corner.corners.every((c) => c === null)) return
-        // A corner the set has no tile for: the atlas would composite it, so show it as missing.
+        // Nothing is tagged for it on any sheet, so the atlas would composite it: show it as missing.
         ctx.fillStyle = 'rgba(229, 99, 111, 0.22)'
         ctx.fillRect(dx, dy, step, step)
         ctx.strokeStyle = 'rgba(229, 99, 111, 0.85)'
@@ -209,36 +250,38 @@ function PatchPreview({ loaded, corners, columns, rows, scale, mine, lit, onLigh
         ctx.stroke()
         return
       }
-      const sx = (corner.tile % loaded.set.columns) * t
-      const sy = Math.floor(corner.tile / loaded.set.columns) * t
-      ctx.drawImage(source, sx, sy, t, t, dx, dy, step, step)
+      const { loaded, index } = corner.found
+      const t = loaded.set.tile
+      const sx = (index % loaded.set.columns) * t
+      const sy = Math.floor(index / loaded.set.columns) * t
+      ctx.drawImage(tileCanvas(loaded), sx, sy, t, t, dx, dy, step, step)
     }
 
     for (const corner of corners) paint(corner)
-    if (!lit) return
+    if (lit === null) return
 
-    // Everything goes under a veil, then the slot's own corners come back up through it.
+    // Everything goes under a veil, then the arrangement's own corners come back up through it.
     ctx.fillStyle = 'rgba(15, 17, 21, 0.68)'
     ctx.fillRect(0, 0, w, h)
     for (const corner of corners) {
-      if (slotAt(corner, mine) !== lit) continue
+      if (maskAt(corner, mine) !== lit) continue
       paint(corner)
       ctx.strokeStyle = '#e9a23b'
       ctx.lineWidth = 2
       ctx.strokeRect(corner.column * step + 1, corner.row * step + 1, step - 2, step - 2)
     }
-  }, [loaded, corners, scale, columns, rows, mine, lit])
+  }, [tile, corners, scale, columns, rows, mine, lit])
 
-  const at = (event: { clientX: number; clientY: number }): string | null => {
+  const at = (event: { clientX: number; clientY: number }): number | null => {
     const canvas = ref.current
     if (!canvas) return null
     const box = canvas.getBoundingClientRect()
     if (box.width === 0) return null
-    const step = loaded.set.tile * scale
+    const step = tile * scale
     const column = Math.floor(((event.clientX - box.left) * (canvas.width / box.width)) / step)
     const row = Math.floor(((event.clientY - box.top) * (canvas.height / box.height)) / step)
     const corner = corners[row * columns + column]
-    return corner && corner.column === column && corner.row === row ? slotAt(corner, mine) : null
+    return corner && corner.column === column && corner.row === row ? maskAt(corner, mine) : null
   }
 
   return <canvas ref={ref} className="ui-patch" onPointerMove={(event) => onLight(at(event))} onPointerLeave={() => onLight(null)} />
@@ -254,9 +297,9 @@ function tileCanvas(loaded: LoadedSet): HTMLCanvasElement {
   return canvas
 }
 
-/** One of an archetype's slots, with the tile that fills it or an empty frame. Hovering it lights its corners in the patch. */
-function SlotTile({ loaded, tile, title, lit, onLight }: { loaded: LoadedSet | undefined; tile: number | null; title: string; lit: boolean; onLight: () => void }) {
-  const url = loaded && tile !== null ? tileUrl(loaded, tile) : undefined
+/** One arrangement, with the tile that draws it or an empty frame. Hovering it lights its corners in the patch. */
+function SlotTile({ found, title, lit, onLight }: { found: { loaded: LoadedSet; index: number } | null; title: string; lit: boolean; onLight: () => void }) {
+  const url = found === null ? undefined : tileUrl(found.loaded, found.index)
   return (
     <span className={`ui-slot ${url ? '' : 'is-empty'} ${lit ? 'is-lit' : ''}`} title={title} onPointerEnter={onLight}>
       {url ? <img src={url} alt="" /> : null}
@@ -265,39 +308,46 @@ function SlotTile({ loaded, tile, title, lit, onLight }: { loaded: LoadedSet | u
 }
 
 /** Where a material's art lives, and which of its archetype's slots are filled. */
+/** How much of a material's art, or a pairing's, has been drawn: the arrangements it owes, and where each one's tile is. */
 interface Coverage {
-  set: LoadedSet | undefined
-  /** Per slot id, the tile that fills it or `null`. */
-  tiles: Map<string, number | null>
-  filled: number
-  required: number
+  /** The arrangements this subject owes. Fifteen for a material alone; fourteen for a pairing. */
+  masks: readonly number[]
+  /** Per corner mask, the tile that draws it and the sheet it is on. */
+  tiles: Map<number, { loaded: LoadedSet; index: number } | null>
+  drawn: number
 }
 
-function coverageOf(sets: readonly LoadedSet[], archetype: Archetype, ref: TerrainRef, against: TerrainRef | null): Coverage {
-  const set = sets.find((s) => s.set.sheet === ref.sheet)
-  const tiles = new Map<string, number | null>()
-  let filled = 0
-  let required = 0
-  for (const slot of archetype.slots) {
-    // Only the floor archetype's slots are corner masks; the others have no art in today's format yet.
-    const tile = set && slot.mask !== undefined ? exactTile(set.set, templateTags(slot.mask, against === null ? null : against.terrain, ref.terrain)) : null
-    tiles.set(slot.id, tile)
-    if (!slot.optional) {
-      required += 1
-      if (tile !== null) filled += 1
-    }
+/**
+ * Query the tags for what a material draws, or what two draw where they meet.
+ *
+ * This is the whole of what a transition IS (ruling of 2026-09-17). Nothing is
+ * stored about one: the tiles tagged with exactly these materials are the
+ * transition, the arrangements no tile answers are what is left to draw, and
+ * where its art sits is wherever those tiles turned up.
+ */
+function coverageOf(sets: readonly LoadedSet[], mine: Tag, against: Tag): Coverage {
+  // Mask 15 is every corner this material and none of the other, which is the material's OWN tile
+  // and not something a pairing owes. Counting it made every pairing read as one-fifteenth drawn
+  // before anyone had drawn anything, which is the same reason `pairAuthored` stops at fourteen.
+  const masks = arrangements()
+    .map((a) => a.mask)
+    .filter((mask) => against === null || mask !== 15)
+  const tiles = new Map<number, { loaded: LoadedSet; index: number } | null>()
+  let drawn = 0
+  for (const mask of masks) {
+    const found = findTile(sets, templateTags(mask, against, mine))
+    tiles.set(mask, found)
+    if (found !== null) drawn += 1
   }
-  return { set, tiles, filled, required }
+  return { masks, tiles, drawn }
 }
 
 /** What one material meeting another comes to, for the Meets list. */
 interface Meeting {
   other: MaterialDef
   archetype: Archetype
-  filled: number
-  required: number
-  /** Their art is on different sheets, so the atlas can never take an authored tile (`atlas.ts`). */
-  crossSheet: boolean
+  drawn: number
+  owed: number
 }
 
 export function MaterialsSettings({ session, selected, onSelect, sets }: { session: Session; selected: number; onSelect: (id: number) => void; sets: readonly LoadedSet[] }) {
@@ -308,15 +358,14 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
   const currentMap = host.children.project.getSnapshot().context.map
   const mapsUsing = (id: number): number => summaries.filter((s) => (s.path === currentMap ? (counts[id] ?? 0) > 0 : s.materials.has(id))).length
   const [meeting, setMeeting] = useState<number | null>(null)
-  // The slot the pointer is over, in the strip or in the patch; each lights the other.
-  const [lit, setLit] = useState<string | null>(null)
+  // The arrangement the pointer is over, in the strip or in the patch; each lights the other.
+  const [lit, setLit] = useState<number | null>(null)
   const [deleting, setDeleting] = useState<{ from: MaterialDef; to: number } | null>(null)
   const notify = (notice: string): void => void run(host, 'view.set', { notice })
 
   const material = materialById(materials, selected) ?? materials[0]
   const active = material?.id ?? -1
   const position = materials.findIndex((m) => m.id === active)
-  const terrains = useMemo(() => sets.flatMap((s) => s.set.terrains.map((t) => ({ value: terrainKey(s.set.sheet, t.id), label: `${t.name} · ${s.set.sheet}` }))), [sets])
 
   const commit = (next: readonly MaterialDef[]): void => void run(host, 'project.materials.set', { materials: next.map((m) => ({ ...m })) })
   const change = (changes: Partial<MaterialDef>): void => {
@@ -336,7 +385,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
     const id = nextMaterialId(materials)
     const fresh: MaterialDef = from
       ? { ...from, id, name: `${from.name} copy` }
-      : { id, name: `Material ${materials.length + 1}`, color: 0x808080, archetype: 'floor', top: materials[0]?.top ?? { sheet: PLACEHOLDER_SHEET, terrain: 'grass' } }
+      : { id, name: `Material ${materials.length + 1}`, color: 0x808080, archetype: 'floor' }
     commit([...materials, fresh])
     onSelect(id)
     setMeeting(null)
@@ -358,13 +407,11 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
     return materials
       .filter((m) => m.id !== material.id)
       .map((other) => {
-        // A pairing is drawn in the archetype of the face it appears on: two floors meet on a floor,
-        // and a floor meeting a wall is drawn in the wall's vocabulary.
+        // A pairing is drawn on the face it appears on: two floors meet on a floor, and a floor
+        // meeting a wall is drawn in the wall's, because that is the face the boundary is on.
         const id = material.archetype === 'floor' && other.archetype === 'floor' ? 'floor' : other.archetype === 'floor' ? material.archetype : other.archetype
-        const archetype = archetypeOf(id)
-        const crossSheet = material.top.sheet !== other.top.sheet
-        const cover = crossSheet ? null : coverageOf(sets, archetype, material.top, other.top)
-        return { other, archetype, filled: cover?.filled ?? 0, required: cover?.required ?? requiredSlots(archetype).length, crossSheet }
+        const cover = coverageOf(sets, tagOf(material.id), tagOf(other.id))
+        return { other, archetype: archetypeOf(id), drawn: cover.drawn, owed: cover.masks.length }
       })
   }, [material, materials, sets])
 
@@ -378,16 +425,18 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
   const other = meeting === null ? null : (materialById(materials, meeting) ?? null)
   const archetype = archetypeOf(material?.archetype ?? 'floor')
   const previewArchetype = other ? (meetings.find((m) => m.other.id === other.id)?.archetype ?? archetype) : archetype
-  const cover = material ? coverageOf(sets, previewArchetype, material.top, other ? other.top : null) : null
-  const cells = useMemo(
-    () => (material ? cellsOf(other ? MEETING : BLOB, material.top.terrain, other ? other.top.terrain : null) : []),
-    [material, other],
-  )
-  const crossSheet = Boolean(other && material && other.top.sheet !== material.top.sheet)
-  // Assembled here rather than in the preview, because the strip's readout counts them too.
-  const corners = useMemo(() => (cover?.set ? assemble(cover.set.set, cells) : []), [cover?.set, cells])
-  const litSlot = lit === null ? undefined : previewArchetype.slots.find((s) => s.id === lit)
-  const litCount = lit === null || !material ? 0 : corners.filter((c) => slotAt(c, material.top.terrain) === lit).length
+  const mine = material ? tagOf(material.id) : null
+  const theirs = other ? tagOf(other.id) : null
+  const cover = mine === null ? null : coverageOf(sets, mine, theirs)
+  const cells = useMemo(() => (mine === null ? [] : cellsOf(theirs === null ? BLOB : MEETING, mine, theirs)), [mine, theirs])
+  // Assembled here rather than in the preview, because the strip's readout counts the corners too.
+  const corners = useMemo(() => assembleAcross(sets, cells), [sets, cells])
+  const litKind = lit === null ? undefined : arrangements().find((a) => a.mask === lit)
+  const litCount = lit === null ? 0 : corners.filter((c) => maskAt(c, mine) === lit).length
+  /** The one tile size everything is drawn at: the project's density, which every loaded set is cut to. */
+  const tile = sets[0]?.set.tile ?? 16
+  /** Which sheets this material's art actually turned up on. More than one is now ordinary rather than a problem. */
+  const sheetsBehind = useMemo(() => [...new Set([...(cover?.tiles.values() ?? [])].filter((f) => f !== null).map((f) => f.loaded.set.sheet))], [cover])
 
   if (!material) return <Note>No materials.</Note>
 
@@ -439,57 +488,58 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
 
   const stage = (
     <div className="ui-patch-stage">
-      {cover?.set ? (
+      {sets.length === 0 ? (
+        <Note tone="warn">No images are loaded, so there is nothing to draw the patch from.</Note>
+      ) : (
         <>
           <div style={{ display: 'grid', gap: 8, justifyItems: 'start' }}>
             <PatchPreview
-              loaded={cover.set}
+              tile={tile}
               corners={corners}
               columns={(cells[0]?.length ?? 0) + 1}
               rows={cells.length + 1}
-              scale={cover.set.set.tile <= 16 ? 3 : 1}
-              mine={material.top.terrain}
+              scale={tile <= 16 ? 3 : 1}
+              mine={mine}
               lit={lit}
               onLight={setLit}
             />
-            <span className="ui-hint-line">
-              {other ? 'how the two draw where they meet' : 'how it draws — the slots, assembled'}
-            </span>
+            <span className="ui-hint-line">{other ? 'how the two draw where they meet' : 'how it draws — the arrangements, assembled'}</span>
           </div>
           <div style={{ display: 'grid', gap: 8, justifyItems: 'start' }} onPointerLeave={() => setLit(null)}>
             <div className="ui-slots">
-              {previewArchetype.slots.map((slot) => (
-                <SlotTile
-                  key={slot.id}
-                  loaded={cover.set}
-                  tile={cover.tiles.get(slot.id) ?? null}
-                  title={`${slot.name}${slot.note ? ` — ${slot.note}` : ''}${slot.optional ? ' (mitred when empty)' : ''}`}
-                  lit={lit === slot.id}
-                  onLight={() => setLit(slot.id)}
-                />
-              ))}
+              {arrangements()
+                .filter((a) => cover?.tiles.has(a.mask))
+                .map((a) => {
+                  const found = cover?.tiles.get(a.mask) ?? null
+                  return <SlotTile key={a.mask} found={found} title={`${a.name} — ${a.kind}${found ? ` · drawn on ${found.loaded.set.sheet}` : ' · nobody has drawn it'}`} lit={lit === a.mask} onLight={() => setLit(a.mask)} />
+                })}
             </div>
             <span className="ui-hint-line">
-              {litSlot ? (
+              {litKind ? (
                 <>
-                  {litSlot.name}
-                  {litSlot.note ? ` · ${litSlot.note}` : ''} · {litCount} {litCount === 1 ? 'corner' : 'corners'} of the patch
+                  {litKind.name} · {litKind.kind} · {litCount} {litCount === 1 ? 'corner' : 'corners'} of the patch
                 </>
               ) : (
                 <>
-                  {previewArchetype.slots.length} slots · {cover.filled} of {cover.required} drawn
-                  {previewArchetype.slots.some((s) => s.optional) ? ' · seams mitred when empty' : ''}
+                  {cover?.drawn ?? 0} of {cover?.masks.length ?? 0} arrangements drawn
+                  {sheetsBehind.length > 1 ? ` · across ${sheetsBehind.join(', ')}` : sheetsBehind.length === 1 ? ` · on ${sheetsBehind[0]}` : ''}
                 </>
               )}
             </span>
           </div>
+          {previewArchetype.slots.length > 1 ? (
+            <div style={{ display: 'grid', gap: 6, justifyItems: 'start' }}>
+              <div className="ui-k">{previewArchetype.title} slots</div>
+              <span className="ui-hint-line">
+                {previewArchetype.slots
+                  .filter((slot) => !slot.ordinary)
+                  .map((slot) => `${slot.name}${slot.note ? ` — ${slot.note}` : ''}`)
+                  .join('. ')}
+                . Nothing authors these yet; a tag can name one, and the mesher mitres what is undrawn.
+              </span>
+            </div>
+          ) : null}
         </>
-      ) : (
-        <Note tone="warn">
-          {crossSheet
-            ? `${material.name} draws from ${material.top.sheet} and ${other?.name} from ${other?.top.sheet}. The atlas only takes an authored tile when both are on one sheet, so this pairing always composites.`
-            : `No sheet loaded for ${material.top.sheet}.`}
-        </Note>
       )}
     </div>
   )
@@ -507,14 +557,11 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
           <Select value={material.archetype} options={archetypes().map((a) => ({ value: a.id, label: a.title }))} onChange={(id) => change({ archetype: id })} />
         </Field>
       </div>
-      <Field label="Art" hint="Top faces, and the sides too unless the next one says otherwise">
-        <Select value={refKey(material.top)} options={terrains} onChange={(key) => change({ top: parseRef(key) })} />
-      </Field>
-      <Field label="Side art" hint="The vertical faces this material cuts. The wall archetype will replace this.">
+      <Field label="Cliffs" hint="What a voxel of this cuts its vertical faces with. Not art indirection: another material, on another face.">
         <Select
-          value={material.side ? refKey(material.side) : 'same'}
-          options={[{ value: 'same', label: 'Same as the top' }, ...terrains]}
-          onChange={(key) => change({ side: key === 'same' ? undefined : parseRef(key) })}
+          value={material.side === undefined ? 'same' : String(material.side)}
+          options={[{ value: 'same', label: 'Made of this one' }, ...materials.filter((m) => m.id !== material.id).map((m) => ({ value: String(m.id), label: m.name }))]}
+          onChange={(key) => change({ side: key === 'same' ? undefined : Number(key) })}
         />
       </Field>
 
@@ -524,7 +571,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
         return (
           <div key={a.id} style={{ display: 'grid', gap: 2 }}>
             <div className="ui-k" style={{ color: 'var(--ui-accent)', marginTop: 2 }}>
-              {a.title} · {a.slots.length} slots
+              {a.title}
             </div>
             {rows.length === 0 ? <div className="ui-hint-line" style={{ padding: '0 0 4px' }}>nothing yet</div> : null}
             {rows.map((m) => (
@@ -533,9 +580,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
                 <button type="button" className="ui-tagger-name" onClick={() => { setMeeting(meeting === m.other.id ? null : m.other.id); setLit(null) }}>
                   {m.other.name}
                 </button>
-                <Status tone={m.crossSheet ? 'warn' : m.filled === m.required ? 'ok' : m.filled === 0 ? 'muted' : 'warn'}>
-                  {m.crossSheet ? 'other sheet' : m.filled === m.required ? 'drawn' : m.filled === 0 ? 'composites' : `${m.filled} / ${m.required}`}
-                </Status>
+                <Status tone={m.drawn === m.owed ? 'ok' : m.drawn === 0 ? 'muted' : 'warn'}>{m.drawn === m.owed ? 'drawn' : m.drawn === 0 ? 'composites' : `${m.drawn} / ${m.owed}`}</Status>
               </div>
             ))}
           </div>
