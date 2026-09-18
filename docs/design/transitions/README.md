@@ -44,6 +44,14 @@ archetype owns a vocabulary of slots — floor's are corner masks, wall's are
 named parts including its seams, ramp's are parts at a root-2 aspect. See
 `Archetypes.dc.html`. `Shapes`, `Seams` and `Material` predate it.
 
+Third correction, on the same board: transitions are NOT a floor idea. A
+material fills its archetype's vocabulary with its own art; a transition
+fills the same vocabulary with the art of two to four materials meeting.
+Grass creeping up the base of a rock wall, and stone becoming wood along a
+run, are both transitions in the wall vocabulary, seams and all. A
+transition's archetype belongs to the transition rather than to its
+materials, so one pairing may have a floor block and a wall strip.
+
 Matched against `packages/ui` tokens the same way the other canvases are.
 
 The block images are generated, not drawn: flat colour scaffolding rendered

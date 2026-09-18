@@ -87,14 +87,14 @@
       "x": 2720,
       "y": 1000,
       "w": 340,
-      "text": "THE CURRENT READING. An archetype owns a vocabulary of slots. The floor archetype's slots are the sixteen corner masks; the wall's are named parts including its seams; the ramp's are parts at a root-2 aspect. There is no universal tag."
+      "text": "THE CURRENT READING. An archetype owns a vocabulary of slots — floor's are the sixteen corner masks, wall's are named parts including its seams, ramp's are parts at a root-2 aspect.\n\nA material fills that vocabulary with its own art. A transition fills the SAME vocabulary with the art of two to four materials meeting. Same shape, different subject — so transitions live in every archetype."
     },
     {
       "id": "note-open",
       "x": 2720,
       "y": 1380,
       "w": 340,
-      "text": "OPEN, and the same question twice: does a pairing in a non-floor archetype get a whole block or a single piece? Two wall materials meeting along a run, and a floor meeting the wall beneath it."
+      "text": "OPEN: how much resolution a non-corner slot needs. A wall's face slot is one tile, so stone becoming wood along a run is abrupt; a small left/right mask would let it feather. That is the wall's version of what the corner mask does for floors.\n\nAlso: a transition's archetype belongs to the transition, not to its materials — Grass is a floor material but Grass + Rock is drawn in the wall vocabulary. So one pairing can have a floor block and a wall strip."
     },
     {
       "id": "note-hist",
