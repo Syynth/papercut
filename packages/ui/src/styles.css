@@ -991,88 +991,104 @@ body {
 /* --- material layers widget ------------------------------------------------- */
 
 .ui-mlayers {
-  width: 272px;
   background: rgba(27, 30, 37, 0.94);
   border: 1px solid var(--ui-line);
   border-radius: 8px;
   backdrop-filter: blur(4px);
-  overflow: hidden;
   color: var(--ui-ink-2);
+  padding: 4px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-.ui-mlayers-head {
-  width: 100%;
+.ui-mlayers.is-open {
+  width: 200px;
+}
+
+.ui-mlayers-bar {
   display: flex;
+  gap: 3px;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
+}
+
+.ui-mlayers-toggle,
+.ui-mlayers-target,
+.ui-mlayers-eye,
+.ui-mlayers-pick {
   background: none;
   border: 0;
-  color: inherit;
+  padding: 0;
   font: inherit;
-  text-align: left;
+  color: inherit;
   cursor: pointer;
 }
 
-.ui-mlayers-chevron {
-  width: 10px;
-  color: var(--ui-ink-3);
-  font-size: 13px;
-}
-
-.ui-mlayers-title {
-  font-size: 10.5px;
-  font-weight: 600;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+.ui-mlayers-toggle {
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 5px;
   color: var(--ui-ink-3);
 }
 
-.ui-mlayers-active {
-  min-width: 0;
+.ui-mlayers-toggle:hover,
+.ui-mlayers.is-open .ui-mlayers-toggle {
+  color: var(--ui-ink);
+  background: var(--ui-bg-2);
+}
+
+.ui-mlayers-target {
+  position: relative;
+  width: 30px;
+  height: 28px;
+  border-radius: 5px;
+  border: 1px solid var(--ui-line-2);
+  display: grid;
+  place-items: center;
+  font-size: 12px;
+  color: var(--ui-ink-2);
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+}
+
+.ui-mlayers-target:hover {
+  border-color: var(--ui-ink-3);
+  color: var(--ui-ink);
+}
+
+.ui-mlayers-target.is-active {
+  border-color: var(--ui-accent);
+  background: color-mix(in srgb, var(--ui-accent) 18%, transparent);
   color: var(--ui-accent);
 }
 
-.ui-mlayers-dots {
-  margin-left: auto;
-  display: flex;
-  gap: 3px;
-  flex: none;
+.ui-mlayers-target.is-hidden {
+  opacity: 0.45;
+  border-style: dashed;
 }
 
-.ui-mlayers-dot {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  box-sizing: border-box;
-  background: var(--ui-ink-3);
-  border: 1px solid var(--ui-ink-3);
-}
-
-.ui-mlayers-dot.is-hidden {
-  background: transparent;
-}
-
-.ui-mlayers-dot.is-active {
-  background: var(--ui-accent);
-  border-color: var(--ui-accent);
+.ui-mlayers-target-swatch {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 3px;
 }
 
 .ui-mlayers-rows {
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 0 6px 6px;
+  gap: 1px;
+  padding-bottom: 3px;
+  border-bottom: 1px solid var(--ui-line);
 }
 
 .ui-mlayers-row {
   display: grid;
-  grid-template-columns: 30px minmax(0, 1fr);
+  grid-template-columns: 26px minmax(0, 1fr);
   align-items: center;
-  height: 30px;
+  height: 26px;
   border-radius: 4px;
 }
 
@@ -1082,15 +1098,9 @@ body {
 
 .ui-mlayers-eye,
 .ui-mlayers-pick {
-  height: 30px;
+  height: 26px;
   display: flex;
   align-items: center;
-  background: none;
-  border: 0;
-  padding: 0;
-  font: inherit;
-  color: inherit;
-  cursor: pointer;
 }
 
 .ui-mlayers-eye {
@@ -1099,10 +1109,11 @@ body {
 }
 
 .ui-mlayers-pick {
-  gap: 8px;
+  gap: 7px;
   min-width: 0;
-  padding-right: 8px;
+  padding-right: 6px;
   text-align: left;
+  font-size: 12px;
 }
 
 .ui-mlayers-row.is-active .ui-mlayers-pick,
@@ -1111,24 +1122,22 @@ body {
 }
 
 .ui-mlayers-row.is-hidden .ui-mlayers-pick {
-  opacity: 0.55;
+  opacity: 0.5;
 }
 
-.ui-mlayers-eye:focus-visible,
-.ui-mlayers-pick:focus-visible,
-.ui-mlayers-head:focus-visible {
+.ui-mlayers button:focus-visible {
   outline: 2px solid var(--ui-accent);
   outline-offset: -2px;
 }
 
 .ui-mlayers-n {
-  width: 12px;
+  width: 10px;
   flex: none;
 }
 
 .ui-mlayers-swatch {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 2px;
   flex: none;
 }

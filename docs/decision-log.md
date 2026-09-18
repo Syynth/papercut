@@ -749,3 +749,11 @@ Each entry:
 - **SCOPE:** architectural (reshapes "A material fills an archetype's slots, and the archetype is per face", 2026-09-17)
 - **WHAT:** A material is not tied to one archetype. A face's archetype comes from its geometry — a top is floor, a cliff is wall, a slope is ramp — and a material has art for as many archetypes as someone has drawn. The archetype is named per CORNER in a tag, `5@wall`, because a dual-grid tile is centred on a corner and, at a fold, spans two faces: the tile where a grass floor meets a rock wall is tagged `[5@floor, 5@floor, 2@wall, 2@wall]`, and each face draws its own half of it. A corner with no archetype means any. The mesher's corners cross the fold to read the neighbouring face's stack. Lookup is specific before general: an exact join, then corners left as any, then the far side of the fold treated as nothing, then the fallback. A material's `side` pointer is replaced by its own wall art.
 - **WHY:** `side` mixed up which material a face holds with how that material looks on a wall. And the join between two faces is real art that artists draw, mid-tile, across the fold; a model where each tile belonged to a single face could not describe it.
+
+## The Material Layers widget is compact, switches layers when collapsed, and shows only while painting terrain
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui
+- **SCOPE:** minor/local (refines "The paint layers are a collapsing widget on the stage")
+- **WHAT:** Collapsed, the widget is a compact row with one target per layer that is large enough to click, so you can switch the active layer without opening it. Its header is an icon, not the words "Material layers". It appears only while the Terrain tool is in Paint mode.
+- **WHY:** Switching layers is the frequent action while painting, so it should take one click and not a trip into the panel. The text label wrapped and made the widget bulkier than its job. Outside terrain painting the layers aren't being worked with, so the widget would only cover the map.
