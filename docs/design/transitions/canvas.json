@@ -33,9 +33,25 @@
       "title": "Sixteen, not forty-seven"
     },
     {
-      "file": "Layers.dc.html",
+      "file": "Seams.dc.html",
       "x": 0,
       "y": 1900,
+      "w": 1240,
+      "h": 820,
+      "title": "Mitred, or drawn"
+    },
+    {
+      "file": "Material.dc.html",
+      "x": 1340,
+      "y": 1900,
+      "w": 1280,
+      "h": 860,
+      "title": "A material's art page"
+    },
+    {
+      "file": "Layers.dc.html",
+      "x": 0,
+      "y": 2820,
       "w": 1240,
       "h": 860,
       "title": "How the pieces sit"
@@ -43,7 +59,7 @@
     {
       "file": "Authoring.dc.html",
       "x": 1340,
-      "y": 1900,
+      "y": 2820,
       "w": 1240,
       "h": 800,
       "title": "Transitions, as first sketched"
@@ -51,7 +67,7 @@
     {
       "file": "Format.dc.html",
       "x": 0,
-      "y": 2860,
+      "y": 3780,
       "w": 1120,
       "h": 760,
       "title": "The format, as first sketched"
@@ -60,31 +76,38 @@
   "annotations": [
     {
       "id": "note-arc",
-      "x": 2680,
+      "x": 2720,
       "y": 1000,
       "w": 320,
       "text": "The archetype is papercut's, not the project's — a fixed set to start, extensible later. What the artist meets is the block and the material."
     },
     {
       "id": "note-split",
-      "x": 2680,
+      "x": 2720,
       "y": 1300,
       "w": 320,
-      "text": "CORRECTED: an earlier draft of this board drew 3x3 neighbourhoods and drifted into blob thinking. Authoring stays on the corner model — 16 arrangements a pairing, 15 drawn. Inside and outside corners are already among them."
+      "text": "CORRECTED: an earlier draft of the Shapes board drew 3x3 neighbourhoods and drifted into blob thinking. Authoring stays on the corner model — 16 arrangements a pairing, 15 drawn. Inside and outside corners are already among them."
+    },
+    {
+      "id": "note-seams",
+      "x": 2720,
+      "y": 1900,
+      "w": 340,
+      "text": "THE FORK. Mitring costs no art and breaks on a texture with a direction. Drawing the seam costs two pieces per wall material AND a second kind of tag — one chosen by what the geometry does rather than by the four materials at a corner.\n\nProposed: both. A slot left empty is mitred, so the second tag kind exists in the model but is optional in every sheet."
+    },
+    {
+      "id": "note-mat",
+      "x": 2720,
+      "y": 2300,
+      "w": 340,
+      "text": "Corner tags are filled by pointing at ONE tile — the block reads the other fourteen. Named slots are filled one at a time. A ground material has no named slots, so the simple case shows a single block and nothing else."
     },
     {
       "id": "note-sketch",
-      "x": 2680,
-      "y": 1900,
+      "x": 2720,
+      "y": 2820,
       "w": 320,
-      "text": "Authoring and Format were drawn before the block, archetype and shape/material split. They are kept for the GID scheme and the block geometry, and will be redrawn once the model settles."
-    },
-    {
-      "id": "note-blocks",
-      "x": 1280,
-      "y": 1840,
-      "w": 320,
-      "text": "OPEN: is a block a brush that paints once, or a type the voxel remembers and re-derives? That is the largest remaining fork."
+      "text": "Layers, Authoring and Format predate the block, the archetype and the corner correction. Kept for the GID scheme and the block geometry; to be redrawn once the model settles."
     }
   ],
   "launch": {

@@ -1,0 +1,96 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font: 13px/1.5 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; background: #15171c; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    .k { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, monospace; }
+    .note { font-size: 11.5px; line-height: 1.55; color: #7b8294; }
+    h2 { font-size: 15px; font-weight: 600; margin: 0; }
+    h3 { font-size: 13px; font-weight: 600; margin: 0; }
+    p { margin: 0; font-size: 12.5px; line-height: 1.6; color: #aab0c0; }
+    .px { image-rendering: pixelated; display: block; }
+    .card { border: 1px solid #353b4a; border-radius: 8px; background: #1b1e25; padding: 14px; display: grid; gap: 10px; align-content: start; }
+    .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 5px; }
+    .tag { display: inline-block; font: 500 10px/1 'IBM Plex Mono', Menlo, monospace; border: 1px solid #414859; border-radius: 3px; padding: 3px 5px; color: #aab0c0; }
+    .tag.on { border-color: #e9a23b; color: #e9a23b; background: rgba(233,162,59,.1); }
+    .tag.no { color: #e5636f; border-color: #e5636f; }
+    .tag.ok { color: #7bc47f; border-color: #7bc47f; }
+    .row { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 10px; align-items: start; }
+    .row .n { font: 600 12px/1.5 'IBM Plex Mono', Menlo, monospace; color: #e9a23b; }
+    code { font-family: 'IBM Plex Mono', Menlo, monospace; color: #e8eaf0; font-size: 12px; }
+    pre { margin: 0; font: 11.5px/1.6 'IBM Plex Mono', Menlo, monospace; color: #aab0c0; background: #0f1115; border: 1px solid #353b4a; border-radius: 6px; padding: 12px; overflow: hidden; }
+    pre .c { color: #7b8294; } pre .s { color: #e9a23b; } pre .g { color: #7bc47f; }
+    table { border-collapse: collapse; font-size: 12px; width: 100%; }
+    th { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; text-align: left; padding: 0 14px 6px 0; }
+    td { padding: 6px 14px 6px 0; color: #aab0c0; border-top: 1px solid #2c3140; vertical-align: top; }
+    td.first { color: #e8eaf0; }
+    .item { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; gap: 10px; align-items: center; height: 34px; padding: 0 8px; border-radius: 4px; color: #aab0c0; font-size: 12.5px; }
+    .item.on { background: rgba(233,162,59,.14); color: #e9a23b; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 5px; border: 1px solid #353b4a; background: #2c3140; color: #e8eaf0; font-size: 12px; }
+    .btn.on { background: #e9a23b; color: #1a1305; border-color: #e9a23b; font-weight: 600; }
+  </style>
+</helmet>
+<div style="width: 1240px; padding: 28px 32px; box-sizing: border-box; display: grid; gap: 20px; align-content: start;">
+  <div>
+    <div class="k">The fork, made concrete</div>
+    <h2 style="margin-top: 6px;">A wall turns a corner. Two ways, and they differ in the model, not just the picture.</h2>
+    <p style="max-width: 92ch; margin-top: 8px;">Both walls below are one material at a convex corner. Nothing about the CORNER TAGS differs &mdash; every tile on both faces is the same interior mask. What differs is whether the seam between the two faces is geometry or art, and that decides whether a material's art is the fifteen corner tiles or the fifteen plus some named pieces.</p>
+  </div>
+
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px;">
+    <div class="card">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;"><h3>Mitred &mdash; the mesher cuts it</h3><span class="tag ok">no extra art</span></div>
+      <svg width="230" height="150" viewBox="0 0 230 150"><defs><clipPath id="cl1"><polygon points="64,44 110,67.0 110,123.0 64,100"/></clipPath><clipPath id="cr1"><polygon points="156,44 110,67.0 110,123.0 156,100"/></clipPath></defs><polygon points="110,21.0 156,44 110,67.0 64,44" fill="#a8a8a8" stroke="#15171c"/><g clip-path="url(#cl1)"><rect x="64" y="44" width="46" height="79.0" fill="#6f6f6f"/><line x1="64" y1="63.75" x2="110" y2="63.75" stroke="#00000033" stroke-width="1.5"/><line x1="64" y1="83.5" x2="110" y2="83.5" stroke="#00000033" stroke-width="1.5"/><line x1="64" y1="103.25" x2="110" y2="103.25" stroke="#00000033" stroke-width="1.5"/></g><g clip-path="url(#cr1)"><rect x="110" y="44" width="46" height="79.0" fill="#8e8e8e"/><line x1="110" y1="63.75" x2="156" y2="63.75" stroke="#00000033" stroke-width="1.5"/><line x1="110" y1="83.5" x2="156" y2="83.5" stroke="#00000033" stroke-width="1.5"/><line x1="110" y1="103.25" x2="156" y2="103.25" stroke="#00000033" stroke-width="1.5"/></g><polygon points="64,44 110,67.0 110,123.0 64,100" fill="none" stroke="#15171c"/><polygon points="156,44 110,67.0 110,123.0 156,100" fill="none" stroke="#15171c"/><line x1="110" y1="67.0" x2="110" y2="123.0" stroke="#e9a23b" stroke-width="2" stroke-dasharray="4 3"/></svg>
+      <p>The two faces are cut at 45&deg; and joined. The wall's own texture runs to the seam from both sides.</p>
+      <table>
+        <tr><td class="first" style="width:120px;">Material owes</td><td>15 corner tiles. That is all.</td></tr>
+        <tr><td class="first">Tagging</td><td>corner tags only</td></tr>
+        <tr><td class="first">Breaks when</td><td class="note">the texture has a direction the miter cuts across &mdash; courses that should turn, a moulding, a post. The courses above meet at the seam but do not line up.</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <div style="display:flex;align-items:baseline;justify-content:space-between;"><h3>Drawn &mdash; the artist makes a piece</h3><span class="tag">2 extra pieces</span></div>
+      <svg width="230" height="150" viewBox="0 0 230 150"><defs><clipPath id="cl0"><polygon points="64,44 110,67.0 110,123.0 64,100"/></clipPath><clipPath id="cr0"><polygon points="156,44 110,67.0 110,123.0 156,100"/></clipPath></defs><polygon points="110,21.0 156,44 110,67.0 64,44" fill="#a8a8a8" stroke="#15171c"/><g clip-path="url(#cl0)"><rect x="64" y="44" width="46" height="79.0" fill="#6f6f6f"/><line x1="64" y1="63.75" x2="110" y2="63.75" stroke="#00000033" stroke-width="1.5"/><line x1="64" y1="83.5" x2="110" y2="83.5" stroke="#00000033" stroke-width="1.5"/><line x1="64" y1="103.25" x2="110" y2="103.25" stroke="#00000033" stroke-width="1.5"/></g><g clip-path="url(#cr0)"><rect x="110" y="44" width="46" height="79.0" fill="#8e8e8e"/><line x1="110" y1="63.75" x2="156" y2="63.75" stroke="#00000033" stroke-width="1.5"/><line x1="110" y1="83.5" x2="156" y2="83.5" stroke="#00000033" stroke-width="1.5"/><line x1="110" y1="103.25" x2="156" y2="103.25" stroke="#00000033" stroke-width="1.5"/></g><polygon points="64,44 110,67.0 110,123.0 64,100" fill="none" stroke="#15171c"/><polygon points="156,44 110,67.0 110,123.0 156,100" fill="none" stroke="#15171c"/><g><polygon points="99,61.0 110,67.0 110,123.0 99,94" fill="#a8a8a8" stroke="#15171c"/><polygon points="121,61.0 110,67.0 110,123.0 121,94" fill="#bdbdbd" stroke="#15171c"/></g></svg>
+      <p>A quoin down the seam, drawn once per material. Convex and concave are different pieces.</p>
+      <table>
+        <tr><td class="first" style="width:120px;">Material owes</td><td>15 corner tiles <b style="color:#e8eaf0;">+ convex + concave</b></td></tr>
+        <tr><td class="first">Tagging</td><td><b style="color:#e9a23b;">corner tags are not enough</b> &mdash; these two tiles are not a corner arrangement, they are named roles</td></tr>
+        <tr><td class="first">Costs</td><td class="note">a second kind of tag, and two more slots on every wall material</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <div class="card" style="border-color:#e9a23b;">
+    <div class="k">This is the implication you were reaching for</div>
+    <p>If any art is chosen by something other than the four materials at a corner, then a tile can be tagged two different ways and the model needs both:</p>
+    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px; margin-top:6px;">
+      <div style="display:grid;gap:8px;">
+        <div style="display:flex;gap:10px;align-items:center;"><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#8e8e8e"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a"/></svg><div><b style="color:#e8eaf0;">A corner tag</b><div class="note">"the four cells here are stone, stone, stone, nothing"</div></div></div>
+        <p class="note">Fifteen of these per pairing. Derived from a block's position &mdash; nobody types them.</p>
+      </div>
+      <div style="display:grid;gap:8px;">
+        <div style="display:flex;gap:10px;align-items:center;"><svg width="34" height="34" viewBox="0 0 34 34"><rect width="34" height="34" fill="#a8a8a8"/><rect x=".5" y=".5" width="33" height="33" fill="none" stroke="#353b4a"/></svg><div><b style="color:#e8eaf0;">A shape tag</b><div class="note">"this tile IS stone's convex seam"</div></div></div>
+        <p class="note">A handful per material, named by the archetype. The artist points at a tile and picks which named slot it fills.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="card" style="border-color:#414859;">
+    <div class="k">Which to build</div>
+    <div style="display:grid;gap:8px;">
+      <div class="row"><span class="n">&rarr;</span><p><b style="color:#e8eaf0;">Both, but not at once.</b> Mitring is the default and costs nothing; a material that does not fill its seam slots gets mitred. A material that fills them gets its art. So the second kind of tag exists in the model from the start but is optional in every sheet.</p></div>
+      <div class="row"><span class="n">?</span><p>Does the same argument apply to a ramp's head and foot &mdash; where the slope meets flat ground &mdash; or can those be corner tags in the ramp's own plane?</p></div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>

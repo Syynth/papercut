@@ -14,6 +14,8 @@ mostly void.
 | `Grid.dc.html` | The corner block shapes, drawn, and why they close at four materials |
 | `Blocks.dc.html` | A block is what the artist places: a rule over its faces, not a fixed assignment |
 | `Shapes.dc.html` | The fifteen corner masks sorted by what they are; what an archetype actually settles |
+| `Seams.dc.html` | A wall turning a corner, mitred or drawn, and why that decides whether a second kind of tag exists |
+| `Material.dc.html` | Project settings › Materials: a material's art page, corner block and named slots |
 | `Layers.dc.html` | Block, material, archetype, transition — and what each replaces |
 | `Authoring.dc.html` | Project settings › Transitions, sketched before the block and archetype existed |
 | `Format.dc.html` | `papercut.json` and the GID scheme, likewise an early sketch |

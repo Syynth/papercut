@@ -1,0 +1,138 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+  <style>
+    body { margin: 0; font: 13px/1.5 'IBM Plex Sans', 'Segoe UI', system-ui, sans-serif; background: #15171c; color: #e8eaf0; -webkit-font-smoothing: antialiased; }
+    .k { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; }
+    .mono { font-family: 'IBM Plex Mono', Menlo, monospace; }
+    .note { font-size: 11.5px; line-height: 1.55; color: #7b8294; }
+    h2 { font-size: 15px; font-weight: 600; margin: 0; }
+    h3 { font-size: 13px; font-weight: 600; margin: 0; }
+    p { margin: 0; font-size: 12.5px; line-height: 1.6; color: #aab0c0; }
+    .px { image-rendering: pixelated; display: block; }
+    .card { border: 1px solid #353b4a; border-radius: 8px; background: #1b1e25; padding: 14px; display: grid; gap: 10px; align-content: start; }
+    .sw { width: 12px; height: 12px; border-radius: 3px; display: inline-block; vertical-align: -1px; margin-right: 5px; }
+    .tag { display: inline-block; font: 500 10px/1 'IBM Plex Mono', Menlo, monospace; border: 1px solid #414859; border-radius: 3px; padding: 3px 5px; color: #aab0c0; }
+    .tag.on { border-color: #e9a23b; color: #e9a23b; background: rgba(233,162,59,.1); }
+    .tag.no { color: #e5636f; border-color: #e5636f; }
+    .tag.ok { color: #7bc47f; border-color: #7bc47f; }
+    .row { display: grid; grid-template-columns: 22px minmax(0,1fr); gap: 10px; align-items: start; }
+    .row .n { font: 600 12px/1.5 'IBM Plex Mono', Menlo, monospace; color: #e9a23b; }
+    code { font-family: 'IBM Plex Mono', Menlo, monospace; color: #e8eaf0; font-size: 12px; }
+    pre { margin: 0; font: 11.5px/1.6 'IBM Plex Mono', Menlo, monospace; color: #aab0c0; background: #0f1115; border: 1px solid #353b4a; border-radius: 6px; padding: 12px; overflow: hidden; }
+    pre .c { color: #7b8294; } pre .s { color: #e9a23b; } pre .g { color: #7bc47f; }
+    table { border-collapse: collapse; font-size: 12px; width: 100%; }
+    th { font: 600 10.5px/1 'IBM Plex Sans'; letter-spacing: .08em; text-transform: uppercase; color: #7b8294; text-align: left; padding: 0 14px 6px 0; }
+    td { padding: 6px 14px 6px 0; color: #aab0c0; border-top: 1px solid #2c3140; vertical-align: top; }
+    td.first { color: #e8eaf0; }
+    .item { display: grid; grid-template-columns: 24px minmax(0,1fr) auto; gap: 10px; align-items: center; height: 34px; padding: 0 8px; border-radius: 4px; color: #aab0c0; font-size: 12.5px; }
+    .item.on { background: rgba(233,162,59,.14); color: #e9a23b; }
+    .btn { display: inline-flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 5px; border: 1px solid #353b4a; background: #2c3140; color: #e8eaf0; font-size: 12px; }
+    .btn.on { background: #e9a23b; color: #1a1305; border-color: #e9a23b; font-weight: 600; }
+  </style>
+</helmet>
+<div style="width: 1280px; padding: 26px 30px; box-sizing: border-box; display: grid; gap: 18px; align-content: start;">
+  <div>
+    <div class="k">Working it through &middot; the interface</div>
+    <h2 style="margin-top: 6px;">Project settings &rsaquo; Materials &rsaquo; one material's art</h2>
+    <p style="max-width: 94ch; margin-top: 8px;">The page a material owns. Its archetype decides what it owes: a corner block, always, and named slots if the archetype has any. Filling a slot is pointing at a tile; filling the block is pointing at one tile, because the block's shape reads the other fourteen.</p>
+  </div>
+
+  <div style="border:1px solid #353b4a; border-radius:8px; background:#242833; overflow:hidden;">
+    <div style="height:34px; padding:0 14px; border-bottom:1px solid #353b4a; display:flex; align-items:center; justify-content:space-between;">
+      <span style="font-size:13px;font-weight:600;">Materials</span><span class="note">6 materials &middot; 2 with gaps &nbsp; &times;</span>
+    </div>
+    <div style="display:grid; grid-template-columns: 210px minmax(0,1fr) 270px; min-height:430px;">
+
+      <div style="background:#1b1e25; border-right:1px solid #353b4a; padding:8px; display:grid; gap:2px; align-content:start;">
+        <div class="k" style="padding:4px 8px;">ground</div>
+        <div class="item"><span class="sw" style="background:#6aa84f;"></span><span>Grass</span><span class="tag ok">15</span></div>
+        <div class="item"><span class="sw" style="background:#d9c27e;"></span><span>Sand</span><span class="tag ok">15</span></div>
+        <div class="k" style="padding:8px 8px 4px;">wall</div>
+        <div class="item on"><span class="sw" style="background:#8e8e8e;"></span><span>Stone</span><span class="tag">13 / 17</span></div>
+        <div class="item"><span class="sw" style="background:#8b6b45;"></span><span>Earth</span><span class="tag ok">17</span></div>
+        <div class="k" style="padding:8px 8px 4px;">ramp</div>
+        <div class="item"><span class="sw" style="background:#a8a8a8;"></span><span>Stone steps</span><span class="tag ok">17</span></div>
+        <div style="padding:8px; border-top:1px solid #353b4a; margin-top:6px;"><span class="btn" style="width:100%;box-sizing:border-box;justify-content:center;">+ New material</span></div>
+      </div>
+
+      <div style="padding:16px 18px; display:grid; gap:16px; align-content:start;">
+        <div style="display:flex; align-items:center; gap:10px;">
+          <span class="sw" style="background:#8e8e8e;"></span><span style="font-size:14px;font-weight:600;">Stone</span>
+          <span class="tag">wall</span><span class="note">corners in run &times; height &middot; tiles 16 &times; 16</span>
+        </div>
+
+        <div>
+          <div class="k" style="margin-bottom:8px;">Corner block &mdash; against nothing</div>
+          <div style="display:flex; gap:16px; align-items:flex-start;">
+            <div style="display:grid;gap:3px;"><div style="display:flex;gap:3px;"><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="19.0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="19.0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="19.0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="19.0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="19.0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg></div><div style="display:flex;gap:3px;"><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="19.0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="19.0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="19.0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="19.0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="19.0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="19.0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="19.0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg></div><div style="display:flex;gap:3px;"><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="19.0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="19.0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="19.0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="19.0" y="0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x="0" y="19.0" width="19.0" height="19.0" fill="#8e8e8e"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-width="1"/></svg></div></div>
+            <div style="display:grid;gap:6px;max-width:34ch;">
+              <p class="note">One block, read from a single point on a sheet. Every arrangement of this material against the outside &mdash; interior, four outside corners, four edges, four inside corners, two diagonals.</p>
+              <span class="btn" style="width:max-content;">Pointing at walls.png, tile 96</span>
+            </div>
+          </div>
+        </div>
+
+        <div>
+          <div class="k" style="margin-bottom:8px;">Named slots &mdash; what the wall archetype also asks for</div>
+          <div style="display:flex; gap:14px; align-items:flex-start;">
+            <div style="display:grid;gap:4px;justify-items:center;"><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><rect x="0" y="0" width="38" height="38" fill="#a8a8a8"/><polygon points="0,0 17.1,0 0,17.1" fill="#ffffff22"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#353b4a" stroke-dasharray=""/></svg><span class="note" style="font-size:10px;">convex seam</span></div>
+            <div style="display:grid;gap:4px;justify-items:center;"><svg width="38" height="38" viewBox="0 0 38 38"><rect width="38" height="38" fill="#12141a"/><line x1="0" y1="0" x2="38" y2="38" stroke="#2c3140"/><line x1="38" y1="0" x2="0" y2="38" stroke="#2c3140"/><rect x=".5" y=".5" width="37" height="37" fill="none" stroke="#414859" stroke-dasharray="3 2"/></svg><span class="note" style="font-size:10px;">concave seam</span></div>
+            <div style="display:grid;gap:6px;max-width:36ch; padding-top:2px;">
+              <p class="note">Not corner arrangements &mdash; these are chosen by what the GEOMETRY does, where two wall faces meet at an angle. A slot left empty is mitred by the mesher, so the wall still draws; filling it replaces the miter with art.</p>
+              <span class="note" style="color:#e5636f;">concave seam empty &mdash; mitred</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="border-left:1px solid #353b4a; background:#1b1e25; padding:14px; display:grid; gap:12px; align-content:start;">
+        <div class="k">Where its art is</div>
+        <table>
+          <tr><td class="first" style="width:76px;">Sheet</td><td class="mono">walls.png</td></tr>
+          <tr><td class="first">Block at</td><td class="mono">gid 2317</td></tr>
+          <tr><td class="first">Archetype</td><td>wall</td></tr>
+          <tr><td class="first">Covers</td><td><span class="tag">13 of 17</span></td></tr>
+        </table>
+        <div class="k" style="margin-top:4px;">Meets</div>
+        <table>
+          <tr><td class="first"><span class="sw" style="background:#8b6b45;"></span>Earth</td><td><span class="tag ok">drawn</span></td></tr>
+          <tr><td class="first"><span class="sw" style="background:#6aa84f;"></span>Grass</td><td><span class="note">composites</span></td></tr>
+        </table>
+        <p class="note">A pairing with no block of its own composites from both edge sets, as now, and shows up in the project's to-author list.</p>
+      </div>
+    </div>
+  </div>
+
+  <div style="display:grid; grid-template-columns: 1fr 1fr; gap:18px;">
+    <div class="card">
+      <div class="k">What the two tag kinds look like in the editor</div>
+      <table>
+        <tr><th></th><th>corner block</th><th>named slot</th></tr>
+        <tr><td class="first">How many</td><td>15, always</td><td>0 to 2 or 3, per archetype</td></tr>
+        <tr><td class="first">How it is filled</td><td class="note">point at ONE tile; the block reads the rest</td><td class="note">point at a tile per slot</td></tr>
+        <tr><td class="first">What picks it</td><td class="note">the four materials at a corner</td><td class="note">what the geometry does there</td></tr>
+        <tr><td class="first">If missing</td><td class="note">composite, and count it to author</td><td class="note">miter it &mdash; no error, just plainer</td></tr>
+      </table>
+    </div>
+    <div class="card" style="border-color:#414859;">
+      <div class="k">What this settles, and what it does not</div>
+      <div style="display:grid;gap:8px;">
+        <div class="row"><span class="n">&rarr;</span><p>A material's page is one block plus a short row. A ground material shows no named slots at all, so the simple case stays simple.</p></div>
+        <div class="row"><span class="n">&rarr;</span><p>The tagger stops being corner-by-corner clicking. You point at a block once.</p></div>
+        <div class="row"><span class="n">?</span><p>Where do TRANSITIONS live &mdash; on the material's page under "Meets", or in a section of their own? Two materials both claim them.</p></div>
+        <div class="row"><span class="n">?</span><p>Does a named slot need its own aspect? A ramp's head might not be a square tile.</p></div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+</body>
+</html>
