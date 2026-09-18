@@ -25,49 +25,57 @@
       "title": "A block is what you place"
     },
     {
-      "file": "Shapes.dc.html",
+      "file": "Archetypes.dc.html",
       "x": 1340,
       "y": 1000,
+      "w": 1280,
+      "h": 820,
+      "title": "Archetypes own their vocabularies"
+    },
+    {
+      "file": "Shapes.dc.html",
+      "x": 0,
+      "y": 1920,
       "w": 1240,
       "h": 800,
       "title": "Sixteen, not forty-seven"
     },
     {
       "file": "Seams.dc.html",
-      "x": 0,
-      "y": 1900,
+      "x": 1340,
+      "y": 1920,
       "w": 1240,
       "h": 820,
       "title": "Mitred, or drawn"
     },
     {
       "file": "Material.dc.html",
-      "x": 1340,
-      "y": 1900,
+      "x": 0,
+      "y": 2840,
       "w": 1280,
       "h": 860,
       "title": "A material's art page"
     },
     {
       "file": "Layers.dc.html",
-      "x": 0,
-      "y": 2820,
+      "x": 1380,
+      "y": 2840,
       "w": 1240,
       "h": 860,
       "title": "How the pieces sit"
     },
     {
       "file": "Authoring.dc.html",
-      "x": 1340,
-      "y": 2820,
+      "x": 0,
+      "y": 3800,
       "w": 1240,
       "h": 800,
       "title": "Transitions, as first sketched"
     },
     {
       "file": "Format.dc.html",
-      "x": 0,
-      "y": 3780,
+      "x": 1340,
+      "y": 3800,
       "w": 1120,
       "h": 760,
       "title": "The format, as first sketched"
@@ -78,36 +86,36 @@
       "id": "note-arc",
       "x": 2720,
       "y": 1000,
-      "w": 320,
-      "text": "The archetype is papercut's, not the project's — a fixed set to start, extensible later. What the artist meets is the block and the material."
-    },
-    {
-      "id": "note-split",
-      "x": 2720,
-      "y": 1300,
-      "w": 320,
-      "text": "CORRECTED: an earlier draft of the Shapes board drew 3x3 neighbourhoods and drifted into blob thinking. Authoring stays on the corner model — 16 arrangements a pairing, 15 drawn. Inside and outside corners are already among them."
-    },
-    {
-      "id": "note-seams",
-      "x": 2720,
-      "y": 1900,
       "w": 340,
-      "text": "THE FORK. Mitring costs no art and breaks on a texture with a direction. Drawing the seam costs two pieces per wall material AND a second kind of tag — one chosen by what the geometry does rather than by the four materials at a corner.\n\nProposed: both. A slot left empty is mitred, so the second tag kind exists in the model but is optional in every sheet."
+      "text": "THE CURRENT READING. An archetype owns a vocabulary of slots. The floor archetype's slots are the sixteen corner masks; the wall's are named parts including its seams; the ramp's are parts at a root-2 aspect. There is no universal tag."
+    },
+    {
+      "id": "note-open",
+      "x": 2720,
+      "y": 1380,
+      "w": 340,
+      "text": "OPEN, and the same question twice: does a pairing in a non-floor archetype get a whole block or a single piece? Two wall materials meeting along a run, and a floor meeting the wall beneath it."
+    },
+    {
+      "id": "note-hist",
+      "x": 2720,
+      "y": 1920,
+      "w": 340,
+      "text": "Shapes and Seams were drawn while the corner set was still taken as universal. Shapes is right about the fifteen masks and about 16 beating 47; Seams is right that a seam cannot be a corner tag. Both are superseded on whose vocabulary owns what."
     },
     {
       "id": "note-mat",
       "x": 2720,
-      "y": 2300,
+      "y": 2840,
       "w": 340,
-      "text": "Corner tags are filled by pointing at ONE tile — the block reads the other fourteen. Named slots are filled one at a time. A ground material has no named slots, so the simple case shows a single block and nothing else."
+      "text": "Material's art page predates the correction too: it shows a corner block plus named slots for every archetype. Under the current reading a wall material would show only its seven named slots and no corner block at all."
     },
     {
       "id": "note-sketch",
       "x": 2720,
-      "y": 2820,
+      "y": 3800,
       "w": 320,
-      "text": "Layers, Authoring and Format predate the block, the archetype and the corner correction. Kept for the GID scheme and the block geometry; to be redrawn once the model settles."
+      "text": "Authoring and Format are the first sketches, kept for the GID scheme and the block geometry. To be redrawn once the model settles."
     }
   ],
   "launch": {
