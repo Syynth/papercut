@@ -22,24 +22,35 @@
 import { readFileSync, writeFileSync, copyFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 
+/**
+ * A format-2 project, as loosely as this needs to know it. Read straight from
+ * JSON, so every field is whatever the file happened to hold.
+ * @typedef {{ formatVersion?: number, materials?: any[], images?: any[] }} OldProject
+ */
+
+/** @param {unknown} path */
 const sheetName = (path) => String(path).slice(String(path).lastIndexOf('/') + 1)
+/** @param {unknown} sheet @param {unknown} terrain */
 const keyOf = (sheet, terrain) => `${sheet}/${terrain}`
 
 /**
  * The conversion itself, over a parsed project, mutating it in place and
  * reporting what it did. Pure of the filesystem so a test can exercise the
  * mapping rules without a project folder.
+ * @param {OldProject} project
+ * @returns {{ rewritten: number, orphaned: number, invented: string[] }}
  */
 export function convert(project) {
   const materials = project.materials ?? []
-  let nextId = materials.reduce((max, m) => Math.max(max, (m.id ?? 0) + 1), 0)
+  let nextId = materials.reduce((/** @type {number} */ max, /** @type {any} */ m) => Math.max(max, (m.id ?? 0) + 1), 0)
 
-  /** `<sheet>/<terrain>` -> material id. `top` wins over `side`, because it is what the material IS. */
+  /** `<sheet>/<terrain>` -> material id. `top` wins over `side`, because it is what the material IS. @type {Map<string, number>} */
   const claim = new Map()
   for (const m of materials) if (m.top) claim.set(keyOf(m.top.sheet, m.top.terrain), m.id)
   for (const m of materials) if (m.side && !claim.has(keyOf(m.side.sheet, m.side.terrain))) claim.set(keyOf(m.side.sheet, m.side.terrain), m.id)
 
   // A terrain nothing claimed still has art, so it becomes a material rather than losing its tags.
+  /** @type {string[]} */
   const invented = []
   for (const image of project.images ?? []) {
     const sheet = sheetName(image.path)
@@ -60,7 +71,7 @@ export function convert(project) {
     const sheet = sheetName(image.path)
     const tiles = image.terrain?.tiles ?? {}
     for (const [index, tags] of Object.entries(tiles)) {
-      tiles[index] = tags.map((tag) => {
+      tiles[index] = tags.map((/** @type {string | null} */ tag) => {
         if (tag === null) return null
         const id = claim.get(keyOf(sheet, tag))
         if (id === undefined) {
@@ -73,7 +84,7 @@ export function convert(project) {
     }
     image.terrain = { tiles }
     if (image.layout) {
-      image.layout.materials = (image.layout.terrains ?? []).map((t) => claim.get(keyOf(sheet, t)) ?? 0)
+      image.layout.materials = (image.layout.terrains ?? []).map((/** @type {string} */ t) => claim.get(keyOf(sheet, t)) ?? 0)
       delete image.layout.terrains
       delete image.layout.unauthored
     }
