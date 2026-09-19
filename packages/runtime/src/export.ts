@@ -104,7 +104,7 @@ export function buildExportScene(doc: ReadonlyMapDoc, options: ExportOptions): T
   const nearest = options.resolution.filtering === 'nearest'
 
   // --- terrain --------------------------------------------------------------
-  // The atlas is textured after the chunks are meshed: a corner nobody drew is baked into it on first sight.
+  // The atlas is textured after the chunks are meshed: the fallback tile is made the first time a corner needs it.
   const look = createTerrainLook(options.materials, options.terrain)
   const terrainMaterial = new THREE.MeshStandardMaterial({
     vertexColors: true,
@@ -115,6 +115,10 @@ export function buildExportScene(doc: ReadonlyMapDoc, options: ExportOptions): T
     transparent: false,
   })
   terrainMaterial.name = 'terrain'
+  // Fringes and pickets: real triangles, seen from both sides, so they reach the game with no shader (ruling of 2026-09-18).
+  const trimMaterial = terrainMaterial.clone()
+  trimMaterial.side = THREE.DoubleSide
+  trimMaterial.name = 'terrain_trim'
 
   const terrainRoot = new THREE.Group()
   terrainRoot.name = 'Terrain'
@@ -186,6 +190,12 @@ export function buildExportScene(doc: ReadonlyMapDoc, options: ExportOptions): T
         terrainRoot.add(node)
       }
     }
+    if (mesh.trim) {
+      const node = new THREE.Mesh(geometryFrom(mesh.trim).applyMatrix4(matrix), trimMaterial)
+      node.name = `trim_${ground.id}_${key}`
+      node.userData = { collision: 'none', walkable: false }
+      terrainRoot.add(node)
+    }
     if (mesh.water) {
       const water = new THREE.Mesh(
         geometryFrom(mesh.water).applyMatrix4(matrix),
@@ -250,6 +260,8 @@ export function buildExportScene(doc: ReadonlyMapDoc, options: ExportOptions): T
 
   terrainMaterial.map = rgbaTexture(look.atlas.image, nearest)
   terrainMaterial.needsUpdate = true
+  trimMaterial.map = terrainMaterial.map
+  trimMaterial.needsUpdate = true
 
   // --- objects --------------------------------------------------------------
   const sprites = options.sprites

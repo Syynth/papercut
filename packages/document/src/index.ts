@@ -53,6 +53,7 @@ export {
   isSlopedShape,
   exposedFacesOf,
   settleFaces,
+  wallStands,
   topLayersAt,
   maxHeightOf,
   rampDirAt,
@@ -82,6 +83,8 @@ export type {
   MapObject,
   MapSize,
   MaterialDef,
+  EdgeEnd,
+  EdgeSwitch,
   MaterialLayers,
   Slot,
   SurfacePaint,
@@ -142,6 +145,7 @@ export {
   rampRunLength,
   rectCells,
   reconcileFaces,
+  setEdges,
   regroundObjects,
   removeObject,
   removeStructure,
@@ -154,8 +158,8 @@ export {
   updateObject,
   updateSketchPoint,
 } from './ops'
-export type { Brush, BrushShape, Cell, FaceRef, RampEdge, RampStep, SketchChanges } from './ops'
-export { FACE_BOTTOM, FACE_TOP, faceKey, faceLayers, parseFaceKey, tintKey, tintPaint } from './paint'
+export type { Brush, BrushShape, Cell, EdgeRef, FaceRef, RampEdge, RampStep, SketchChanges } from './ops'
+export { FACE_BOTTOM, FACE_TOP, edgeKey, edgeOff, faceKey, faceLayers, parseFaceKey, tintKey, tintPaint } from './paint'
 export type { DocumentReader } from './store'
 export { applyPatches, inversePatch, patchAddress } from './edits'
 export type { PaintPatch, Patch, SketchField, SketchPatch, StrokeRecord, StructureMetaPatch } from './edits'

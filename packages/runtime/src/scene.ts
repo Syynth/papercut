@@ -64,6 +64,9 @@ function buildGeometry(buffers: MeshBuffers): THREE.BufferGeometry {
 interface ChunkView {
   solid: THREE.Mesh
   water: THREE.Mesh | null
+  /** The fringes and pickets: geometry of their own, drawn one-sided texture on both sides. */
+  trim: THREE.Mesh | null
+  trimFaceAddr: Int32Array | null
   /** A dot on every corner no tile answered, shown while the editor asks for them. */
   marks: THREE.Points | null
   /** The distinct combinations no tile answered in this chunk, by name. */
@@ -170,6 +173,8 @@ export class RuntimeScene {
   private structures = new Map<string, StructureView>()
   private views = new Map<string, ObjectView>()
   private terrainMaterial: THREE.MeshStandardMaterial
+  /** Fringe flaps and pickets: the atlas, one layer, seen from either side, cut out by alpha like the terrain. */
+  private trimMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, alphaTest: 0.5, side: THREE.DoubleSide })
   private waterMaterial: THREE.MeshStandardMaterial
   /** The marks on corners no tile answered: drawn over everything, sized in pixels, magenta so they cannot be mistaken for art. */
   private markMaterial = new THREE.PointsMaterial({ color: 0xe04fc0, size: 7, sizeAttenuation: false, depthTest: false, transparent: true })
@@ -226,6 +231,7 @@ export class RuntimeScene {
     })
     this.section.solid(this.terrainMaterial)
     this.stackShown = stackLayers(this.terrainMaterial)
+    this.section.solid(this.trimMaterial)
     this.section.clip(this.waterMaterial)
 
     this.sun.castShadow = true
@@ -332,6 +338,8 @@ export class RuntimeScene {
     const image = atlas.image
     this.terrainMaterial.map = rgbaTexture(image, this.filtering === 'nearest')
     this.terrainMaterial.needsUpdate = true
+    this.trimMaterial.map = this.terrainMaterial.map
+    this.trimMaterial.needsUpdate = true
     if (this.atlasImage && this.atlasImage !== image) releaseTexture(this.atlasImage)
     this.atlasImage = image
     this.atlasVersion = atlas.version
@@ -418,6 +426,7 @@ export class RuntimeScene {
     for (const chunk of view.chunks.values()) {
       chunk.solid.geometry.dispose()
       chunk.water?.geometry.dispose()
+      chunk.trim?.geometry.dispose()
     }
     for (const mesh of view.parts.keys()) mesh.geometry.dispose()
     this.dropCap(view)
@@ -476,6 +485,10 @@ export class RuntimeScene {
         view.group.remove(existing.water)
         existing.water.geometry.dispose()
       }
+      if (existing.trim) {
+        view.group.remove(existing.trim)
+        existing.trim.geometry.dispose()
+      }
       if (existing.marks) {
         view.group.remove(existing.marks)
         existing.marks.geometry.dispose()
@@ -504,6 +517,16 @@ export class RuntimeScene {
       water.userData.structureId = voxel.id
       view.group.add(water)
     }
+    let trim: THREE.Mesh | null = null
+    if (mesh.trim) {
+      trim = new THREE.Mesh(buildGeometry(mesh.trim), this.trimMaterial)
+      trim.castShadow = true
+      trim.receiveShadow = true
+      trim.userData.chunkKey = key
+      trim.userData.surface = 'trim'
+      trim.userData.structureId = voxel.id
+      view.group.add(trim)
+    }
     let marks: THREE.Points | null = null
     if (mesh.marks.length > 0) {
       const geometry = new THREE.BufferGeometry()
@@ -514,7 +537,7 @@ export class RuntimeScene {
       marks.raycast = () => undefined
       view.group.add(marks)
     }
-    view.chunks.set(key, { solid, water, marks, missing: mesh.missing, faceAddr: mesh.solid.faceAddr, waterFaceAddr: mesh.water?.faceAddr ?? null, triangleCount: mesh.solid.triangleCount })
+    view.chunks.set(key, { solid, water, trim, trimFaceAddr: mesh.trim?.faceAddr ?? null, marks, missing: mesh.missing, faceAddr: mesh.solid.faceAddr, waterFaceAddr: mesh.water?.faceAddr ?? null, triangleCount: mesh.solid.triangleCount })
   }
 
   private surfaceMaterial(textureName: string | null, band: boolean): THREE.MeshStandardMaterial {
@@ -663,7 +686,7 @@ export class RuntimeScene {
     if (part) return part
     const chunk = view.chunks.get(mesh.userData.chunkKey as string)
     if (!chunk) return null
-    return mesh.userData.surface === 'water' ? chunk.waterFaceAddr : chunk.faceAddr
+    return mesh.userData.surface === 'water' ? chunk.waterFaceAddr : mesh.userData.surface === 'trim' ? chunk.trimFaceAddr : chunk.faceAddr
   }
 
   /** Every structure mesh, solid and water, across every structure. */
@@ -759,6 +782,7 @@ export class RuntimeScene {
     for (const view of this.views.values()) view.dispose()
     this.views.clear()
     this.terrainMaterial.dispose()
+    this.trimMaterial.dispose()
     this.waterMaterial.dispose()
     this.markMaterial.dispose()
     for (const material of this.surfaceMaterials.values()) material.dispose()

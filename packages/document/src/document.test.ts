@@ -5,7 +5,7 @@ import { createMap, defaultFacing, layersOf, NO_RAMP, SHAPE_BLOCK, SHAPE_SLAB, t
 import { childrenOf, descendantsOf, outlineOf, type VoxelStructure } from './structure'
 import { deserialize, LoadError, serialize } from './io'
 import { PROJECT_FORMAT_VERSION, createProject, parseProject, serializeProject, sheetName, stemOf, tagOf } from './project'
-import { addObject, addSketchPoint, addStructure, brushCells, clearRampRun, closeSketch, columnPatches, createSketch, deleteSketchPoint, fillCells, flatten, paintFace, placeStructureOnto, raise, rampPlan, rampRun, rampRunBlocked, rampRunLength, removeObject, removeStructure, reparentStructure, setMaterial, setSketch, updateObject } from './ops'
+import { addObject, addSketchPoint, addStructure, brushCells, clearRampRun, closeSketch, columnPatches, createSketch, deleteSketchPoint, fillCells, flatten, paintFace, placeStructureOnto, raise, rampPlan, rampRun, rampRunBlocked, rampRunLength, removeObject, removeStructure, reparentStructure, setEdges, setMaterial, setSketch, updateObject } from './ops'
 import { FACE_TOP, faceKey } from './paint'
 import { EditorStore } from './store'
 import { cornerHeights, frameOf, groundHeight, structureAt } from './terrain'
@@ -400,6 +400,27 @@ describe('a stack moves with the surface (no dormant paint)', () => {
     expect(Object.keys(g.paint.faces).sort()).toEqual(drawnFaces(g))
   })
 
+  it('takes an edge switch off with its wall, and refuses one where no wall stands', () => {
+    const doc = createMap(6, 6)
+    const g = ground(doc)
+    setHeight(doc, 2, 2, 6)
+    settleFaces(g)
+    // Flat ground has no wall to switch.
+    expect(setEdges(g, [{ x: 0, z: 0, dir: 0, end: 'top' }], false)).toEqual([])
+    applyPatches(doc, setEdges(g, [{ x: 2, z: 2, dir: 0, end: 'top' }, { x: 2, z: 2, dir: 1, end: 'foot' }], false))
+    expect(g.paint.edges).toEqual({ '2,2,0,top': 'off', '2,2,1,foot': 'off' })
+    // Already off: nothing to write.
+    expect(setEdges(g, [{ x: 2, z: 2, dir: 0, end: 'top' }], false)).toEqual([])
+    // Lowered level with its neighbours, the walls go, and their switches with them; undo brings both back.
+    const undo = applyPatches(doc, flatten(doc, g, [[2, 2]], 2))
+    expect(g.paint.edges).toEqual({})
+    applyPatches(doc, undo)
+    expect(g.paint.edges).toEqual({ '2,2,0,top': 'off', '2,2,1,foot': 'off' })
+    // A wall that stays, at a new height, keeps its switch.
+    applyPatches(doc, raise(doc, g, [[2, 2]], 2))
+    expect(g.paint.edges['2,2,0,top']).toBe('off')
+  })
+
   it("paints one material layer of a face and leaves the others", () => {
     const doc = createMap(4, 4)
     const g = ground(doc)
@@ -657,6 +678,18 @@ describe('io', () => {
     const raw = parseOnDisk(doc)
     raw.structures[ground(doc).id].water = [1, 2, 3]
     expect(() => deserialize(JSON.stringify(raw))).toThrow(/should hold 16 entries/)
+  })
+
+  it('round-trips an edge switched off, and refuses one it cannot read', () => {
+    const doc = createMap(4, 4)
+    ground(doc).paint.edges['1,1,2,foot'] = 'off'
+    expect(ground(deserialize(serialize(doc))).paint.edges).toEqual({ '1,1,2,foot': 'off' })
+    const raw = parseOnDisk(doc)
+    raw.structures[ground(doc).id].paint.edges['1,1,2,side'] = 'off'
+    expect(() => deserialize(JSON.stringify(raw))).toThrow(/not an edge switched off/)
+    // A file written before edges existed reads with none.
+    delete raw.structures[ground(doc).id].paint.edges
+    expect(ground(deserialize(JSON.stringify(raw))).paint.edges).toEqual({})
   })
 
   it('refuses a face that is not four material layers, or a key that names no face', () => {

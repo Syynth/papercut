@@ -152,6 +152,7 @@ export function TerrainBar(props: TerrainPanelProps) {
             options={[
               { value: 'material', icon: 'material', title: 'Material — paints the active material layer of a top or a cliff band; ⇧ empties it' },
               { value: 'tint', icon: 'tint', title: 'Tint' },
+              { value: 'fringe', icon: 'fences', title: 'Fringe — switch off the fringe hanging from a cliff top, or the picket at a wall\u2019s foot; ⇧ switches it back on' },
             ]}
           />
           <BarDivider />

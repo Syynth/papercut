@@ -164,11 +164,12 @@ describe('archetypes and assembling a patch', () => {
       expect(ordinary).toHaveLength(1)
       expect(ordinary[0].id).toBe(ORDINARY)
     }
-    expect(archetypeOf('floor').slots.map((s) => s.id)).toEqual([ORDINARY])
-    expect(archetypeOf('ramp').slots.map((s) => s.id)).toEqual([ORDINARY])
+    // Every material has the trim slots, whatever its face: a fringe and a picket are edges of any surface.
+    expect(archetypeOf('floor').slots.map((s) => s.id)).toEqual([ORDINARY, 'fringe', 'picket'])
+    expect(archetypeOf('ramp').slots.map((s) => s.id)).toEqual([ORDINARY, 'fringe', 'picket'])
     // A seam is two wall faces meeting at an angle, which no arrangement of four coplanar corners can say,
     // so it is the wall's alone and nobody else carries one.
-    expect(archetypeOf('wall').slots.map((s) => s.id)).toEqual([ORDINARY, 'convex', 'concave'])
+    expect(archetypeOf('wall').slots.map((s) => s.id)).toEqual([ORDINARY, 'convex', 'concave', 'fringe', 'picket'])
     // The seams are the optional ones: left undrawn they are mitred, so they do not count as owed.
     expect(requiredSlots(archetypeOf('wall')).map((s) => s.id)).toEqual([ORDINARY])
   })

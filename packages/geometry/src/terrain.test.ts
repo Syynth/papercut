@@ -199,6 +199,101 @@ describe('material layers, stacked', () => {
   })
 })
 
+/** The placeholder set with grass's bottom edge tagged as its fringe and its top edge as its picket. */
+function trimmedSet(): LoadedSet {
+  const loaded = placeholderSet()
+  const grass = tagOf(0)
+  const tiles = new Map(loaded.set.tiles)
+  for (const [index, tags] of tiles) {
+    if (tags.join('|') === [grass, grass, null, null].join('|')) tiles.set(index, [tagOf(0, 'fringe'), tagOf(0, 'fringe'), null, null])
+    if (tags.join('|') === [null, null, grass, grass].join('|')) tiles.set(index, [null, null, tagOf(0, 'picket'), tagOf(0, 'picket')])
+  }
+  return { ...loaded, set: { ...loaded.set, tiles } }
+}
+
+describe('fringes and pickets', () => {
+  it('finds a material\u2019s trim tiles, and keeps them serving as its ordinary edges', () => {
+    const look = createTerrainLook(DEFAULT_MATERIALS, [trimmedSet()])
+    const grass = tagOf(0)
+    expect(look.atlas.trimTile(grass, 'fringe')).not.toBeNull()
+    expect(look.atlas.trimTile(grass, 'picket')).not.toBeNull()
+    expect(look.atlas.trimTile(tagOf(1), 'fringe')).toBeNull()
+    // Tagging an edge as a fringe adds a use: grass meeting nothing below it still resolves, and to that same tile.
+    const edge = look.atlas.tileFor([grass, grass, null, null])
+    expect(edge.missing).toBe(false)
+    expect(edge.tile).toBe(look.atlas.trimTile(grass, 'fringe'))
+  })
+
+  it('keeps the first-drawn tile answering its corner when it is tagged as trim, even with a later copy', () => {
+    const loaded = trimmedSet()
+    const fringe = [...loaded.set.tiles].find(([, tags]) => tags[0] === tagOf(0, 'fringe'))?.[0] as number
+    // A later tile tagged as the same plain edge, as a kit with a duplicate block has.
+    const later = loaded.set.columns * loaded.set.rows - 1
+    const tiles = new Map(loaded.set.tiles)
+    tiles.set(later, [tagOf(0), tagOf(0), null, null])
+    const look = createTerrainLook(DEFAULT_MATERIALS, [{ ...loaded, set: { ...loaded.set, tiles } }])
+    expect(look.atlas.tileFor([tagOf(0), tagOf(0), null, null]).tile).toBe(look.atlas.trimTile(tagOf(0), 'fringe'))
+    expect(fringe).toBeLessThan(later)
+  })
+
+  it('hangs a flap half a tile long at 45\u00b0 off a grass cliff top, and none where the edge is switched off', () => {
+    const doc = createMap(8, 8)
+    setHeight(doc, 3, 3, 6)
+    const look = createTerrainLook(DEFAULT_MATERIALS, [trimmedSet()])
+    const { trim } = meshTerrainChunk(ground(doc), '0,0', look)
+    expect(trim).not.toBeNull()
+    const t = trim as MeshBuffers
+    // The east wall's flap: every vertex with x past the column's east side is on it, and none reaches further than the flap's own reach.
+    const reach = 0.5 / Math.SQRT2
+    const top = 6 * HALF
+    let east = 0
+    for (let v = 0; v < t.positions.length / 3; v++) {
+      const [x, y, z] = [t.positions[v * 3], t.positions[v * 3 + 1], t.positions[v * 3 + 2]]
+      // The volume's own rim is a cliff too, with flaps of its own, and the wall's foot has its picket: only the raised column's east flap is looked at.
+      if (x <= 4 + 1e-6 || x > 5 || z < 2.5 || z > 4.5 || y < top - 1) continue
+      east += 1
+      expect(x).toBeLessThanOrEqual(4 + reach + 1e-6)
+      // Down as far as out: 45\u00b0, never stretched past half a tile along the slope.
+      expect(top - y).toBeCloseTo(x - 4, 5)
+    }
+    expect(east).toBeGreaterThan(0)
+    // Switched off, the east wall has none; the others keep theirs, their corner wings reaching past it but never along it.
+    ground(doc).paint.edges['3,3,0,top'] = 'off'
+    const off = meshTerrainChunk(ground(doc), '0,0', look).trim as MeshBuffers
+    let still = 0
+    for (let v = 0; v < off.positions.length / 3; v++) {
+      const [x, y, z] = [off.positions[v * 3], off.positions[v * 3 + 1], off.positions[v * 3 + 2]]
+      if (x > 4 + 1e-6 && x < 5 && y > top - 1 && z > 3.01 && z < 3.99) still += 1
+    }
+    expect(still).toBe(0)
+    expect(off.triangleCount).toBeGreaterThan(0)
+  })
+
+  it('stands a picket half a tile tall at the foot of a wall, on the grass below it', () => {
+    const doc = createMap(8, 8)
+    setHeight(doc, 3, 3, 6)
+    const look = createTerrainLook(DEFAULT_MATERIALS, [trimmedSet()])
+    const t = meshTerrainChunk(ground(doc), '0,0', look).trim as MeshBuffers
+    // The ground around stands at one cube: a picket's vertices sit at its height or half a tile above, a hair off the wall.
+    const floor = 2 * HALF
+    let picket = 0
+    for (let v = 0; v < t.positions.length / 3; v++) {
+      const [x, y, z] = [t.positions[v * 3], t.positions[v * 3 + 1], t.positions[v * 3 + 2]]
+      // Around the raised column only: the volume's rim hangs flaps of its own below the floor.
+      if (y > floor + 0.5 + 1e-6 || x < 2.5 || x > 4.5 || z < 2.5 || z > 4.5) continue
+      picket += 1
+      expect([floor, floor + 0.5].some((h) => Math.abs(h - y) < 1e-6)).toBe(true)
+    }
+    expect(picket).toBeGreaterThan(0)
+  })
+
+  it('draws no trim for a material with none tagged', () => {
+    const doc = createMap(8, 8)
+    setHeight(doc, 3, 3, 6)
+    expect(meshTerrainChunk(ground(doc), '0,0', createTerrainLook(DEFAULT_MATERIALS, [placeholderSet()])).trim).toBeNull()
+  })
+})
+
 describe('mesher', () => {
   it('emits a top face per cell as four quarters, every one addressed back to the cell', () => {
     const doc = createMap(4, 4)

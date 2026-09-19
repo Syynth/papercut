@@ -149,6 +149,18 @@ export function faceExposed(voxel: ReadonlyVoxel, x: number, z: number, y: numbe
   return voxelAt(voxel, x + dx, z + dz, y) === AIR
 }
 
+/**
+ * Whether column (x, z) walls its side `dir`: its top stands above the
+ * neighbour's, the floor off the volume. What a fringe hangs from and a
+ * picket stands against, and what an edge switch in `SurfacePaint.edges` is
+ * kept for.
+ */
+export function wallStands(voxel: ReadonlyVoxel, x: number, z: number, dir: number): boolean {
+  const [dx, dz] = DIR_VECTORS[dir]
+  const beside = inBounds(voxel.size, x + dx, z + dz) ? topHeight(voxel, x + dx, z + dz) : 0
+  return topHeight(voxel, x, z) > beside
+}
+
 /** Every column's top height, in half-tiles, indexed by cell — what the layer view's cap and slider read. */
 export function columnHeights(voxel: ReadonlyVoxel): number[] {
   const out = new Array<number>(voxel.size.width * voxel.size.height)

@@ -123,7 +123,21 @@ export interface SurfacePaint {
   faces: Record<string, MaterialLayers>
   /** `${x},${z}` -> packed 0xRRGGBB */
   tint: Record<string, number>
+  /**
+   * `${x},${z},${dir},top|foot` -> `'off'`: a wall's fringe (at its top) or
+   * picket (at its foot) switched off (rulings of 2026-09-18). Fringes and
+   * pickets follow the art everywhere else, so only these exceptions are
+   * written, keyed by the column whose side the wall is; sculpting removes an
+   * entry when its wall goes.
+   */
+  edges: Record<string, EdgeSwitch>
 }
+
+/** What an edge override says. Only `'off'` is written: on is what the art does anyway. */
+export type EdgeSwitch = 'off'
+
+/** The two ends of a wall that can carry trim: its top, where a fringe hangs, and its foot, where a picket stands. */
+export type EdgeEnd = 'top' | 'foot'
 
 export type DisplayMode =
   | 'fixed'
@@ -518,7 +532,7 @@ export function createVoxel(width: number, height: number, name = 'Ground', pare
     layers,
     voxels: { shape },
     water: new Array<number>(count).fill(NO_WATER),
-    paint: { faces, tint: {} },
+    paint: { faces, tint: {}, edges: {} },
   }
 }
 

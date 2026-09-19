@@ -53,6 +53,7 @@ import {
   chunkBounds,
   cornerHeights,
   encodeExtra,
+  edgeOff,
   faceLayers,
   inBounds,
   slotMaterial,
@@ -61,6 +62,7 @@ import {
   type Tag,
 } from '@papercut/document'
 
+import { FRINGE, PICKET } from './archetype'
 import type { CornerKeys } from './atlas'
 import type { TerrainLook } from './look'
 
@@ -86,6 +88,8 @@ export interface TerrainChunkMesh {
   key: string
   solid: MeshBuffers
   water: MeshBuffers | null
+  /** Fringes hung off cliff tops and pickets stood at wall feet: geometry of their own, one texture each, no stack. */
+  trim: MeshBuffers | null
   /** Where a corner no tile answers drew the fallback: one xyz per such corner, for the editor to mark (spec §3). */
   marks: Float32Array
   /** The distinct combinations no tile answered in this chunk, by name — what is left to author, counted over the chunks on screen. */
@@ -94,6 +98,16 @@ export interface TerrainChunkMesh {
 
 /** Height treated as existing outside the map, so borders read as an island. */
 const OUTSIDE_HEIGHT = 0
+
+/**
+ * How long a fringe flap or a picket is, in world units: half a tile, the
+ * height of the half of an edge tile it carries, so it has the same texels
+ * per unit as every floor (ruling of 2026-09-18). Never stretched to a length.
+ */
+const TRIM_LENGTH = 0.5
+
+/** How far a picket stands out from its wall: enough not to fight the wall's own pixels for depth. */
+const PICKET_GAP = 0.02
 
 /** How much each occluding neighbour darkens a corner. */
 const AO_STRENGTH = 0.17
@@ -499,6 +513,42 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
   const bounds = chunkBounds(key, voxel.size.width, voxel.size.height)
   const solid = new BufferBuilder(true)
   const water = new BufferBuilder(false)
+  const trim = new BufferBuilder(false)
+  /** The trim tile a face's material has, from its topmost layer that has one; `null` when none does. */
+  const trimOf = (face: FaceKeys, slot: typeof FRINGE | typeof PICKET): number | null => {
+    if (face.empty) return null
+    for (let layer = face.keys.length - 1; layer >= 0; layer--) {
+      const tag = face.keys[layer]
+      if (tag === null) continue
+      const tile = atlas.trimTile(tag, slot)
+      if (tile !== null) return tile
+    }
+    return null
+  }
+  /**
+   * Emit a strip of trim along one side, drawn in (t, s): t along the side
+   * from its start corner, s across the strip from its fixed edge. The strip
+   * is cut at every half cell so each piece samples one tile centred on a
+   * corner of the grid, like the floor beside it; `local` places a point in
+   * that tile's rect.
+   */
+  const strip = (outline: WallPoint[], rect: readonly [number, number, number, number], place: (t: number, s: number) => [number, number, number], local: (s: number) => number, reverse: boolean, tint: readonly [number, number, number], address: readonly [number, number, number, number]): void => {
+    const lo = Math.floor(Math.min(...outline.map((p) => p[0])) + 0.5)
+    const hi = Math.ceil(Math.max(...outline.map((p) => p[0])) + 0.5)
+    for (let k = lo; k < hi; k++) {
+      const piece = clipToRect(outline, k - 0.5, k + 0.5, 0, TRIM_LENGTH)
+      if (piece.length === 0) continue
+      const ordered = reverse ? [...piece].reverse() : piece
+      trim.polygon(
+        ordered.map(([t, sv]) => place(t, sv)),
+        ordered.map(([t, sv]) => [t - (k - 0.5), local(sv)] as const),
+        [rect],
+        ordered.map(() => 1),
+        tint,
+        address,
+      )
+    }
+  }
   const { atlas } = look
   const cells = new Cells(voxel, look)
   const marks: number[] = []
@@ -531,7 +581,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
   }
 
   if (!bounds) {
-    return { key, solid: solid.finish(), water: null, marks: new Float32Array(0), missing: [] }
+    return { key, solid: solid.finish(), water: null, trim: null, marks: new Float32Array(0), missing: [] }
   }
 
   for (let y = bounds.y0; y < bounds.y1; y++) {
@@ -592,6 +642,48 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
 
         const topLevel = Math.ceil(Math.max(topStart, topEnd)) - 1
         const bottomLevel = Math.floor(Math.min(lowStart, lowEnd))
+
+        // --- trim: a fringe off the top, a picket at the foot (rulings of 2026-09-18) ---
+        // Only a wall standing the whole length of the side takes trim; a sliver beside a slope does not.
+        if (topStart > lowStart && topEnd > lowEnd) {
+          const [nx, nz] = DIR_VECTORS[dir]
+          const lerp = (a: number, b: number, t: number): number => (t <= 0 ? a : t >= 1 ? b : a + (b - a) * t)
+          const fringe = edgeOff(voxel.paint, x, y, dir, 'top') ? null : trimOf(cells.at(x, y).face, FRINGE)
+          if (fringe !== null) {
+            const [u0, v0, u1, v1] = atlas.uv(fringe, -1)
+            // An outside corner of the plateau: this cell walls the side round the corner too, so the flap reaches out to meet that one's.
+            const walls = (vx: number, vz: number): boolean => cells.top(x, y) > cells.top(x + vx, y + vz)
+            const reach = TRIM_LENGTH / Math.SQRT2
+            const e0 = walls(-u[0], -u[1]) ? reach : 0
+            const e1 = walls(u[0], u[1]) ? reach : 0
+            strip(
+              [[0, 0], [1, 0], [1 + e1, TRIM_LENGTH], [-e0, TRIM_LENGTH]],
+              // The tile's lower half, the edge that hangs: the hinge at its middle, the tip at its bottom.
+              [u0, v0, u1, (v0 + v1) / 2],
+              (t, sv) => [ox + u[0] * t + (nx * sv) / Math.SQRT2, lerp(topStart, topEnd, t) * HALF - sv / Math.SQRT2, oz + u[1] * t + (nz * sv) / Math.SQRT2],
+              (sv) => 1 - sv / TRIM_LENGTH,
+              true,
+              tint,
+              [SURFACE_CLIFF, x, y, encodeExtra(dir, topLevel)],
+            )
+          }
+          const bx = x + nx
+          const bz = y + nz
+          const picket = inBounds(voxel.size, bx, bz) && !edgeOff(voxel.paint, x, y, dir, 'foot') ? trimOf(cells.at(bx, bz).face, PICKET) : null
+          if (picket !== null) {
+            const [u0, v0, u1, v1] = atlas.uv(picket, -1)
+            strip(
+              [[0, 0], [1, 0], [1, TRIM_LENGTH], [0, TRIM_LENGTH]],
+              // The tile's upper half, the edge that pokes up: its middle on the ground, its top edge in the air.
+              [u0, (v0 + v1) / 2, u1, v1],
+              (t, sv) => [ox + u[0] * t + nx * PICKET_GAP, lerp(lowStart, lowEnd, t) * HALF + sv, oz + u[1] * t + nz * PICKET_GAP],
+              (sv) => sv / TRIM_LENGTH,
+              false,
+              unpackTint(tintPaint(voxel.paint, bx, bz)),
+              [SURFACE_CLIFF, x, y, encodeExtra(dir, bottomLevel)],
+            )
+          }
+        }
         for (let level = bottomLevel; level <= topLevel; level++) {
           // Bands sitting in a pit read darker at the bottom.
           const deep = 1 - AO_STRENGTH * Math.min(2, topLevel - level) * 0.5
@@ -652,6 +744,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
     key,
     solid: solid.finish(),
     water: water.isEmpty ? null : water.finish(),
+    trim: trim.isEmpty ? null : trim.finish(),
     marks: new Float32Array(marks),
     missing: [...missing],
   }

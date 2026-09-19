@@ -84,6 +84,21 @@ export function arrangements(): readonly Arrangement[] {
   return ARRANGEMENTS
 }
 
+/**
+ * The trim slots every material has, whatever face its art is for (rulings of
+ * 2026-09-18). Each marks one of the material's ordinary edge tiles as also
+ * drawn on geometry of its own: a FRINGE is its bottom edge, hung off a
+ * cliff top it stands on as a flap at 45°; a PICKET is its top edge, stood
+ * upright at the foot of a wall it meets. The tile keeps serving as the
+ * ordinary edge it is — the slot adds a use, it does not take one away.
+ */
+export const FRINGE = 'fringe'
+export const PICKET = 'picket'
+const TRIM_SLOTS: readonly Slot[] = [
+  { id: FRINGE, name: 'Fringe', optional: true, note: 'tag its bottom edge: hangs off every cliff top it stands on' },
+  { id: PICKET, name: 'Picket', optional: true, note: 'tag its top edge: stands at the foot of every wall it borders' },
+]
+
 /** √2, because a ramp's surface spans the diagonal of the cell it descends through. */
 export const RAMP_RISE = Math.SQRT2
 
@@ -93,7 +108,7 @@ const ARCHETYPES: readonly Archetype[] = [
     title: 'Floor',
     note: 'Top faces, in the map’s own plane.',
     aspect: { width: 1, height: 1 },
-    slots: [{ id: ORDINARY, name: 'Surface', ordinary: true, note: 'the ground itself' }],
+    slots: [{ id: ORDINARY, name: 'Surface', ordinary: true, note: 'the ground itself' }, ...TRIM_SLOTS],
   },
   {
     id: 'wall',
@@ -104,6 +119,7 @@ const ARCHETYPES: readonly Archetype[] = [
       { id: ORDINARY, name: 'Surface', ordinary: true, note: 'the wall itself' },
       { id: 'convex', name: 'Convex seam', optional: true, note: 'an outside turn; mitred when undrawn' },
       { id: 'concave', name: 'Concave seam', optional: true, note: 'an inside turn; mitred when undrawn' },
+      ...TRIM_SLOTS,
     ],
   },
   {
@@ -111,7 +127,7 @@ const ARCHETYPES: readonly Archetype[] = [
     title: 'Ramp',
     note: 'Sloped top faces. Taller tiles, because the slope is longer than its run.',
     aspect: { width: 1, height: RAMP_RISE },
-    slots: [{ id: ORDINARY, name: 'Surface', ordinary: true, note: 'the slope itself' }],
+    slots: [{ id: ORDINARY, name: 'Surface', ordinary: true, note: 'the slope itself' }, ...TRIM_SLOTS],
   },
 ]
 

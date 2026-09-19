@@ -26,6 +26,7 @@ import {
   paintTint,
   raise,
   rampRun,
+  setEdges,
   setMaterial,
   setWater,
   smooth,
@@ -46,7 +47,8 @@ const cells = z.array(cell).min(1)
 const structure = z.string().min(1)
 
 /** One face of one voxel: the cell, the layer, and the side (0–3, 4 top, 5 bottom). */
-const face = z.object({ x: z.int().min(0), z: z.int().min(0), y: z.int().min(0), dir: z.int().min(0).max(5) }).strict()
+const face = z.object({ x: z.int().min(0), z: z.int().min(0), y: z.int().min(-1), dir: z.int().min(0).max(5) }).strict()
+const edge = z.object({ x: z.int().min(0), z: z.int().min(0), dir: z.int().min(0).max(3), end: z.enum(['top', 'foot']) }).strict()
 
 const raiseArgs = z.object({ structure, cells, delta: z.int().min(-MAX_HEIGHT).max(MAX_HEIGHT) }).strict()
 const flattenArgs = z.object({ structure, cells, height: z.int().min(MIN_HEIGHT).max(MAX_HEIGHT) }).strict()
@@ -60,6 +62,8 @@ const layer = z.int().min(0).max(MATERIAL_LAYERS - 1).optional()
 const materialArgs = z.object({ structure, cells, material: z.int().min(0).nullable(), layer }).strict()
 const faceArgs = z.object({ structure, faces: z.array(face).min(1), material: z.int().min(0).nullable(), layer }).strict()
 const tintArgs = z.object({ structure, cells, tint: z.int().min(0).max(0xffffff).nullable() }).strict()
+/** Switch walls' fringes (at their tops) or pickets (at their feet) off, or back on to what the art does. */
+const edgeArgs = z.object({ structure, edges: z.array(edge).min(1), on: z.boolean() }).strict()
 
 /**
  * Declared at import, under the feature's owner, and revoked with it. No
@@ -72,7 +76,7 @@ const terrainParams = z
   .object({
     terrainMode: z.enum(['sculpt', 'paint']).exactOptional(),
     sculptVerb: z.enum(['raise', 'flatten', 'smooth', 'ramp', 'water']).exactOptional(),
-    paintVerb: z.enum(['material', 'tint']).exactOptional(),
+    paintVerb: z.enum(['material', 'tint', 'fringe']).exactOptional(),
     strokeShape: z.enum(['brush', 'rect', 'fill']).exactOptional(),
     brush: z.object({ size: z.int().min(1).max(12), shape: z.enum(['square', 'circle']) }).exactOptional(),
     material: z.int().min(0).exactOptional(),
@@ -105,6 +109,7 @@ export function declareTerrainCommands(owner: OwnerId): void {
   commands.declare(owner, { id: 'terrain.material', title: 'Set Material', category: 'Terrain', args: materialArgs })
   commands.declare(owner, { id: 'terrain.face', title: 'Paint Face', category: 'Terrain', args: faceArgs })
   commands.declare(owner, { id: 'terrain.tint', title: 'Tint Cells', category: 'Terrain', args: tintArgs })
+  commands.declare(owner, { id: 'terrain.edges', title: 'Switch Fringes', category: 'Terrain', args: edgeArgs })
 }
 
 /** One command's effect: its undo label and the patches it produces. */
@@ -161,6 +166,10 @@ export function terrainEdit(doc: ReadonlyMapDoc, id: string, args: unknown): Ter
     case 'terrain.tint': {
       const { cells, tint } = args as z.infer<typeof tintArgs>
       return { label: tint === null ? 'Clear tint' : 'Tint', patches: paintTint(voxel, cells, tint ?? undefined) }
+    }
+    case 'terrain.edges': {
+      const { edges, on } = args as z.infer<typeof edgeArgs>
+      return { label: on ? 'Fringe back on' : 'Fringe off', patches: setEdges(voxel, edges, on) }
     }
     default:
       return undefined
