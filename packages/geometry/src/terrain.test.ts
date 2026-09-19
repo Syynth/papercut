@@ -624,6 +624,18 @@ describe('walls are watertight', () => {
   })
 })
 
+describe('the foot of a cliff', () => {
+  it('does not blend the ground with a different material standing over it', () => {
+    // A stone plateau on grass. The grass at its foot used to take the stone above it as a neighbour, asking for a
+    // stone and grass transition nobody would draw; only the same material over it counts as connected.
+    const doc = createMap(8, 8)
+    for (let z = 2; z < 5; z++) for (let x = 2; x < 5; x++) setHeight(doc, x, z, 6)
+    for (let z = 2; z < 5; z++) for (let x = 2; x < 5; x++) ground(doc).paint.faces[faceKey(x, z, 2, FACE_TOP)] = layersOf(2)
+    const { missing } = mesh(doc, '0,0')
+    expect(missing).toEqual([])
+  })
+})
+
 describe('texel scale', () => {
   it('draws a wall with as many texels per world unit, up it, as a floor has across it', () => {
     const doc = createMap(8, 8)
