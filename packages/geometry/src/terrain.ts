@@ -29,9 +29,14 @@
  *
  * What a top face sees at a corner, on each layer: the four cells around it, each by the
  * height of its own vertex there. A neighbour whose vertex is lower is
- * nothing (the cliff top draws its rim from the edge set); one level with
- * or above it is its own material (the same material continues, another
- * meets it with the pair's tile); off the volume the ground continues.
+ * nothing (the cliff top draws its rim from the edge set); one level with it
+ * is its own material (the same material continues, another meets it with
+ * the pair's tile); one above it is its material only when that is this
+ * cell's own, so there is no rim at the foot of a cliff of the same ground,
+ * and nothing otherwise — the ground at the foot of a rock cliff is not a
+ * transition to the ledge over its head (ruling in the decision log's
+ * material entry: "a taller same-material neighbour as connected"). Off the
+ * volume the ground continues.
  * Comparing vertex heights rather than cell tops is what lets a ramp's low
  * edge meet the ground it lands on.
  *
@@ -468,7 +473,10 @@ function topCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, vx:
   const at = (cx: number, cy: number): Tag => {
     if (!inBounds(voxel.size, cx, cy)) return own
     if (cx === x && cy === y) return own
-    return cells.vertex(cx, cy, vx, vy) < mine ? null : cells.at(cx, cy).face.keys[layer]
+    const theirs = cells.vertex(cx, cy, vx, vy)
+    if (theirs < mine) return null
+    const key = cells.at(cx, cy).face.keys[layer]
+    return theirs === mine || key === own ? key : null
   }
   return [at(vx - 1, vy - 1), at(vx, vy - 1), at(vx - 1, vy), at(vx, vy)]
 }
