@@ -829,3 +829,27 @@ Each entry:
 - **SCOPE:** moderate (refines "Things fixed to a surface are tiles pasted into its layers")
 - **WHAT:** Every image in a project gets a stable id, assigned when it is listed and never changed. A tile slot is spelled `"t:<image id>:<tile index>"`. A project's sprites refer to their image by that id too. To an auto-tiled material on the same layer, a face holding a tile counts as empty, so the material edges off around it. Tiles are placed by picking a rectangle of them from a sheet and stamping it across that many faces into the active layer, upright on walls and north-up on floors.
 - **WHY:** An id keeps every reference to an image valid when the file is renamed or moved; a path or a list position would not. Counting as empty keeps the auto-tiling rules unchanged, and surface art normally sits on a layer above what it is pasted on anyway. Stamping a rectangle matches how the art is drawn: a door or window is several tiles that belong together.
+
+## New Project accepts a folder that already has files in it
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** project format / editor-ui
+- **SCOPE:** minor/local
+- **WHAT:** New Project… creates a project in the chosen folder whether or not it is empty. The one refusal is a folder that already holds a `papercut.json`. Existing files are left alone: nothing the project writes overwrites one (the placeholder sheet takes another name if `sheets/ground.png` is taken, the first map likewise), and image files already under `sheets/` show as unlisted the moment the project opens, ready to add.
+- **WHY:** A project is set up around art that already exists, and that art already lives in a folder — typically the assets directory of the game being made. Insisting on an empty folder forces the artist to create the project somewhere else and move files in, or move their files out first, for no benefit: papercut only ever touches the files it lists, so nothing in the folder is at risk.
+
+## A project may have no maps; maps are added deliberately, and a stray map file is checked before it is adopted
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** project format / editor-ui
+- **SCOPE:** moderate
+- **WHAT:** A project can exist with no map at all. New Project… creates none unless asked, and opening a project that lists no map shows the editor with no document open (a plain "no map — New Map…" state on the stage) rather than inventing one. Maps are added on purpose: New Map…, and later Import Map… for a map file made elsewhere. A `.map.json` under `maps/` that the project does not list is never adopted silently: it is reported with a verdict — compatible (everything it references exists in this project) or apparently another project's — and the artist chooses whether to add it.
+- **WHY:** A project is set up around existing art, and its maps come afterwards or from elsewhere; a map the editor invents at creation is noise to delete, and a folder may already hold maps from earlier work. A map file adopted just because it sits in the folder could be another project's — same folder layout, different material and image ids — and would paint with the wrong ids without anyone noticing.
+
+## A project has a uuid, every map is stamped with it, and Import Map resolves references with a live preview
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** project format / map format / editor-ui
+- **SCOPE:** architectural
+- **WHAT:** `papercut.json` carries a stable uuid, assigned when the project is created (or on first open of an older file). Every map records the uuid of the project it belongs to, written whenever the map is saved. A map file whose stamp is not this project's — or that has none — is another project's until imported: it is not opened in place. Import Map… is the way in: a flow that walks every reference the map makes (materials by id, images by id for pasted tiles, sprites by name) and lets the artist resolve each to something in this project, with a live preview of the map that updates as references are resolved, and writes the result as a new map of this project, stamped.
+- **WHY:** Ids only mean something inside one project; a match by reference alone cannot tell a map of this project from another's whose ids happen to line up. A stamp makes provenance definitive, and puts the real work — mapping one project's vocabulary onto another's — in a flow built for it, where the artist sees the effect of each choice instead of discovering wrong ids in the level afterwards.

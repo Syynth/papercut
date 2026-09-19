@@ -59,7 +59,7 @@ export async function exportMapFile(
   // paints with. The generated placeholder stands in for the placeholder sheet when the project lists it and the
   // folder does not supply it; a project that does not list it has materials of its own under the placeholder's ids.
   const folder = await findProjectFolder(inputPath)
-  const opened = folder === null ? { project: createProject(), sets: [], warnings: [], unlisted: [] } : await openProject(nodeFs, folder, fastPngCodec)
+  const opened = folder === null ? { project: createProject(), sets: [], warnings: [], unlisted: [], strays: [] } : await openProject(nodeFs, folder, fastPngCodec)
   const { project } = opened
   const generated = generatePlaceholderTerrainSet(project.resolution.texelDensity)
   const usable = opened.sets.filter((s) => s.set.tile === project.resolution.texelDensity)

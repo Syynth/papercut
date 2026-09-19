@@ -27,6 +27,7 @@ import { Rail } from './rail'
 import { saveNow, type Session } from './session'
 import { Stage } from './stage'
 import { NewMapDialog } from './dialogs'
+import { NoMapStage } from './nomap'
 import { NewProjectDialog, Startup } from './startup'
 import { StatusBar } from './status'
 import { TopBar } from './top'
@@ -53,10 +54,19 @@ export default function App({ session }: { session: Session }) {
   const host = useHost()
   const platform = useMemo(detectPlatform, [])
   const folder = useProjectSelector((snapshot) => snapshot.context.folder)
+  // A project can be open with no map (ruling of 2026-09-19): the stage then offers its maps and a new one.
+  const hasMap = useProjectSelector((snapshot) => snapshot.context.map !== null)
 
   // One listener for the whole editor, holding no key names: what is bound is
   // declared in `editor-host`'s keymap and resolved through the registry (#14).
   useEffect(() => installKeyDispatcher(host, { platform }), [host, platform])
+
+  // Scripting hook: scripts/tour.mjs, probe.mjs and perf.mjs drive the real editor in a headless browser, and it is
+  // handy from the console. Nothing in the app reads it (scripts/global.ts types it). Here rather than on the stage
+  // because a project can be open with no map, and so no stage (ruling of 2026-09-19).
+  useEffect(() => {
+    ;(window as unknown as Record<string, unknown>).__host = host
+  }, [host])
 
   // Autosave, subscribed rather than rendered: a document change schedules a
   // write of the map file, it does not re-render anything. The project file
@@ -126,7 +136,7 @@ export default function App({ session }: { session: Session }) {
         top={<TopBar platform={platform} session={session} />}
         rail={<Rail platform={platform} />}
         bar={<ContextBar platform={platform} />}
-        stage={<Stage platform={platform} />}
+        stage={hasMap ? <Stage platform={platform} /> : <NoMapStage session={session} />}
         inspector={<InspectorRegion platform={platform} />}
         status={<StatusBar />}
       />

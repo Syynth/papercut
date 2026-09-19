@@ -139,6 +139,8 @@ export interface ImageEntry {
 
 export interface ProjectDoc {
   formatVersion: number
+  /** A uuid, fixed for the project's life: what its maps are stamped with (ruling of 2026-09-19). */
+  id: string
   name: string
   resolution: ResolutionProfile
   images: ImageEntry[]
@@ -193,10 +195,14 @@ export function placeholderImage(tile: number, terrain: ImageTerrain = emptyTerr
   return { id, path: `${SHEETS_DIR}/${PLACEHOLDER_SHEET}`, name: 'Ground', kind: 'tileset', hash: null, grid: plainGrid(tile), layout: null, terrain }
 }
 
+/** A fresh project id: a uuid, which is what a map's stamp has to be matched against. WebCrypto, which every runtime this package runs in has; this package declares no DOM. */
+export const newProjectId = (): string => (globalThis as unknown as { crypto: { randomUUID(): string } }).crypto.randomUUID()
+
 /** A project with the placeholder image and the default materials, and no maps yet. */
 export function createProject(name = 'Untitled Project', texelDensity = 16, placeholderTerrain: ImageTerrain = emptyTerrain()): ProjectDoc {
   return {
     formatVersion: PROJECT_FORMAT_VERSION,
+    id: newProjectId(),
     name,
     resolution: { texelDensity, filtering: 'nearest' },
     images: [placeholderImage(texelDensity, placeholderTerrain)],
@@ -349,6 +355,8 @@ export function parseProject(text: string): ProjectDoc {
   if (raw.maps !== undefined && (!Array.isArray(raw.maps) || !raw.maps.every(isRelativePath))) throw new LoadError('The map list holds something that is not a path inside the project.')
   const project: ProjectDoc = {
     formatVersion: PROJECT_FORMAT_VERSION,
+    // A file from before projects had ids gets one here, once: whoever opens it writes it back (`openProject`).
+    id: typeof raw.id === 'string' && raw.id.trim() ? raw.id : newProjectId(),
     name: typeof raw.name === 'string' && raw.name.trim() ? raw.name : 'Untitled Project',
     resolution: normaliseResolution(raw.resolution),
     images: normaliseImages(raw.images),

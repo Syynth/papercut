@@ -110,7 +110,9 @@ images the materials draw from with their grids and terrain sets, the camera rig
 new maps start from, and the maps themselves in order. The app opens projects,
 and a map only within its project (rulings of 2026-09-14). Held live by the
 host's project actor; edited by `project.*` commands, which are settings, not
-undoable edits.
+undoable edits. A project has a uuid (ruling of 2026-09-19), fixed for its
+life, which every map written into its folder is stamped with; it may have no
+maps at all, and its folder may hold files that are not its own.
 
 ## Map
 
@@ -118,7 +120,11 @@ The level being edited: terrain, paint, objects, and the settings that describe
 how they are lit and viewed — its own, never what the [Project](#project)
 holds. A voxel names its material by an id in the project's library. "Map" is
 the artist's word and the document's word; it is unrelated to a wayfinder map,
-which is a planning artifact on the issue tracker.
+which is a planning artifact on the issue tracker. A map file carries the id
+of the project it belongs to (ruling of 2026-09-19). A **stray map** is a
+`.map.json` in a project's `maps/` that the project does not list: judged by
+its stamp as this project's (it can be added back), another project's or
+unstamped (Import Map, to come, is the way in), or unreadable.
 
 ## Half-tile
 

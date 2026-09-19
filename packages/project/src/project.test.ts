@@ -49,8 +49,11 @@ describe('the memory filesystem', () => {
 describe('a project folder', () => {
   it('is created with the project file, one map and the placeholder image, and opens back the same', async () => {
     const fs = new MemoryFs()
-    const created = await createProjectFolder(fs, '/projects/harbour', { name: 'Harbour Town', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)
+    const created = await createProjectFolder(fs, '/projects/harbour', { name: 'Harbour Town', texelDensity: 4, placeholder: placeholder(), firstMap: createMap(32, 32, 'Harbour Town') }, rawImageCodec)
     expect(created.project.maps).toEqual(['maps/harbour-town.map.json'])
+    expect(created.project.id).toMatch(/^[0-9a-f-]{36}$/)
+    // The map is stamped as the project's (ruling of 2026-09-19).
+    expect((await readMap(fs, '/projects/harbour', 'maps/harbour-town.map.json')).project).toBe(created.project.id)
     expect(created.warnings).toEqual([])
     expect(await fs.readDir('/projects/harbour')).toEqual([{ name: 'maps', kind: 'directory' }, { name: 'sheets', kind: 'directory' }, { name: PROJECT_FILE, kind: 'file' }])
     // No sidecar: the terrain set is in the project file, beside the image's grid and hash.
@@ -71,10 +74,62 @@ describe('a project folder', () => {
     expect(opened.sets[0].source?.width).toBe(16)
     const map = await readMap(fs, '/projects/harbour', 'maps/harbour-town.map.json')
     expect(map.name).toBe('Harbour Town')
-    // A second project cannot land in the same folder, and none in a folder that holds anything.
+    // A second project cannot land in the same folder.
     await expect(createProjectFolder(fs, '/projects/harbour', { name: 'Again', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)).rejects.toThrow(/already holds a project/)
-    await fs.mkdir('/projects/busy/notes', { recursive: true })
-    await expect(createProjectFolder(fs, '/projects/busy', { name: 'Busy', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)).rejects.toThrow(/not empty/)
+    // With no first map asked for, the project starts with none (ruling of 2026-09-19).
+    const bare = await createProjectFolder(fs, '/projects/bare', { name: 'Bare', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)
+    expect(bare.project.maps).toEqual([])
+    expect(await fs.readDir('/projects/bare/maps')).toEqual([])
+  })
+
+  it('gives a file from before projects had ids one on open, and writes it back', async () => {
+    const fs = new MemoryFs()
+    const created = await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)
+    const { id: _dropped, ...older } = JSON.parse(await fs.readTextFile('/p/papercut.json')) as Record<string, unknown>
+    await fs.writeFile('/p/papercut.json', JSON.stringify(older))
+    const opened = await openProject(fs, '/p', rawImageCodec)
+    expect(opened.project.id).toMatch(/^[0-9a-f-]{36}$/)
+    expect(opened.project.id).not.toBe(created.project.id)
+    expect(parseProject(await fs.readTextFile('/p/papercut.json')).id).toBe(opened.project.id)
+    // And keeps it from then on.
+    expect((await openProject(fs, '/p', rawImageCodec)).project.id).toBe(opened.project.id)
+  })
+
+  it('is created in a folder that already holds files, touching none of them (ruling of 2026-09-19)', async () => {
+    const fs = new MemoryFs()
+    // The art the project is set up around, a note, and files at the names the project would write.
+    await fs.mkdir('/game/assets/sheets/mz', { recursive: true })
+    await fs.mkdir('/game/assets/maps', { recursive: true })
+    await fs.writeFile('/game/assets/sheets/mz/Outside_A2.png', new Uint8Array([1]))
+    await fs.writeFile('/game/assets/sheets/ground.png', new Uint8Array([2]))
+    await fs.writeFile('/game/assets/maps/busy.map.json', new Uint8Array([3]))
+    await fs.writeFile('/game/assets/notes.txt', new Uint8Array([4]))
+    const created = await createProjectFolder(fs, '/game/assets', { name: 'Busy', texelDensity: 4, placeholder: placeholder(), firstMap: createMap(4, 4, 'Busy') }, rawImageCodec)
+    expect(created.project.images.map((i) => i.path)).toEqual(['sheets/ground-2.png'])
+    expect(created.project.maps).toEqual(['maps/busy-2.map.json'])
+    expect(await fs.readFile('/game/assets/sheets/ground.png')).toEqual(new Uint8Array([2]))
+    expect(await fs.readFile('/game/assets/maps/busy.map.json')).toEqual(new Uint8Array([3]))
+    expect(await fs.readFile('/game/assets/notes.txt')).toEqual(new Uint8Array([4]))
+    // The art is offered and the stray map is judged, exactly as opening the folder would.
+    expect(created.unlisted).toEqual(['sheets/ground.png', 'sheets/mz/Outside_A2.png'])
+    expect(created.warnings).toEqual([])
+    expect(created.strays).toEqual([{ path: 'maps/busy.map.json', verdict: 'unreadable', name: null, project: null, reason: expect.stringMatching(/JSON/) }])
+    expect(created.sets.map((s) => s.set.sheet)).toEqual(['ground-2.png'])
+  })
+
+  it('judges a map file the project does not list by its stamp: ours, foreign, or none (ruling of 2026-09-19)', async () => {
+    const fs = new MemoryFs()
+    const { project } = await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)
+    await writeMap(fs, '/p', 'maps/mine.map.json', createMap(2, 2, 'Mine'), project)
+    await writeMap(fs, '/p', 'maps/theirs.map.json', createMap(2, 2, 'Theirs'), { ...project, id: 'other-project' })
+    await fs.writeFile('/p/maps/old.map.json', JSON.stringify(createMap(2, 2, 'Old')))
+    const opened = await openProject(fs, '/p', rawImageCodec)
+    expect(opened.strays).toEqual([
+      { path: 'maps/mine.map.json', verdict: 'ours', name: 'Mine', project: project.id, reason: null },
+      { path: 'maps/old.map.json', verdict: 'foreign', name: 'Old', project: null, reason: null },
+      { path: 'maps/theirs.map.json', verdict: 'foreign', name: 'Theirs', project: 'other-project', reason: null },
+    ])
+    expect(opened.warnings).toEqual([])
   })
 
   it('opens with warnings for an image that is missing, does not divide the density or tags past its edge, and a map that is not there, never refusing', async () => {
@@ -97,8 +152,8 @@ describe('a project folder', () => {
       expect.stringMatching(/^sheets\/cliffs\.png: /),
       "props.png: 3 px tiles do not divide the project's 4 px, so it is not drawn.",
       'maps/gone.map.json is listed but not in the folder.',
-      "maps/stray.map.json is in the folder but not in the project's map list.",
     ])
+    expect(opened.strays.map((s) => `${s.path}: ${s.verdict}`)).toEqual(['maps/stray.map.json: foreign'])
     // At the density with a grid too coarse for its tags, the set loads with the tags past the edge dropped and named.
     project.images[0].grid = plainGrid(4)
     project.images[0].terrain.tiles['99'] = [GRASS, null, null, null]
@@ -158,7 +213,7 @@ describe('a project folder', () => {
 
   it('adds a map under a slug that does not collide, copies an image in with its grid, and lists a file already in the folder', async () => {
     const fs = new MemoryFs()
-    const { project } = await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)
+    const { project } = await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 4, placeholder: placeholder(), firstMap: createMap(4, 4, 'P') }, rawImageCodec)
     expect(slugOf('  Harbour   Road! ')).toBe('harbour-road')
     expect(slugOf('???')).toBe('map')
     expect(mapPathFor(project, 'P')).toBe('maps/p-2.map.json')
@@ -166,8 +221,13 @@ describe('a project folder', () => {
     expect(added.path).toBe('maps/cliff-path.map.json')
     expect(added.project.maps).toEqual(['maps/p.map.json', 'maps/cliff-path.map.json'])
     expect(parseProject(await fs.readTextFile('/p/papercut.json')).maps).toEqual(added.project.maps)
-    await writeMap(fs, '/p', added.path, createMap(2, 2, 'Cliff Path'))
+    await writeMap(fs, '/p', added.path, createMap(2, 2, 'Cliff Path'), added.project)
     expect((await readMap(fs, '/p', added.path)).structures.ground).toMatchObject({ size: { width: 2, height: 2 } })
+    expect((await readMap(fs, '/p', added.path)).project).toBe(project.id)
+    // A map file at the name a new map would take is left alone: the new one takes the next name.
+    await fs.writeFile('/p/maps/cove.map.json', new Uint8Array([9]))
+    expect((await addMap(fs, '/p', added.project, createMap(2, 2, 'Cove'))).path).toBe('maps/cove-2.map.json')
+    expect(await fs.readFile('/p/maps/cove.map.json')).toEqual(new Uint8Array([9]))
 
     const cliffs = placeholder(4)
     const withImage = await addImage(fs, '/p', added.project, { file: 'cliffs.png', bytes: await rawImageCodec.encode(cliffs.image), grid: plainGrid(4), name: 'Cliff faces', terrain: terrainOf(cliffs.set) })

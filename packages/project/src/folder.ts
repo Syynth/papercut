@@ -25,7 +25,7 @@
  * folder.
  */
 
-import { MAPS_DIR, PROJECT_FILE, SHEETS_DIR, createMap, createProject, deserialize, nextImageId, parseProject, serialize, serializeProject, sheetName, stemOf, type Grid, type ImageEntry, type ImageKind, type ImageLayout, type ImageTerrain, type MapDoc, type ProjectDoc, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage } from '@papercut/document'
+import { MAPS_DIR, PROJECT_FILE, SHEETS_DIR, createProject, deserialize, nextImageId, parseProject, serialize, serializeProject, sheetName, stemOf, type Grid, type ImageEntry, type ImageKind, type ImageLayout, type ImageTerrain, type MapDoc, type ProjectDoc, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage } from '@papercut/document'
 import { cutGrid, terrainFromLayout, terrainOf, terrainSetFrom, type LoadedSet } from '@papercut/geometry'
 
 import type { ImageCodec } from './codec'
@@ -39,6 +39,24 @@ export interface OpenedProject {
   warnings: string[]
   /** Image files under `sheets/` that no entry lists, by path relative to the folder. */
   unlisted: string[]
+  /** Map files under `maps/` the project does not list, each with what its stamp says (ruling of 2026-09-19). */
+  strays: StrayMap[]
+}
+
+/**
+ * A `.map.json` in the folder that the project does not list. Never adopted on its own: `ours` is stamped with this
+ * project's id and can simply be listed again; `foreign` is stamped with another project's, or not at all, and is
+ * another project's until imported; `unreadable` did not parse as a map.
+ */
+export interface StrayMap {
+  path: string
+  verdict: 'ours' | 'foreign' | 'unreadable'
+  /** The map's own name, when it read. */
+  name: string | null
+  /** The stamp it carries: another project's id, or `null` for none. */
+  project: string | null
+  /** Why it did not read, for `unreadable`. */
+  reason: string | null
 }
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))
@@ -126,7 +144,10 @@ async function loadImage(fs: ProjectFs, folder: string, entry: ImageEntry, densi
  * missing or unreadable. Writes the project file back when opening refreshed a hash or relinked a moved file.
  */
 export async function openProject(fs: ProjectFs, folder: string, codec: ImageCodec): Promise<OpenedProject> {
-  const project = parseProject(await fs.readTextFile(joinPath(folder, PROJECT_FILE)))
+  const text = await fs.readTextFile(joinPath(folder, PROJECT_FILE))
+  const project = parseProject(text)
+  // A file from before projects had ids was given one by the parse; it is written back below so the id is fixed from here on.
+  let changed = typeof (JSON.parse(text) as { id?: unknown }).id !== 'string'
   const files = await listImageFiles(fs, folder)
   const listed = new Set(project.images.map((i) => i.path))
   let unlistedHashes: Map<string, string> | null = null
@@ -139,7 +160,6 @@ export async function openProject(fs: ProjectFs, folder: string, codec: ImageCod
   const sets: LoadedSet[] = []
   const warnings: string[] = []
   const images: ImageEntry[] = []
-  let changed = false
   for (const entry of project.images) {
     const loaded = await loadImage(fs, folder, entry, project.resolution.texelDensity, codec, hashesOfUnlisted)
     images.push(loaded.entry)
@@ -152,22 +172,36 @@ export async function openProject(fs: ProjectFs, folder: string, codec: ImageCod
   const now = new Set(images.map((i) => i.path))
   const unlisted = files.filter((path) => !now.has(path))
   for (const map of project.maps) if (!(await fs.exists(joinPath(folder, map)))) warnings.push(`${map} is listed but not in the folder.`)
-  // The other way round too (ruling of 2026-09-14): a map file the list does not know is reported, never silently included.
+  // The other way round too (rulings of 2026-09-14 and 2026-09-19): a map file the list does not know is reported
+  // with what its stamp says, never silently included.
+  const strays: StrayMap[] = []
   if (await fs.exists(joinPath(folder, MAPS_DIR))) {
     for (const entry of await fs.readDir(joinPath(folder, MAPS_DIR))) {
       const path = `${MAPS_DIR}/${entry.name}`
-      if (entry.kind === 'file' && entry.name.endsWith('.map.json') && !project.maps.includes(path)) warnings.push(`${path} is in the folder but not in the project's map list.`)
+      if (entry.kind === 'file' && entry.name.endsWith('.map.json') && !project.maps.includes(path)) strays.push(await judgeStray(fs, folder, project, path))
     }
   }
-  return { project, sets, warnings, unlisted }
+  return { project, sets, warnings, unlisted, strays }
+}
+
+/** What a map file the project does not list is, by its stamp. */
+async function judgeStray(fs: ProjectFs, folder: string, project: ReadonlyProjectDoc, path: string): Promise<StrayMap> {
+  let doc: MapDoc
+  try {
+    doc = await readMap(fs, folder, path)
+  } catch (error) {
+    return { path, verdict: 'unreadable', name: null, project: null, reason: messageOf(error) }
+  }
+  return { path, verdict: doc.project === project.id ? 'ours' : 'foreign', name: doc.name, project: doc.project, reason: null }
 }
 
 export async function readMap(fs: ProjectFs, folder: string, path: string): Promise<MapDoc> {
   return deserialize(await fs.readTextFile(joinPath(folder, path)))
 }
 
-export async function writeMap(fs: ProjectFs, folder: string, path: string, doc: ReadonlyMapDoc): Promise<void> {
-  await fs.writeFile(joinPath(folder, path), serialize(doc))
+/** Write a map into the project's folder, stamped as the project's (ruling of 2026-09-19): the file says whose it is. */
+export async function writeMap(fs: ProjectFs, folder: string, path: string, doc: ReadonlyMapDoc, project: ReadonlyProjectDoc): Promise<void> {
+  await fs.writeFile(joinPath(folder, path), serialize(doc.project === project.id ? doc : { ...(doc as MapDoc), project: project.id }))
 }
 
 export async function writeProject(fs: ProjectFs, folder: string, project: ReadonlyProjectDoc): Promise<void> {
@@ -192,36 +226,53 @@ export interface NewProjectOptions {
   texelDensity: number
   /** The placeholder terrain set drawn for that density, written into `sheets/` so the folder stands on its own. */
   placeholder: LoadedSet
-  /** The first map, written and listed first; an empty 32 × 32 map named for the project when absent. */
+  /** The first map, written and listed first. Absent, the project starts with no map (ruling of 2026-09-19). */
   firstMap?: MapDoc
 }
 
-/** Create a project folder: the project file with the placeholder's terrain set in it, one map, and the placeholder image. Refuses a folder that holds anything already. */
+/** `path` if nothing is at it, else the first of `stem-2.ext`, `stem-3.ext`… that is free; `ext` names the suffix that stays (`.map.json`). */
+async function freePath(fs: ProjectFs, folder: string, path: string, ext = path.slice(path.lastIndexOf('.'))): Promise<string> {
+  if (!(await fs.exists(joinPath(folder, path)))) return path
+  const stem = path.slice(0, path.length - ext.length)
+  for (let n = 2; ; n++) {
+    const candidate = `${stem}-${n}${ext}`
+    if (!(await fs.exists(joinPath(folder, candidate)))) return candidate
+  }
+}
+
+/**
+ * Create a project in `folder`: the project file with the placeholder's terrain set in it, one map, and the
+ * placeholder image. The folder may already hold files (ruling of 2026-09-19) — a project is set up around art that
+ * exists — and none of them is touched: what the project writes takes another name where its own is taken, and image
+ * files already under `sheets/` come back unlisted, as an open reports them. Only a folder that is a project already
+ * is refused.
+ */
 export async function createProjectFolder(fs: ProjectFs, folder: string, options: NewProjectOptions, codec: ImageCodec): Promise<OpenedProject> {
   if (await fs.exists(joinPath(folder, PROJECT_FILE))) throw new Error(`${folder} already holds a project.`)
-  if ((await fs.exists(folder)) && (await fs.readDir(folder)).length > 0) throw new Error(`${folder} is not empty; a project gets a folder of its own.`)
   await fs.mkdir(folder, { recursive: true })
   await fs.mkdir(joinPath(folder, MAPS_DIR), { recursive: true })
   await fs.mkdir(joinPath(folder, SHEETS_DIR), { recursive: true })
   const project = createProject(options.name, options.texelDensity, terrainOf(options.placeholder.set))
   const image = project.images[0]
+  image.path = await freePath(fs, folder, image.path)
   const bytes = await codec.encode(options.placeholder.image)
   await fs.writeFile(joinPath(folder, image.path), bytes)
   image.hash = await hashBytes(bytes)
-  const placeholder: LoadedSet = { set: { ...options.placeholder.set, sheet: sheetName(image.path) }, image: options.placeholder.image, source: options.placeholder.image, imageId: image.id }
-  const first = options.firstMap ?? createMap(32, 32, options.name)
-  const path = mapPathFor(project, first.name)
-  await writeMap(fs, folder, path, first)
-  project.maps = [path]
+  if (options.firstMap) {
+    const path = await freePath(fs, folder, mapPathFor(project, options.firstMap.name), '.map.json')
+    await writeMap(fs, folder, path, options.firstMap, project)
+    project.maps = [path]
+  }
   await writeProject(fs, folder, project)
-  return { project, sets: [placeholder], warnings: [], unlisted: [] }
+  // Opened the way any project is, so what was in the folder already is reported the same way.
+  return openProject(fs, folder, codec)
 }
 
 /** Write a new map into the project and list it last. Returns the project as it now is and where the map went. */
 export async function addMap(fs: ProjectFs, folder: string, project: ReadonlyProjectDoc, doc: MapDoc): Promise<{ project: ProjectDoc; path: string }> {
-  const path = mapPathFor(project, doc.name)
+  const path = await freePath(fs, folder, mapPathFor(project, doc.name), '.map.json')
   await fs.mkdir(joinPath(folder, parentPath(path)), { recursive: true })
-  await writeMap(fs, folder, path, doc)
+  await writeMap(fs, folder, path, doc, project)
   const next: ProjectDoc = { ...(project as ProjectDoc), maps: [...project.maps, path] }
   await writeProject(fs, folder, next)
   return { project: next, path }
