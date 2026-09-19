@@ -18,7 +18,7 @@
  * is what the startup screen shows for.
  */
 
-import { MAX_PICKET_DISTANCE, createProject, normaliseTerrain, parseProject, type ImageEntry, type ProjectDoc } from '@papercut/document'
+import { MAX_PICKET_DISTANCE, createProject, materialOfTag, normaliseTerrain, parseProject, type ImageEntry, type ProjectDoc } from '@papercut/document'
 import { commands, defineContextKey, reserveOwner } from '@papercut/registry'
 import { setup, types } from 'xstate'
 import { z } from 'zod'
@@ -45,8 +45,9 @@ const materialDef = z
   })
   .strict()
 /** The whole list, replaced: its order is the materials' priority, so a reorder is as much an edit as a rename. */
+/** The whole library, replaced; it may be empty (ruling of 2026-09-19). */
 const materialsSet = z
-  .object({ materials: z.array(materialDef).min(1) })
+  .object({ materials: z.array(materialDef) })
   .strict()
   .refine(({ materials }) => new Set(materials.map((m) => m.id)).size === materials.length, { message: 'material ids must be unique' })
 
@@ -202,8 +203,23 @@ export function projectLogicWith(initial: ProjectDoc, folder: string | null = nu
                 const { name, resolution, camera } = event.args as ProjectSettings
                 return { context: { project: { ...project, ...(name === undefined ? {} : { name }), ...(resolution === undefined ? {} : { resolution }), ...(camera === undefined ? {} : { camera }) } } }
               }
-              case 'project.materials.set':
-                return { context: { project: { ...project, materials: (event.args as MaterialsSetArgs).materials.map((m) => ({ ...m })) } } }
+              case 'project.materials.set': {
+                const materials = (event.args as MaterialsSetArgs).materials.map((m) => ({ ...m }))
+                // A material's tags go with it, the way an image's sprites go with the image: a tag naming a material
+                // nothing defines would be refused by the file's parser, and could never draw. A layout that lays out
+                // a gone material lays out the rest; its explicit tags stay as they were.
+                const kept = new Set(materials.map((m) => m.id))
+                const images = project.images.map((image): ImageEntry => {
+                  const tiles = Object.fromEntries(
+                    Object.entries(image.terrain.tiles)
+                      .map(([index, tags]) => [index, tags.map((tag) => (tag !== null && !kept.has(materialOfTag(tag) ?? -1) ? null : tag)) as typeof tags] as const)
+                      .filter(([, tags]) => tags.some((tag) => tag !== null)),
+                  )
+                  const layout = image.layout && !image.layout.materials.every((id) => kept.has(id)) ? { ...image.layout, materials: image.layout.materials.filter((id) => kept.has(id)) } : image.layout
+                  return { ...image, terrain: { tiles }, layout }
+                })
+                return { context: { project: { ...project, materials, images } } }
+              }
               case 'project.images.set': {
                 const images = (event.args as ImagesSetArgs).images.map((i) => JSON.parse(JSON.stringify(i)) as ImageEntry)
                 // A sprite goes with its image, the way a material's tags go with it: nothing is kept that could not draw.
