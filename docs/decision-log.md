@@ -869,3 +869,11 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** The default materials still seed every new project, but every one of them can be deleted: the library may be empty. Deleting a material nothing uses — no face in any map, no tag on any image — asks nothing; one that is in use still asks what to repaint with, as today. A voxel whose material id no longer exists draws the fallback colour, as an unpainted one does.
 - **WHY:** The defaults exist so a first project has something to paint with, not as a floor. A project built on its own art defines its own library, and being made to keep one stranger in it — renamed to pretend — is a papercut. Skipping the repaint prompt where there is nothing to repaint makes clearing the defaults five clicks, not five dialogs.
+
+## A material can be deleted from the Terrain sets page as well as from Materials
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui
+- **SCOPE:** minor/local
+- **WHAT:** The Terrain sets page lists the project's materials as tag targets, and a material can be deleted right there — the same deletion as in Materials: at once when no map paints with it (its tags on every sheet cleared), through the repaint prompt when one does. The list says plainly that these are the project's materials, not sets of the sheet being tagged.
+- **WHY:** The tagger is where the materials are looked at beside real art, so it is where a stray one is noticed — five defaults with zero tags on a sheet that has its own vocabulary. Sending the artist to another page to remove what this page shows is a round trip for nothing, and the list reading as "terrain sets" misled the owner into thinking the sheet owned them.
