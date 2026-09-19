@@ -24,6 +24,7 @@ import {
   flatten,
   paintFace,
   paintTint,
+  pasteTiles,
   raise,
   rampRun,
   setEdges,
@@ -61,6 +62,13 @@ const waterArgs = z.object({ structure, cells, level: z.int().min(MIN_HEIGHT).ma
 const layer = z.int().min(0).max(MATERIAL_LAYERS - 1).optional()
 const materialArgs = z.object({ structure, cells, material: z.int().min(0).nullable(), layer }).strict()
 const faceArgs = z.object({ structure, faces: z.array(face).min(1), material: z.int().min(0).nullable(), layer }).strict()
+/**
+ * A stamp of an image's tiles pasted whole on faces (ruling of 2026-09-18): the face its top-left lands on, the image by
+ * id, and its tiles, rows top to bottom, each a row-major index on the image's grid or `null` to clear that face.
+ */
+const pasteArgs = z
+  .object({ structure, face, image: z.int().min(1), tiles: z.array(z.array(z.int().min(0).nullable()).min(1)).min(1), layer })
+  .strict()
 const tintArgs = z.object({ structure, cells, tint: z.int().min(0).max(0xffffff).nullable() }).strict()
 /** Switch walls' fringes (at their tops) or pickets (at their feet) off, or back on to what the art does. */
 const edgeArgs = z.object({ structure, edges: z.array(edge).min(1), on: z.boolean() }).strict()
@@ -76,7 +84,7 @@ const terrainParams = z
   .object({
     terrainMode: z.enum(['sculpt', 'paint']).exactOptional(),
     sculptVerb: z.enum(['raise', 'flatten', 'smooth', 'ramp', 'water']).exactOptional(),
-    paintVerb: z.enum(['material', 'tint', 'fringe']).exactOptional(),
+    paintVerb: z.enum(['material', 'tint', 'fringe', 'tiles']).exactOptional(),
     strokeShape: z.enum(['brush', 'rect', 'fill']).exactOptional(),
     brush: z.object({ size: z.int().min(1).max(12), shape: z.enum(['square', 'circle']) }).exactOptional(),
     material: z.int().min(0).exactOptional(),
@@ -91,6 +99,11 @@ const terrainParams = z
       .nullable()
       .exactOptional(),
     sculptDeadZone: z.number().min(0).max(0.5).exactOptional(),
+    stamp: z
+      .object({ image: z.int().min(1), tiles: z.array(z.array(z.int().min(0)).min(1)).min(1) })
+      .strict()
+      .nullable()
+      .exactOptional(),
   })
   .strict()
 const brushResize = z.object({ by: z.int().min(-12).max(12) }).strict()
@@ -108,6 +121,7 @@ export function declareTerrainCommands(owner: OwnerId): void {
   commands.declare(owner, { id: 'terrain.water', title: 'Set Water', category: 'Terrain', args: waterArgs })
   commands.declare(owner, { id: 'terrain.material', title: 'Set Material', category: 'Terrain', args: materialArgs })
   commands.declare(owner, { id: 'terrain.face', title: 'Paint Face', category: 'Terrain', args: faceArgs })
+  commands.declare(owner, { id: 'terrain.paste', title: 'Paste Tiles', category: 'Terrain', args: pasteArgs })
   commands.declare(owner, { id: 'terrain.tint', title: 'Tint Cells', category: 'Terrain', args: tintArgs })
   commands.declare(owner, { id: 'terrain.edges', title: 'Switch Fringes', category: 'Terrain', args: edgeArgs })
 }
@@ -162,6 +176,10 @@ export function terrainEdit(doc: ReadonlyMapDoc, id: string, args: unknown): Ter
     case 'terrain.face': {
       const { faces, material, layer } = args as z.infer<typeof faceArgs>
       return { label: material === null ? 'Clear face' : 'Paint face', patches: paintFace(voxel, faces, material, layer) }
+    }
+    case 'terrain.paste': {
+      const { face, image, tiles, layer } = args as z.infer<typeof pasteArgs>
+      return { label: 'Paste tiles', patches: pasteTiles(voxel, face, image, tiles, layer) }
     }
     case 'terrain.tint': {
       const { cells, tint } = args as z.infer<typeof tintArgs>

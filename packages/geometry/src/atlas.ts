@@ -45,6 +45,8 @@ export interface LoadedSet {
   image: RgbaImage
   /** The file's pixels as they are, before the grid was cut and scaled; what a library shows. Absent for a generated set. */
   source?: RgbaImage
+  /** The id of the project image it was loaded from, which sprites and pasted tiles name it by. Absent for a generated set. */
+  imageId?: number
 }
 
 /** A trim tag, read as the plain tag it also is; any other tag as it is. */
@@ -86,6 +88,12 @@ export interface AtlasOptions {
 const ATLAS_COLUMNS = 64
 /** Room beyond the tagged tiles: the blank tile and the fallback. */
 const SPARE_ROOM = 2
+/**
+ * Room for tiles pasted whole on faces (ruling of 2026-09-18), which need not be tagged and so are not counted with
+ * the tagged ones: four rows, 256 distinct tiles. Past that a pasted tile draws the fallback, reported like a missing
+ * corner.
+ */
+export const PASTE_ROOM = ATLAS_COLUMNS * 4
 const MIN_ROWS = 16
 /** GPUs stop at 8192 px a side; at 16 px that is 512 rows. */
 const MAX_ROWS = 8192 / 16
@@ -102,6 +110,10 @@ export class TerrainAtlas {
   private ids = new Map<Tag, number>()
   private sheetTiles = new Map<string, number>() // `<sheet>:<index>` -> atlas tile
   private readonly sets = new Map<string, LoadedSet>()
+  /** The sets by the id of the project image they were loaded from, for pasted tiles. */
+  private readonly byImage = new Map<number, LoadedSet>()
+  /** How many pasted tiles have been copied in, against `PASTE_ROOM`. */
+  private pasted = 0
   /** Every authored tile of every set, by its four tags: one index across the sheets, not one per sheet. */
   private readonly authored = new Map<string, { loaded: LoadedSet; index: number }>()
   private readonly missingCombos = new Set<string>()
@@ -120,10 +132,11 @@ export class TerrainAtlas {
         throw new Error(`Sheet ${loaded.set.sheet} is ${loaded.image.width}×${loaded.image.height} px; its terrain set says ${loaded.set.columns * tile}×${loaded.set.rows * tile}.`)
       }
       this.sets.set(loaded.set.sheet, loaded)
+      if (loaded.imageId !== undefined && !this.byImage.has(loaded.imageId)) this.byImage.set(loaded.imageId, loaded)
     }
     this.tile = tile
     const tagged = sets.reduce((n, loaded) => n + loaded.set.tiles.size, 0)
-    const rows = Math.max(MIN_ROWS, Math.ceil((tagged + SPARE_ROOM) / ATLAS_COLUMNS))
+    const rows = Math.max(MIN_ROWS, Math.ceil((tagged + SPARE_ROOM + PASTE_ROOM) / ATLAS_COLUMNS))
     if (rows * tile > 8192 || rows > MAX_ROWS) throw new Error(`The terrain sets tag ${tagged} tiles of ${tile} px; an atlas that tall (${rows * tile} px) exceeds what a GPU takes.`)
     this.rows = rows
     this.buffer = new Uint8ClampedArray(ATLAS_COLUMNS * tile * rows * tile * 4)
@@ -209,6 +222,22 @@ export class TerrainAtlas {
     const corners: CornerTags = slot === PICKET ? [null, null, t, t] : part === 'from-left' ? [t, null, null, null] : part === 'from-right' ? [null, t, null, null] : [t, t, null, null]
     const found = this.authored.get(cornerKey(corners))
     return found ? this.sheetTile(found.loaded, found.index) : null
+  }
+
+  /**
+   * The atlas tile holding tile `index` of the image with id `image`, pasted whole on a face, or `null` when that
+   * image did not load, the index is off its grid, or the room for pasted tiles is used up.
+   */
+  pastedTile(image: number, index: number): number | null {
+    const loaded = this.byImage.get(image)
+    if (!loaded || index >= loaded.set.columns * loaded.set.rows) return null
+    if (this.sheetTiles.has(`${loaded.set.sheet}:${index}`)) return this.sheetTile(loaded, index)
+    // Tagged tiles were counted when the atlas was sized; only an untagged one takes paste room.
+    if (!loaded.set.tiles.has(index)) {
+      if (this.pasted >= PASTE_ROOM) return null
+      this.pasted += 1
+    }
+    return this.sheetTile(loaded, index)
   }
 
   /** Every corner no tile answered so far, each combination named once: the artist's list of tiles to draw. */

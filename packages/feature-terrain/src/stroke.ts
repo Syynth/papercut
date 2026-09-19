@@ -182,6 +182,9 @@ function handlerFor(deps: FeatureDeps, press: TerrainSample, voxel: ReadonlyVoxe
     if (params.strokeShape === 'rect' && phase !== 'end') return []
     if (params.strokeShape !== 'rect' && phase === 'end') return []
 
+    // A stamp bigger than one tile lands once, where it was pressed: dragged, stamps would overlap each other.
+    if (phase === 'move' && params.terrainMode === 'paint' && params.paintVerb === 'tiles' && params.stamp && (params.stamp.tiles.length > 1 || (params.stamp.tiles[0]?.length ?? 0) > 1)) return []
+
     const key = addressKey(address)
     if (phase === 'move' && lastCell === key) return []
     lastCell = key

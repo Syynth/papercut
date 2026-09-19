@@ -39,6 +39,8 @@ export {
   newId,
   nextMaterialId,
   slotMaterial,
+  slotTile,
+  tileSlot,
   slotOf,
   worldHeight,
 } from './document'
@@ -89,6 +91,7 @@ export type {
   EdgeEnd,
   EdgeSwitch,
   MaterialLayers,
+  PastedTile,
   Slot,
   SurfacePaint,
   ReadonlyMapDoc,
@@ -138,6 +141,8 @@ export {
   groundedPosition,
   heightToWorld,
   paintFace,
+  pasteTiles,
+  stampFaces,
   paintTint,
   placeStructure,
   placeStructureOnto,
@@ -205,5 +210,5 @@ export { snapTo, type SnapAnchor, type SnapMode } from './snap'
 export type { DocumentTarget } from './target'
 
 // The project: what every map in a folder shares (2026-09-14).
-export { MAPS_DIR, PROJECT_FILE, PROJECT_FORMAT_VERSION, SHEETS_DIR, createProject, emptyTerrain, materialOfTag, normaliseGrid, normaliseImage, normaliseLayout, normaliseMaterials, normaliseSprites, normaliseTerrain, parseProject, placeholderImage, plainGrid, serializeProject, sheetName, slotOfTag, stemOf, tagOf } from './project'
+export { MAPS_DIR, PROJECT_FILE, PROJECT_FORMAT_VERSION, SHEETS_DIR, createProject, emptyTerrain, materialOfTag, normaliseGrid, normaliseImage, normaliseLayout, normaliseMaterials, normaliseSprites, normaliseTerrain, nextImageId, parseProject, placeholderImage, plainGrid, serializeProject, sheetName, slotOfTag, stemOf, tagOf } from './project'
 export type { Axes, CornerTags, SpriteDef, Grid, ImageEntry, ImageKind, ImageLayout, ImageTerrain, ProjectDoc, ReadonlyProjectDoc, ResolutionProfile, Tag } from './project'

@@ -167,14 +167,16 @@ describe('the document commands, routed to the document actor', () => {
     expect(dispatch('project.maps.set', { maps: ['../outside.map.json'] })).toMatchObject({ ok: false, kind: 'invalid-args' })
     // A sprite is a named region of a listed image (ruling of 2026-09-18); one cut from an image the project does not
     // list could never draw, and two of one name would be ambiguous.
-    const tree = { name: 'tree', image: 'sheets/ground.png', rect: { x: 0, y: 0, w: 2, h: 3 } }
+    const tree = { name: 'tree', image: 1, rect: { x: 0, y: 0, w: 2, h: 3 } }
     expect(dispatch('project.sprites.set', { sprites: [tree] })).toEqual({ ok: true })
     expect(project().sprites).toEqual([tree])
-    dispatch('project.sprites.set', { sprites: [{ ...tree, image: 'sheets/elsewhere.png' }] })
+    dispatch('project.sprites.set', { sprites: [{ ...tree, image: 9 }] })
     expect(project().sprites).toEqual([tree])
     expect(dispatch('project.sprites.set', { sprites: [tree, tree] })).toMatchObject({ ok: false, kind: 'invalid-args' })
-    const image = (path: string, terrain: { tiles: Record<string, [Tag, Tag, Tag, Tag]> } = { tiles: {} }) => ({ path, name: 'A', kind: 'tileset', hash: null, grid: { tile: 16, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, terrain })
-    expect(dispatch('project.images.set', { images: [image('sheets/a.png'), image('other/a.png')] })).toMatchObject({ ok: false, kind: 'invalid-args' })
+    const image = (path: string, terrain: { tiles: Record<string, [Tag, Tag, Tag, Tag]> } = { tiles: {} }, id = 2) => ({ id, path, name: 'A', kind: 'tileset', hash: null, grid: { tile: 16, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, terrain })
+    expect(dispatch('project.images.set', { images: [image('sheets/a.png'), image('other/a.png', undefined, 3)] })).toMatchObject({ ok: false, kind: 'invalid-args' })
+    // An image is identified by its id (ruling of 2026-09-18), so two cannot share one either.
+    expect(dispatch('project.images.set', { images: [image('sheets/a.png'), image('sheets/b.png')] })).toMatchObject({ ok: false, kind: 'invalid-args' })
     // A tag names a material (ruling of 2026-09-17), so a word that is nobody's id is refused.
     expect(dispatch('project.images.set', { images: [image('sheets/a.png', { tiles: { 0: [tagOf(0), 'grass', null, null] } })] })).toMatchObject({ ok: false, kind: 'invalid-args' })
     const tagged = image('sheets/a.png', { tiles: { 0: [tagOf(0), tagOf(2, 'convex'), null, null] } })

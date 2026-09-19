@@ -118,7 +118,13 @@ export interface ImageLayout {
 
 /** An image the project draws from, and everything the project knows about it. */
 export interface ImageEntry {
-  /** Relative to the project folder: `sheets/ground.png`. The file name is the image's identity. */
+  /**
+   * The image's identity (ruling of 2026-09-18): assigned when it is listed, never changed, never reused while the
+   * project lists it. Whatever refers to an image — a sprite, a tile pasted on a face — refers to this, so renaming or
+   * moving the file breaks nothing.
+   */
+  id: number
+  /** Relative to the project folder: `sheets/ground.png`. Unique by file name too, which the atlas keys a sheet by. */
   path: string
   /** What the app calls it; free to change. */
   name: string
@@ -155,8 +161,8 @@ export interface ProjectDoc {
  */
 export interface SpriteDef {
   name: string
-  /** The image's path, as the project lists it. */
-  image: string
+  /** The id of the image it is cut from. */
+  image: number
   /** In the image's tiles, from its top-left: where the sprite is and how big. */
   rect: { x: number; y: number; w: number; h: number }
 }
@@ -183,8 +189,8 @@ export function emptyTerrain(): ImageTerrain {
 }
 
 /** The placeholder image's entry: the image the default materials point into, tagged as `terrain` says. */
-export function placeholderImage(tile: number, terrain: ImageTerrain = emptyTerrain()): ImageEntry {
-  return { path: `${SHEETS_DIR}/${PLACEHOLDER_SHEET}`, name: 'Ground', kind: 'tileset', hash: null, grid: plainGrid(tile), layout: null, terrain }
+export function placeholderImage(tile: number, terrain: ImageTerrain = emptyTerrain(), id = 1): ImageEntry {
+  return { id, path: `${SHEETS_DIR}/${PLACEHOLDER_SHEET}`, name: 'Ground', kind: 'tileset', hash: null, grid: plainGrid(tile), layout: null, terrain }
 }
 
 /** A project with the placeholder image and the default materials, and no maps yet. */
@@ -280,11 +286,19 @@ export function normaliseTerrain(raw: unknown, where: string): ImageTerrain {
 
 const KINDS: readonly ImageKind[] = ['tileset', 'sprites', 'texture']
 
-export function normaliseImage(raw: unknown, index: number): ImageEntry {
+/** The id the next image listed gets: one past the highest the project has. */
+export function nextImageId(images: readonly { id: number }[]): number {
+  return images.reduce((max, i) => Math.max(max, i.id), 0) + 1
+}
+
+/** An image entry as a file holds it; `id` is what it is given when the file has none (a project from before ids). */
+export function normaliseImage(raw: unknown, index: number, id = index + 1): ImageEntry {
   const i = raw as Partial<ImageEntry>
   if (!isRelativePath(i.path)) throw new LoadError(`Image ${index} has no path inside the project.`)
   const where = sheetName(i.path)
+  if (i.id !== undefined && !(typeof i.id === 'number' && Number.isInteger(i.id) && i.id >= 1)) throw new LoadError(`Image ${where} has an id that is not a whole number from 1.`)
   return {
+    id: i.id ?? id,
     path: i.path,
     name: typeof i.name === 'string' && i.name.trim() ? i.name : stemOf(i.path),
     kind: KINDS.includes(i.kind as ImageKind) ? (i.kind as ImageKind) : 'tileset',
@@ -299,11 +313,17 @@ function normaliseImages(raw: unknown): ImageEntry[] {
   if (raw === undefined) return []
   if (!Array.isArray(raw)) throw new LoadError('The image list is not a list.')
   const names = new Set<string>()
+  const ids = new Set<number>()
+  // An image without an id — every image of a project from before ids — gets the next one past those the file has.
+  let next = nextImageId(raw.map((r) => ({ id: typeof (r as Partial<ImageEntry>)?.id === 'number' ? (r as ImageEntry).id : 0 })))
   return raw.map((value, index) => {
-    const entry = normaliseImage(value, index)
+    const entry = normaliseImage(value, index, next)
+    if ((value as Partial<ImageEntry>).id === undefined) next += 1
     const name = sheetName(entry.path)
-    if (names.has(name)) throw new LoadError(`Two images are both called ${name}; an image is identified by its file name.`)
+    if (names.has(name)) throw new LoadError(`Two images are both called ${name}; the atlas keys a sheet by its file name.`)
     names.add(name)
+    if (ids.has(entry.id)) throw new LoadError(`Two images have the id ${entry.id}.`)
+    ids.add(entry.id)
     return entry
   })
 }
@@ -351,18 +371,21 @@ export function normaliseSprites(raw: unknown, images: readonly ImageEntry[]): S
   if (raw === undefined) return []
   if (!Array.isArray(raw)) throw new LoadError('The sprite list is not a list.')
   const names = new Set<string>()
-  const paths = new Set(images.map((i) => i.path))
+  const ids = new Set(images.map((i) => i.id))
+  const byPath = new Map(images.map((i) => [i.path, i.id]))
   return raw.map((value, index): SpriteDef => {
     const s = value as Partial<SpriteDef>
     const where = typeof s.name === 'string' ? `Sprite ${s.name}` : `Sprite ${index}`
     if (typeof s.name !== 'string' || !s.name.trim()) throw new LoadError(`${where} has no name.`)
     if (names.has(s.name)) throw new LoadError(`Two sprites are called ${s.name}.`)
     names.add(s.name)
-    if (typeof s.image !== 'string' || !paths.has(s.image)) throw new LoadError(`${where} is cut from ${String(s.image)}, which the project does not list.`)
+    // A sprite written before images had ids names its image by path.
+    const image = typeof s.image === 'string' ? byPath.get(s.image) : s.image
+    if (typeof image !== 'number' || !ids.has(image)) throw new LoadError(`${where} is cut from image ${String(s.image)}, which the project does not list.`)
     const r = s.rect
     const whole = (v: unknown, min: number): v is number => typeof v === 'number' && Number.isInteger(v) && v >= min
     if (!r || !whole(r.x, 0) || !whole(r.y, 0) || !whole(r.w, 1) || !whole(r.h, 1)) throw new LoadError(`${where} has no rectangle of whole tiles.`)
-    return { name: s.name, image: s.image, rect: { x: r.x, y: r.y, w: r.w, h: r.h } }
+    return { name: s.name, image, rect: { x: r.x, y: r.y, w: r.w, h: r.h } }
   })
 }
 

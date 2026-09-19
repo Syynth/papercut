@@ -18,6 +18,7 @@ import {
   rampShape,
   readAddress,
   tagOf,
+  tileSlot,
   topHeight,
   SURFACE_CLIFF,
   SURFACE_TOP,
@@ -210,6 +211,98 @@ function trimmedSet(): LoadedSet {
   }
   return { ...loaded, set: { ...loaded.set, tiles } }
 }
+
+describe('tiles pasted whole on a face', () => {
+  /** A sheet of two 4 px tiles, id 7, that says where every pixel is: red is the tile's index, green its quadrant. */
+  function propsSet(): LoadedSet {
+    const width = 2 * TILE
+    const data = new Uint8ClampedArray(width * TILE * 4)
+    for (let y = 0; y < TILE; y++) {
+      for (let x = 0; x < width; x++) {
+        const quadrant = (y >= TILE / 2 ? 2 : 0) + (x % TILE >= TILE / 2 ? 1 : 0)
+        data.set([Math.floor(x / TILE) * 100, quadrant * 50 + 10, 0, 255], (y * width + x) * 4)
+      }
+    }
+    return { set: createTerrainSet('props.png', TILE, 2, 1), image: { width, height: TILE, data }, imageId: 7 }
+  }
+
+  /** Per triangle of the top of (x, y): which quarter its centroid is in, and the texel its first layer samples there. */
+  function topTexels(chunk: TerrainChunkMesh, look: TerrainLook, x: number, y: number): Array<{ quarter: number; rgba: number[] }> {
+    const { solid } = chunk
+    const { width, height, data } = look.atlas.image
+    const out: Array<{ quarter: number; rgba: number[] }> = []
+    for (let t = 0; t < solid.triangleCount; t++) {
+      const address = readAddress(solid.faceAddr, t, 'ground')
+      if (address.kind !== SURFACE_TOP || address.x !== x || address.y !== y) continue
+      let u = 0
+      let v = 0
+      let px = 0
+      let pz = 0
+      for (let k = 0; k < 3; k++) {
+        const vertex = solid.indices[t * 3 + k]
+        u += solid.uvs[vertex * 2] / 3
+        v += solid.uvs[vertex * 2 + 1] / 3
+        px += solid.positions[vertex * 3] / 3
+        pz += solid.positions[vertex * 3 + 2] / 3
+      }
+      const at = (Math.floor((1 - v) * height) * width + Math.floor(u * width)) * 4
+      out.push({ quarter: (pz - y >= 0.5 ? 2 : 0) + (px - x >= 0.5 ? 1 : 0), rgba: [...data.subarray(at, at + 4)] })
+    }
+    return out
+  }
+
+  it('draws a pasted tile whole on a top, north up, each quarter its own quadrant', () => {
+    const doc = createMap(6, 6)
+    const g = ground(doc)
+    g.paint.faces[faceKey(2, 2, 0, FACE_TOP)] = [tileSlot(7, 1), null, null, null]
+    const look = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet(), propsSet()])
+    const texels = topTexels(meshTerrainChunk(g, '0,0', look), look, 2, 2)
+    expect(texels.length).toBe(8)
+    for (const { quarter, rgba } of texels) expect(rgba).toEqual([100, quarter * 50 + 10, 0, 255])
+  })
+
+  it('stands a pasted tile upright on a wall, and is nothing to the material auto-tiling around it', () => {
+    const doc = createMap(8, 8)
+    const g = ground(doc)
+    setHeight(doc, 3, 3, 4)
+    // The column's south side, the one course standing over the ground, pasted on the layer over its grass.
+    g.paint.faces[faceKey(3, 3, 1, 1)] = ['m:0', tileSlot(7, 0), null, null]
+    const look = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet(), propsSet()])
+    const chunk = meshTerrainChunk(g, '0,0', look)
+    // The upper band is the tile's top half, the lower its bottom: read off the layer the tile is on.
+    const { solid } = chunk
+    const { width, height, data } = look.atlas.image
+    const greens = (level: number): number[] => {
+      const out = new Set<number>()
+      for (let t = 0; t < solid.triangleCount; t++) {
+        const address = readAddress(solid.faceAddr, t, 'ground')
+        if (address.kind !== SURFACE_CLIFF || address.x !== 3 || address.y !== 3 || address.dir !== 1 || address.level !== level) continue
+        let u = 0
+        let v = 0
+        for (let k = 0; k < 3; k++) {
+          const vertex = solid.indices[t * 3 + k]
+          u += (solid.stackUvs as Float32Array)[vertex * 6] / 3
+          v += (solid.stackUvs as Float32Array)[vertex * 6 + 1] / 3
+        }
+        out.add(data[(Math.floor((1 - v) * height) * width + Math.floor(u * width)) * 4 + 1])
+      }
+      return [...out].sort((a, b) => a - b)
+    }
+    expect(greens(3)).toEqual([10, 60])
+    expect(greens(2)).toEqual([110, 160])
+    // The grass is drawn, and nothing about the pasted tile is a transition nobody drew.
+    expect(chunk.missing).toEqual([])
+  })
+
+  it('draws the fallback, reported, for a tile whose image did not load', () => {
+    const doc = createMap(6, 6)
+    ground(doc).paint.faces[faceKey(2, 2, 0, FACE_TOP)] = [tileSlot(9, 0), null, null, null]
+    const look = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet()])
+    const chunk = meshTerrainChunk(ground(doc), '0,0', look)
+    expect(chunk.missing).toContain('pasted tile')
+    for (const { rgba } of topTexels(chunk, look, 2, 2)) expect(rgba).toEqual([0xff, 0, 0xff, 255])
+  })
+})
 
 describe('fringes and pickets', () => {
   it('finds a material\u2019s trim tiles, and keeps them serving as its ordinary edges', () => {

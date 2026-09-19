@@ -813,3 +813,19 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** A project lists its sprites, each a name, an image and a rectangle in that image's tiles, drawn with one facing for now. A sprite with the same name as a generated one (tree, bush, rock, lamp, barrel, sign, statue, hero) stands in for it everywhere. Any other name adds a new sprite objects can use.
 - **WHY:** The generated sprites are placeholders, and a real project like one built from RPG Maker's sheets has its own trees and props in images it already lists. Standing in by name mirrors how the placeholder terrain sheet works, so maps built on placeholders pick up real art without being edited.
+
+## Things fixed to a surface are tiles pasted into its layers
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model / document format
+- **SCOPE:** architectural (builds the reserved tile slot from "A slot says what kind of thing it holds")
+- **WHAT:** Doors, windows, signs on walls, ivy and anything else fixed to a surface are single tiles pasted into a face's material layers, not objects. Sprites stay for things that stand free (trees, barrels, people), which turn to face the camera. The tile slot reserved in the format is built for this.
+- **WHY:** The layers exist to put art on faces, one thing over another. A billboard sprite against a wall cuts into it (found building the valley from RPG Maker sheets, where doors and windows sank into the houses). A second kind of object for surface art would duplicate what layers already do.
+
+## A tile slot names an image by its id, counts as empty to materials, and is placed by stamping
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** document format / terrain-model / editor-ui
+- **SCOPE:** moderate (refines "Things fixed to a surface are tiles pasted into its layers")
+- **WHAT:** Every image in a project gets a stable id, assigned when it is listed and never changed. A tile slot is spelled `"t:<image id>:<tile index>"`. A project's sprites refer to their image by that id too. To an auto-tiled material on the same layer, a face holding a tile counts as empty, so the material edges off around it. Tiles are placed by picking a rectangle of them from a sheet and stamping it across that many faces into the active layer, upright on walls and north-up on floors.
+- **WHY:** An id keeps every reference to an image valid when the file is renamed or moved; a path or a list position would not. Counting as empty keeps the auto-tiling rules unchanged, and surface art normally sits on a layer above what it is pasted on anyway. Stamping a rectangle matches how the art is drawn: a door or window is several tiles that belong together.

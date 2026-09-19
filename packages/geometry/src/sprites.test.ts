@@ -10,12 +10,12 @@ function sheet(): LoadedSet {
   const height = 2 * tile
   const data = new Uint8ClampedArray(width * height * 4)
   for (let y = 0; y < height; y++) for (let x = 0; x < width; x++) data.set([x, y, 0, 255], (y * width + x) * 4)
-  return { set: createTerrainSet('props.png', tile, 4, 2), image: { width, height, data } }
+  return { set: createTerrainSet('props.png', tile, 4, 2), image: { width, height, data }, imageId: 3 }
 }
 
 describe('a project’s own sprites', () => {
   it('cuts each sprite from its image on the tile grid, footprint and all', () => {
-    const { sprites, warnings } = projectSprites([{ name: 'tree', image: 'sheets/props.png', rect: { x: 1, y: 0, w: 2, h: 2 } }], [sheet()])
+    const { sprites, warnings } = projectSprites([{ name: 'tree', image: 3, rect: { x: 1, y: 0, w: 2, h: 2 } }], [sheet()])
     expect(warnings).toEqual([])
     const tree = sprites.tree
     expect(tree).toMatchObject({ name: 'tree', widthTiles: 2, heightTiles: 2, emissive: false })
@@ -27,8 +27,8 @@ describe('a project’s own sprites', () => {
   it('skips and reports a sprite whose image did not load, or whose rectangle leaves it', () => {
     const { sprites, warnings } = projectSprites(
       [
-        { name: 'gone', image: 'sheets/missing.png', rect: { x: 0, y: 0, w: 1, h: 1 } },
-        { name: 'wide', image: 'sheets/props.png', rect: { x: 3, y: 0, w: 2, h: 1 } },
+        { name: 'gone', image: 9, rect: { x: 0, y: 0, w: 1, h: 1 } },
+        { name: 'wide', image: 3, rect: { x: 3, y: 0, w: 2, h: 1 } },
       ],
       [sheet()],
     )

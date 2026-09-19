@@ -148,9 +148,9 @@ span many frames and touch a cell many times, but it produces exactly one
 ## Image
 
 A file of pixels the project draws from, listed in `papercut.json` with
-everything the project knows about it: the **name** the app shows (free to
-change; the file name stays the identity that tags and materials point at),
-its **kind** (tileset, sprite sheet, texture), the **hash** of its file as
+everything the project knows about it: its **id**, a number assigned when it
+is listed and never changed, which sprites and pasted tiles name it by; the
+**name** the app shows (free to change); its **kind** (tileset, sprite sheet, texture), the **hash** of its file as
 last seen, its **grid**, and its [Terrain set](#terrain-set). Managed in the
 Images section of Project settings — the image library (decision of
 2026-09-17) — where it is imported, viewed, annotated and recovered.
@@ -210,6 +210,20 @@ Placing a sprite creates an object on the [Map](#map): the object stores
 which sprite it references, plus its own position, scale, and facing state.
 Many objects can reference the same sprite, and painted background scenery
 does too.
+
+A project can cut its own sprites from its [images](#image): a name, an
+image and a rectangle of its tiles. One named like a generated placeholder
+sprite (`tree`, `barrel`) stands in for it. A sprite stands free and turns to
+the camera; art fixed to a surface — a door, a window — is not a sprite but a
+[pasted tile](#pasted-tile).
+
+## Pasted tile
+
+A single tile of an [image](#image) laid whole on one face, in one of the
+face's material layers: its slot is `t:<image id>:<tile index>`. It covers
+its face exactly — upright on a wall, north up on a top — and is nothing to
+a material auto-tiling on the same layer. The Tiles paint verb stamps a
+rectangle of them, its top-left on the face pressed.
 
 ## Facing
 
