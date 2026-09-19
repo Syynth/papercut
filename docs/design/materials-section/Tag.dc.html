@@ -148,10 +148,19 @@ img{display:block;image-rendering:pixelated}
           <div class="field"><label>Tool</label>
             <div class="seg" style="width: 100%; box-sizing: border-box;"><button type="button" style="flex: 1; justify-content: center;">Tag corners</button><button type="button" style="flex: 1; justify-content: center;">Erase</button><button class="on" type="button" style="flex: 1; justify-content: center;">Place a block</button></div>
           </div>
-          <div class="sentence">
-            <b><img class="sw" src="swatch-2.png" alt="">Stone</b><span>drawn over</span><b><img class="sw" src="swatch-0.png" alt="">Grass</b><a href="#third" style="font-size: 12px;">and a third…</a>
+          <!-- spell the transition: each value is a picker, so one can be swapped and the next block placed -->
+          <div class="field"><label>Spell the transition</label>
+            <div style="display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 6px; align-items: center;">
+              <span class="hint">under</span>
+              <div class="input" style="gap: 8px; height: 30px;"><img class="sw" src="swatch-0.png" alt="" style="width: 14px; height: 14px;"><span>Grass</span><span style="flex: 1;"></span><span style="color: #7b8294;">▾</span></div>
+              <span class="hint">over it</span>
+              <div class="input" style="gap: 8px; height: 30px;"><img class="sw" src="swatch-2.png" alt="" style="width: 14px; height: 14px;"><span>Stone</span><span style="flex: 1;"></span><span style="color: #7b8294;">▾</span></div>
+              <span class="hint">third</span>
+              <div class="input" style="gap: 8px; height: 30px; color: #7b8294; border-style: dashed;"><span>none — a 5 × 3 block</span><span style="flex: 1;"></span><span>▾</span></div>
+            </div>
           </div>
-          <div class="hint">From the pairing you picked: the later material by priority over the earlier. A 5 × 3 block holds the fifteen ways two values meet at a corner; a third makes it 6 × 6.</div>
+          <a class="btn accent" href="Placing.dc.html" style="justify-content: center; text-decoration: none; height: 30px;">Placing: point at its top-left tile</a>
+          <div class="hint">Filled in from the pairing you picked, the later material by priority over the earlier. After it lands, swap a value here and place the next one: the same button, the next spot. A third value makes it the 6 × 6 block for three materials meeting. <a href="Placing.dc.html">See the steps</a>.</div>
 
           <div style="border-top: 1px solid #353b4a; margin: 2px 0;"></div>
           <div class="field"><label>Name</label><div class="input">Grass</div></div>

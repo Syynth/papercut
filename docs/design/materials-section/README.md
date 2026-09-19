@@ -14,6 +14,7 @@ a wall or a ramp in it.
 | `Main.dc.html` | Project settings › Materials, **Preview** view: Grass alone, the assembled patch with its three holes, the arrangements strip, the form with Meets |
 | `Tag.dc.html` | The same section in **Tag** view, placing the Stone-over-Grass block: the Tagging block in the form, the block's values as a sentence, the tags it would write ghosted under the pointer |
 | `Fixture.dc.html` | The **3D** view: the renderer's fixture for Grass meeting Stone, drawn as a stand-in — the fold, the fringe flap, the picket, a ramp nobody drew art for, and the marks on unanswered corners |
+| `Placing.dc.html` | Spelling and placing transitions in five steps: spell the values, point, click, swap a value and place the next, a third value for a 6 × 6 block |
 | `canvas.json` | Canvas layout, and the proposal and open questions as notes |
 
 Published copy: https://claude.ai/artifact/AsSJRC2UoYhVzzBzyrB3yY
@@ -163,11 +164,14 @@ here; the pairings live in the subject bar. Two additions:
   already filled in from the pairing, and the sentence in the foot says so.
 - In Tag view, a **Tagging** block at the top of the form holds the sheet
   picker, the tool (**Tag corners** / **Erase** / **Place a block**) and, for a
-  block, its values as a sentence: "**Rock** drawn over **Grass** · 5 × 3 ·
-  click its top-left tile", with **and a third…** to make it a triple. The
-  values default from the subject: a material alone is its edge set against
-  nothing; a pairing is the later material over the earlier, by priority.
-  They can still be changed here.
+  block, the transition **spelled** as its values: three pickers — *under*,
+  *over it*, *third* — and one button, **Place on the sheet**, which arms the
+  pointer. The values default from the subject: a material alone is its edge
+  set against nothing; a pairing is the later material over the earlier, by
+  priority. After a block lands the spelling stays, so the artist swaps one
+  value and places the next; filling the third slot makes the block the 6 × 6
+  for three materials meeting (the owner's direction of 2026-09-19, on the
+  canvas; `Placing.dc.html` walks the steps).
 
 That puts the block picker and its values together, next to the Meets list
 that motivates them, and stops the side column changing meaning with the
