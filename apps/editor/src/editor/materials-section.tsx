@@ -21,18 +21,19 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
 import { DEFAULT_FRINGE_ANGLE, DEFAULT_PICKET_DISTANCE, MAX_PICKET_DISTANCE, materialById, materialOfTag, nextMaterialId, archetypeOfTag, slotOfTag, tagOf, withArchetype, type ArchetypeId, type MaterialDef, type ReadonlyProjectDoc, type Tag } from '@papercut/document'
-import { useHost, useProject } from '@papercut/editor-host'
+import { useHost, useProject, useViewSelector } from '@papercut/editor-host'
 import { allSlots, archetypes, arrangements, type LoadedSet } from '@papercut/geometry'
 import { Action, AssetPicker, ColorInput, CoverageMark, FaceMarks, Field, FloatStage, Library, LibraryGroup, MaterialRow, Note, NumberInput, Segmented, Select, StageFloat, SubjectRow, TextInput, type IconName } from '@papercut/ui'
 
 import { run } from './commands'
 import { assembleAcross, coverageOf, cropOf, facesOf, maskAt, pairingFace, subjectTags, type Coverage, type Found, type Subject } from './coverage'
+import { Fixture } from './fixture-view'
 import { useDeleteMaterial } from './materials'
 import { PatchPreview, SheetCrop, TileGrid } from './preview'
 import type { Session } from './session'
 import { useTagger, type ShowFilter, type TagTool } from './tagger'
 
-type View = 'preview' | 'tag'
+type View = 'preview' | 'tag' | '3d'
 
 const FACE_ICONS: Record<ArchetypeId, IconName> = { floor: 'faceFloor', wall: 'faceWall', ramp: 'faceRamp' }
 
@@ -89,6 +90,9 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
   const [show, setShow] = useState<ShowFilter>('all')
   /** A tile to scroll to once the Tag view has the sheet up. */
   const [reveal, setReveal] = useState<Found | null>(null)
+  /** What no tile answers on the 3D fixture, named once each: what its marks are. */
+  const [missing, setMissing] = useState<readonly string[]>([])
+  const fallback = useViewSelector((snapshot) => snapshot.context.fallback)
 
   const material = materialById(materials, selected) ?? materials[0]
   const active = material?.id ?? -1
@@ -109,6 +113,12 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
     setLit(null)
     setArmed(false)
     setSpell(spellOf(id, next))
+    // The view follows the subject (decision of 2026-09-19): a flat patch for floors, the fixture for anything whose
+    // art is drawn for walls or ramps. Tagging is left alone: the artist is in the middle of something.
+    if (view !== 'tag') {
+      const drawn = pairingFace(coverageOf(sets, { material: id, other: next }, null))
+      setView(drawn === 'wall' || drawn === 'ramp' ? '3d' : 'preview')
+    }
   }
   const { remove, mapsUsing, dialog } = useDeleteMaterial(session, (next) => select(next))
 
@@ -287,7 +297,7 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
       {drawnFor ? <span className="ui-hint-line">· drawn for {drawnFor}s</span> : null}
       <CoverageMark cells={cellsOfCoverage(cover)} drawn={cover.drawn} owed={cover.masks.length} large />
       <span className="ui-subject-bar-grow" />
-      {view === 'preview' ? (
+      {view === '3d' ? null : view === 'preview' ? (
         <div style={{ width: 210 }}>
           <Segmented value={face} options={archetypes().map((a) => ({ value: a.id, label: a.title, title: a.note }))} onChange={setFace} title="The kind of face the preview is assembled for" />
         </div>
@@ -309,7 +319,7 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
   const litCount = lit === null ? 0 : corners.filter((c) => maskAt(c, mine, theirs) === lit).length
   const viewSwitch = (
     <StageFloat corner="right">
-      <Segmented value={view} options={[{ value: 'preview', label: 'Preview' }, { value: 'tag', label: 'Tag' }]} onChange={(next) => { setView(next); setArmed(false) }} />
+      <Segmented value={view} options={[{ value: 'preview', label: 'Preview' }, { value: 'tag', label: 'Tag' }, { value: '3d', label: '3D', title: "The subject on a fixture, drawn by the map's own renderer" }]} onChange={(next) => { setView(next); setArmed(false) }} />
     </StageFloat>
   )
   const stage =
@@ -344,6 +354,31 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
               </div>
             </>
           )}
+        </div>
+      </FloatStage>
+    ) : view === '3d' ? (
+      <FloatStage
+        floats={
+          <>
+            {viewSwitch}
+            {crop ? (
+              <div className="ui-stage-float is-left" style={{ top: 'auto', bottom: 44, flexDirection: 'column', alignItems: 'start', padding: 8, gap: 6 }}>
+                <SheetCrop crop={crop} scale={tile <= 16 ? 2 : 1} lit={lit} onLight={setLit} onOpen={openInTag} />
+                <span className="ui-hint-line">
+                  {crop.loaded.set.sheet} at ({crop.column}, {crop.row}) · {cover.drawn} of {cover.masks.length} drawn
+                </span>
+              </div>
+            ) : null}
+          </>
+        }
+        foot={
+          <>
+            {meets ? `${material.name} on a plateau walled and ramped in ${meets.name}, on ${material.name} ground with a patch of ${meets.name}` : `${material.name}: its top, its walls, its ramp and its ground`} · {missing.length === 0 ? 'every corner is answered' : `${missing.length} ${missing.length === 1 ? 'transition' : 'transitions'} fall back: ${missing.slice(0, 3).join('; ')}${missing.length > 3 ? '…' : ''}`} · drag to orbit · scroll to zoom
+          </>
+        }
+      >
+        <div style={{ position: 'absolute', inset: 0 }}>
+          <Fixture material={active} other={meets?.id ?? null} sets={sets} fallback={fallback} onMissing={setMissing} />
         </div>
       </FloatStage>
     ) : (
