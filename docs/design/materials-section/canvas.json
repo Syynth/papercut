@@ -1,0 +1,22 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-09-19T20:40:00Z" },
+  "title": "Materials Section",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 860, "title": "Preview view — Grass, assembled" },
+    "Tag.dc.html": { "x": 1520, "y": 0, "w": 1440, "h": 860, "title": "Tag view — placing the Stone-over-Grass block" },
+    "Fixture.dc.html": { "x": 0, "y": 980, "w": 1440, "h": 860, "title": "3D view — the renderer's fixture" }
+  },
+  "order": ["Main.dc.html", "Tag.dc.html", "Fixture.dc.html"],
+  "notes": {
+    "title": { "x": 0, "y": -300, "text": "One Materials section — proposed 2026-09-19", "kind": "title1", "maxW": 2960 },
+    "premise": { "x": 1520, "y": 980, "w": 340, "text": "PROPOSED, not decided. The owner's premise: Materials and Terrain sets are two dressings of the same list — the tagger's palette is the project's materials, and the Materials page's coverage is a query over the tags the tagger writes. One section, the material as its subject, three views of it.", "color": "orange" },
+    "side": { "x": 1520, "y": 1330, "w": 340, "text": "The side column is the materials list and only that. Slots (Fringe, Picket, a wall's seams) are chips under the selected material, not rows of their own. Coverage is project-wide. Nothing leaves the list: right-click, or the Erase tool.", "color": "blue" },
+    "block": { "x": 1900, "y": 980, "w": 340, "text": "#209 folded in: the tools are named by what they do; a block's values are a sentence in the form, defaulted from the pairing picked in Meets, beside the Meets list that motivates them; the block ghosts the tags it would write under the pointer before the click. The side column never changes meaning with the tool.", "color": "blue" },
+    "threed": { "x": 1900, "y": 1330, "w": 340, "text": "3D is the runtime's own RuntimeScene on a generated fixture, with the real atlas, flaps, pickets and fallback, and Show missing on — so a hole reads as the magenta mark it would be on the map. Drawn here as a stand-in. Default view: Preview for floors, 3D for anything with a wall or ramp in it.", "color": "purple" },
+    "questions": { "x": 2280, "y": 980, "w": 340, "text": "OPEN: (1) drawn to the 2026-09-18 ruling that a material spans archetypes — the Archetype select is gone and Face is a switch; wait for the model, or ship the select as interim? (2) three views, or 3D replacing Preview for walls and ramps? (3) tagging controls in the form column. (4) Erase as a tool, not a list row. (5) coverage as a number or a 15-cell bar.", "color": "red" }
+  },
+  "designSystems": []
+}
