@@ -316,6 +316,37 @@ describe('fringes and pickets', () => {
     expect(picket).toBeGreaterThan(0)
   })
 
+  it('turns an outside corner with the material\u2019s corner fringe, when it has one', () => {
+    const loaded = trimmedSet()
+    const grass = tagOf(0)
+    const f = tagOf(0, 'fringe')
+    const tiles = new Map(loaded.set.tiles)
+    for (const [index, tags] of tiles) {
+      if (tags.join('|') === [grass, null, null, null].join('|')) tiles.set(index, [f, null, null, null])
+      if (tags.join('|') === [null, grass, null, null].join('|')) tiles.set(index, [null, f, null, null])
+    }
+    const look = createTerrainLook(DEFAULT_MATERIALS, [{ ...loaded, set: { ...loaded.set, tiles } }])
+    const fromLeft = look.atlas.trimTile(grass, 'fringe', 'from-left')
+    const fromRight = look.atlas.trimTile(grass, 'fringe', 'from-right')
+    expect(fromLeft).not.toBeNull()
+    expect(fromRight).not.toBeNull()
+    const doc = createMap(8, 8)
+    setHeight(doc, 3, 3, 6)
+    const t = meshTerrainChunk(ground(doc), '0,0', look).trim as MeshBuffers
+    /** Whether any vertex samples inside tile `tile`'s rect. */
+    const samples = (tile: number): boolean => {
+      const [u0, v0, u1, v1] = look.atlas.uv(tile, -1)
+      for (let v = 0; v < t.uvs.length / 2; v++) {
+        const [u, w] = [t.uvs[v * 2], t.uvs[v * 2 + 1]]
+        if (u > u0 + 1e-6 && u < u1 - 1e-6 && w > v0 + 1e-6 && w < v1 - 1e-6) return true
+      }
+      return false
+    }
+    // A single raised column has four outside corners: each side\u2019s flap turns both with a corner tile.
+    expect(samples(fromLeft as number)).toBe(true)
+    expect(samples(fromRight as number)).toBe(true)
+  })
+
   it('draws no trim for a material with none tagged', () => {
     const doc = createMap(8, 8)
     setHeight(doc, 3, 3, 6)

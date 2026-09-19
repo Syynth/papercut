@@ -56,6 +56,9 @@ const plainTrim = (tag: Tag): Tag => {
 /** What the fallback is until the settings say otherwise. */
 export const DEFAULT_FALLBACK = 0xff00ff
 
+/** Which of a trim's tiles: its straight edge, or, for a fringe, the outer corner where a rim runs in from one side and stops. */
+export type TrimPart = 'edge' | 'from-left' | 'from-right'
+
 /** The four tags at a corner, in `CornerTags` order; `null` is nothing. */
 export type CornerKeys = CornerTags
 
@@ -194,12 +197,17 @@ export class TerrainAtlas {
    * fringe is its bottom edge tagged `fringe` (the material on top, nothing
    * below), its picket its top edge tagged `picket`. `tag` is the material's
    * plain tag, as a face's layer carries it.
+   *
+   * A fringe also has its two outer corners (ruling of 2026-09-18): `'from-left'`
+   * is the tile with the material top-left only, where a rim runs in from the
+   * left and stops; `'from-right'` the one with it top-right only.
    */
-  trimTile(tag: Tag, slot: typeof FRINGE | typeof PICKET): number | null {
+  trimTile(tag: Tag, slot: typeof FRINGE | typeof PICKET, part: TrimPart = 'edge'): number | null {
     const material = materialOfTag(tag)
     if (material === null) return null
     const t = tagOf(material, slot)
-    const found = this.authored.get(cornerKey(slot === FRINGE ? [t, t, null, null] : [null, null, t, t]))
+    const corners: CornerTags = slot === PICKET ? [null, null, t, t] : part === 'from-left' ? [t, null, null, null] : part === 'from-right' ? [null, t, null, null] : [t, t, null, null]
+    const found = this.authored.get(cornerKey(corners))
     return found ? this.sheetTile(found.loaded, found.index) : null
   }
 
