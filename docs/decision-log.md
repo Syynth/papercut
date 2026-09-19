@@ -765,3 +765,11 @@ Each entry:
 - **SCOPE:** moderate (shapes stage 3; builds on "A material spans archetypes; the archetype is named per corner")
 - **WHAT:** A material can have fringe tiles, tagged with the `fringe` slot on the sheet. Wherever that material stands on a cliff top, the mesher hangs its fringe off the rim as geometry of its own: a strip hinged at the edge and angled 45° out from the wall, like a box flap. This is the only kind of any-to-any fringing. A fringe is never laid flat over the wall's art, whether automatically or by painting the floor's material a layer up. Drawn joins across a fold stay available where an artist draws them.
 - **WHY:** Seen side by side, the flap reads as a real overhang and looks far better than a fringe lying flat on the wall. Compositing a fringe over wall art by hand isn't worth the effort. Wall art as drawn meets anything, with a cap, a middle and a foot, so the fringe is what makes the rim look finished.
+
+## Fringe flaps keep the world's texel density
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** geometry
+- **SCOPE:** minor/local (refines "A fringe is a flap of geometry hanging off the rim")
+- **WHAT:** A fringe flap is sized to its art: its length along the slope equals the height of the fringe art in world units (half a tile for the lower half of a fringe tile), so its UVs have the same texels per world unit as the floors and walls. The flap never stretches its art to reach a length. Changing the angle changes how far it drops and juts out, not how the art is scaled.
+- **WHY:** A stretched flap reads as wrong beside pixel art at a fixed density; every surface in the level has to share one texel scale.
