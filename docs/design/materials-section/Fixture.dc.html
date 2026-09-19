@@ -29,6 +29,14 @@ img{display:block;image-rendering:pixelated}
 .sw{width:12px;height:12px;border-radius:3px;overflow:hidden}
 .chip{height:20px;padding:0 8px;border-radius:10px;border:1px solid #353b4a;color:#aab0c0;font-size:11px;display:inline-flex;align-items:center;gap:4px}
 .chip.on{background:#2c3140;border-color:#414859;color:#e8eaf0}
+.pair{height:26px;padding:0 9px 0 6px;border-radius:6px;border:1px solid #353b4a;background:#1b1e25;color:#aab0c0;font-size:12px;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.pair:hover{border-color:#414859;color:#e8eaf0}
+.pair.on{background:rgba(233,162,59,.16);border-color:#e9a23b;color:#e9a23b}
+.pair .sw{width:14px;height:14px}
+.pair .st{font-size:10.5px;font-weight:500}
+.face{display:inline-flex;gap:3px;align-items:center;margin-left:6px}
+.face svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linejoin:round;display:block}
+.face .off{opacity:.22}
 .field{display:grid;gap:4px}
 .field label{font-size:11px;color:#7b8294}
 .input{height:28px;border:1px solid #353b4a;border-radius:4px;background:#1b1e25;padding:0 8px;display:flex;align-items:center;color:#e8eaf0;font-size:12.5px}
@@ -81,11 +89,15 @@ img{display:block;image-rendering:pixelated}
         <div style="grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid #353b4a;">
           <img class="sw" src="swatch-0.png" alt="" style="width: 14px; height: 14px;">
           <span style="font-size: 13px; font-weight: 600;">Grass</span>
-          <span style="font-size: 11px; color: #7b8294;">meets</span>
-          <img class="sw" src="swatch-2.png" alt="" style="width: 14px; height: 14px;">
-          <span style="font-size: 13px;">Stone</span>
-          <span style="font-size: 11px; color: #7b8294; border: 1px solid #353b4a; border-radius: 3px; padding: 1px 5px;">Wall</span>
-          <a href="Main.dc.html" style="font-size: 12px; margin-left: 4px;">Back to Grass</a>
+          <span class="face" title="Has floor art; no wall or ramp art yet"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg class="off" viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span>
+          <span style="width: 1px; height: 16px; background: #353b4a; margin: 0 6px;"></span>
+          <!-- the pairings are the filter: what the preview shows, what a block places, what the fixture is built for -->
+          <a class="pair" href="Main.dc.html">Alone <span class="st mono">12/15</span></a>
+          <span class="k" style="margin: 0 2px;">meets</span>
+          <a class="pair" href="Main.dc.html"><img class="sw" src="swatch-1.png" alt="">Dirt <span class="st status ok">drawn</span></a>
+          <a class="pair" href="Main.dc.html"><img class="sw" src="swatch-3.png" alt="">Sand <span class="st status ok">drawn</span></a>
+          <a class="pair" href="Main.dc.html"><img class="sw" src="swatch-4.png" alt="">Path <span class="st status ok">drawn</span></a>
+          <a class="pair on" href="Fixture.dc.html"><img class="sw" src="swatch-2.png" alt="">Stone <span class="st mono">3/14</span><span class="k" style="font-size: 9.5px; color: inherit;">wall</span></a>
           <span style="flex: 1;"></span>
           <span class="k">Fixture</span>
           <div class="seg"><button class="on" type="button">Plateau</button><button type="button">Ramp</button></div>
@@ -94,18 +106,17 @@ img{display:block;image-rendering:pixelated}
 
         <div style="background: #1b1e25; border-right: 1px solid #353b4a; display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0;">
           <div style="padding: 8px; display: grid; gap: 2px; align-content: start; overflow-y: auto;">
-            <div class="k" style="padding: 4px 8px 2px;">Floor</div>
-            <div class="row on"><img class="sw" src="swatch-0.png" alt=""><span>Grass</span><span class="mono status warn">12/15</span></div>
+            <div class="k" style="padding: 4px 8px 2px;">By priority</div>
+            <!-- one flat list in priority order; the faces a material has art for are icons on its row, not groups -->
+            <div class="row on"><img class="sw" src="swatch-0.png" alt=""><span style="display: inline-flex; align-items: center;">Grass<span class="face"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg class="off" viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span></span><span class="mono status warn">12/15</span></div>
             <div style="display: flex; gap: 4px; flex-wrap: wrap; padding: 2px 8px 8px 26px;">
               <span class="chip on">Surface</span><span class="chip">Fringe <span class="mono" style="color: #7b8294;">3</span></span><span class="chip">Picket <span class="mono" style="color: #7b8294;">0</span></span>
             </div>
-            <div class="row"><img class="sw" src="swatch-1.png" alt=""><span>Dirt</span><span class="mono status ok">15/15</span></div>
-            <div class="row"><img class="sw" src="swatch-3.png" alt=""><span>Sand</span><span class="mono status ok">15/15</span></div>
-            <div class="row"><img class="sw" src="swatch-4.png" alt=""><span>Path</span><span class="mono status ok">15/15</span></div>
-            <div class="k" style="padding: 10px 8px 2px;">Wall</div>
-            <div class="row meets"><img class="sw" src="swatch-2.png" alt=""><span>Stone <span style="font-size: 10.5px; color: #7b8294; margin-left: 4px;">meets</span></span><span class="mono status ok">15/15</span></div>
-            <div class="k" style="padding: 10px 8px 2px;">Ramp</div>
-            <div class="hint" style="padding: 2px 8px 6px;">none</div>
+            <div class="row"><img class="sw" src="swatch-1.png" alt=""><span style="display: inline-flex; align-items: center;">Dirt<span class="face"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg class="off" viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span></span><span class="mono status ok">15/15</span></div>
+            <div class="row meets"><img class="sw" src="swatch-2.png" alt=""><span style="display: inline-flex; align-items: center;">Stone<span class="face"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span><span style="font-size: 10.5px; color: #7b8294; margin-left: 6px;">meets</span></span><span class="mono status ok">15/15</span></div>
+            <div class="row"><img class="sw" src="swatch-3.png" alt=""><span style="display: inline-flex; align-items: center;">Sand<span class="face"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg class="off" viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span></span><span class="mono status ok">15/15</span></div>
+            <div class="row"><img class="sw" src="swatch-4.png" alt=""><span style="display: inline-flex; align-items: center;">Path<span class="face"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg class="off" viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span></span><span class="mono status ok">15/15</span></div>
+            <div class="hint" style="padding: 8px 8px 2px;">The icons are the faces a material has art for: floor, wall, ramp.</div>
           </div>
           <div style="border-top: 1px solid #353b4a; padding: 8px; display: grid; gap: 6px;">
             <button class="btn accent" type="button" style="justify-content: center;">New material</button>
@@ -115,7 +126,7 @@ img{display:block;image-rendering:pixelated}
 
         <!-- stage: the fixture, drawn as a stand-in for the runtime's render -->
         <div style="position: relative; overflow: hidden; min-height: 0; background: radial-gradient(ellipse at 50% 40%, #1c2030 0%, #0f1115 70%);">
-          <svg viewBox="0 0 680 560" width="680" height="560" style="position: absolute; left: 0; top: 40px;" role="img" aria-label="A grass-topped stone plateau on grass ground, with a stone ramp down its right side; the fringe hangs off the rim, the picket stands at the foot, and magenta marks sit on corners no tile answers">
+          <svg viewBox="0 0 680 560" width="680" height="560" style="position: absolute; left: 0; top: 24px;" role="img" aria-label="A grass-topped stone plateau on grass ground, with a stone ramp down its right side; the fringe hangs off the rim, the picket stands at the foot, and magenta marks sit on corners no tile answers">
             <defs>
               <pattern id="brick" width="16" height="10" patternUnits="userSpaceOnUse"><rect width="16" height="10" fill="#8e8e8e"></rect><path d="M0 4.5h16M8 0v4.5M0 9.5h16M4 4.5v5M12 4.5v5" stroke="#6f6f6f" stroke-width="1"></path></pattern>
               <pattern id="brickDark" width="16" height="10" patternUnits="userSpaceOnUse"><rect width="16" height="10" fill="#767676"></rect><path d="M0 4.5h16M8 0v4.5M0 9.5h16M4 4.5v5M12 4.5v5" stroke="#5c5c5c" stroke-width="1"></path></pattern>
@@ -162,6 +173,11 @@ img{display:block;image-rendering:pixelated}
             <span class="leg"><i style="background: #4f8a3a;"></i>fringe, 45°</span>
             <span class="leg"><i style="background: #5f9c45;"></i>picket, 0 px</span>
           </div>
+          <!-- the same strip as the 2D preview: the pairing's tiles as a crop of the sheet, the fixture's marks and these tiles lighting each other -->
+          <div style="position: absolute; right: 20px; bottom: 44px; display: flex; gap: 12px; align-items: end;">
+            <div class="hint" style="max-width: 200px; text-align: right;"><b style="color: #e8eaf0; font-weight: 500;">ground.png</b> at tiles (4, 8) · 3 of 14 drawn. Hover a mark on the fixture to light its tile; hover a tile to light every corner it draws.</div>
+            <a href="Tag.dc.html" style="display: block; position: relative;"><img src="crop-pair.png" alt="The Stone-over-Grass block as it sits on ground.png, eleven of its tiles hatched" style="width: 192px; height: 192px; outline: 1px solid #353b4a;"><span style="position: absolute; left: 96px; top: 0; width: 46px; height: 46px; outline: 2px solid #e9a23b; outline-offset: 1px;"></span></a>
+          </div>
           <div style="position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 16px; background: rgba(21, 23, 28, .88); border-top: 1px solid #353b4a; font-size: 11.5px; color: #aab0c0;">
             Grass on a Stone plateau, on grass. The ramp is Stone's and nobody has drawn Stone's ramp art, so its slope draws the fallback. Drag to orbit · scroll to zoom.
           </div>
@@ -179,18 +195,9 @@ img{display:block;image-rendering:pixelated}
           </div>
           <div class="hint">Fringe angle and picket distance change the fixture as you scrub them.</div>
 
-          <div class="k" style="margin-top: 4px;">Meets</div>
-          <div style="display: grid; gap: 2px;">
-            <div class="k" style="color: #e9a23b;">Floor</div>
-            <div class="row"><img class="sw" src="swatch-1.png" alt=""><span>Dirt</span><span class="status ok">drawn</span></div>
-            <div class="row"><img class="sw" src="swatch-3.png" alt=""><span>Sand</span><span class="status ok">drawn</span></div>
-            <div class="row"><img class="sw" src="swatch-4.png" alt=""><span>Path</span><span class="status ok">drawn</span></div>
-            <div class="k" style="color: #e9a23b; margin-top: 4px;">Wall</div>
-            <div class="row on"><img class="sw" src="swatch-2.png" alt=""><span>Stone</span><span class="status warn mono">3 / 14</span></div>
-            <div style="padding: 2px 0 4px 26px; display: flex; gap: 6px;"><a class="btn" href="Tag.dc.html" style="text-decoration: none;">Place block…</a></div>
-            <div class="k" style="color: #e9a23b; margin-top: 4px;">Ramp</div>
-            <div class="hint" style="padding: 0 0 4px;">nothing yet</div>
-          </div>
+          <div class="k" style="margin-top: 4px;">Meeting Stone</div>
+          <div class="hint">Drawn in the wall, because that is the face the boundary is on. <span class="status warn mono">3 of 14</span> arrangements drawn; the marks on the fixture are the other eleven.</div>
+          <div style="display: flex; gap: 6px;"><a class="btn" href="Tag.dc.html" style="text-decoration: none;">Place block…</a></div>
 
           <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
             <button class="btn" type="button" disabled>Move up</button>

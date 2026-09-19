@@ -103,27 +103,37 @@ stage switches between three views of the selected subject. The subject is
 what it is today: a material, or a material meeting another.
 
 ```
-┌ tabs ─────────────────────────────────────────────────────────────────────┐
-│ ■ Grass  meets  ■ Rock   · Wall                                 ⌘Z ⌘⇧Z  − 200% + │
+┌ subject bar ──────────────────────────────────────────────────────────────┐
+│ ■ Grass ◇▯◢  [Alone 14/15] meets [■Path drawn] [■Rock 3/14 wall]  ⌘Z ⌘⇧Z − 200% + │
 ├ side ──────────┬ stage ─────────────────────────────────┬ form ────────────┤
-│ Floor          │              [ Preview | Tag | 3D ]    │ Name  Swatch      │
-│ ■ Grass  14/15 │   Preview: the patch + the strip       │ Fringe  Picket    │
-│   Surface Fringe Picket  (slots of the selected)        │                   │
-│ ■ Path   15/15 │   Tag:  the sheet, tags, hover, block  │ Meets             │
-│ Wall           │                                        │  Floor            │
-│ ■ Rock    9/15 │   3D:   a fixture the renderer draws   │   ■ Path  drawn   │
-│ Ramp           │                                        │  Wall             │
-│   none         │                                        │   ■ Rock  3 / 14  │
-│                │                                        │    [Place block…] │
-│ New material   │                                        │ Priority · Delete │
+│ By priority    │              [ Preview | Tag | 3D ]    │ Name  Swatch      │
+│ ■ Grass ◇ 14/15│   Preview: the patch + the strip       │ Fringe  Picket    │
+│   Surface Fringe Picket  (slots of the selected)        │ Priority          │
+│ ■ Path  ◇ 15/15│   Tag:  the sheet, tags, hover, block  │                   │
+│ ■ Rock ◇▯  9/15│                                        │ Meeting Rock      │
+│                │   3D:   a fixture the renderer draws   │  in the wall      │
+│                │                                        │  3 of 14 drawn    │
+│                │                                        │  [Place block…]   │
+│ New material   │                                        │ Delete            │
 │ Duplicate      │                                        │ Tagging (Tag view)│
 └────────────────┴────────────────────────────────────────┴───────────────────┘
 ```
 
+The bar across the top is the **subject bar**: the selected material, then
+its pairings as chips — *Alone*, then one per other material with its
+coverage and the face it is drawn in. The chips are the filter for every
+view: the one that is lit is what Preview assembles, what Place a block
+writes, and what the 3D fixture is built for. They are prominent on
+purpose; a list of pairings buried in the form was too easy to miss (the
+owner's direction of 2026-09-19, on the canvas).
+
 ### The side column is the materials list, and only that
 
-One list, the one Materials has now: grouped by archetype, swatch, name.
-Two changes:
+One list, in priority order, with a swatch and a name. It is no longer
+grouped under Floor / Wall / Ramp: a material is not one of those any more
+(ruling of 2026-09-18), so each row carries small **face icons** — floor,
+wall, ramp — lit for the faces it has art for and dim for the rest (the
+owner's direction of 2026-09-19, on the canvas). Two more changes:
 
 - The count beside each is **project-wide coverage** — "14/15", from
   `coverageOf` — in place of the tagger's per-sheet corner count. A material
@@ -141,15 +151,16 @@ the list: right-click still tags nothing, and Tag view gets an explicit
 
 ### The form column is about the subject
 
-Unchanged at the top: Name, Swatch, Fringe angle, Picket distance, then
-**Meets**, **Priority**, **Delete**, "used in *n* maps". Two additions:
+Unchanged at the top: Name, Swatch, Fringe angle, Picket distance,
+**Priority**, **Delete**, "used in *n* maps". The Meets list is gone from
+here; the pairings live in the subject bar. Two additions:
 
-- Each pairing in Meets that is not fully drawn gains **Place block…** (and
-  **Draw a template…** when there is no sheet to place it on). This is the
-  CREATE action the 2026-09-17 ruling put in the Meets list, which today
-  lives only in Images. Place block switches to Tag view with the block's
-  values already filled in from the pairing, and the sentence in the foot
-  says so.
+- When a pairing is lit, a **Meeting** block says which face it is drawn in
+  and how much of it is drawn, with **Place block…** (and **Draw a
+  template…** when there is no sheet to place it on). This is the CREATE
+  action the 2026-09-17 ruling put beside the pairings, which today lives
+  only in Images. Place block switches to Tag view with the block's values
+  already filled in from the pairing, and the sentence in the foot says so.
 - In Tag view, a **Tagging** block at the top of the form holds the sheet
   picker, the tool (**Tag corners** / **Erase** / **Place a block**) and, for a
   block, its values as a sentence: "**Rock** drawn over **Grass** · 5 × 3 ·
@@ -169,7 +180,13 @@ given on the canvas).
 ### The stage: three views of the subject
 
 **Preview** is today's stage: the assembled patch and the arrangements
-strip, lighting each other. Two additions. The strip's tiles become links:
+strip, lighting each other. The strip changes shape: when the subject's
+tiles sit together on one sheet, which a placed block or a drawn template
+guarantees, it is a **crop of that sheet** with the missing tiles hatched in
+place, so the artist sees where the tiles are and where the holes go. Only
+when they are scattered does it fall back to a grid of tiles, wrapping to
+the stage's width (the owner's direction of 2026-09-19, on the canvas). Two
+additions. The strip's tiles become links:
 clicking a drawn one opens Tag view on that sheet scrolled to that tile;
 clicking a missing one opens Tag view with the brush set to the subject and
 the slot's arrangement named in the foot. And for a subject that spans
@@ -181,9 +198,13 @@ the side and form columns instead of its own. It keeps the sheet picker
 (moved into the Tagging block), the canvas with tags, the hover outline and
 tooltip, the pending block, per-sheet undo, ⌘ wheel zoom, and the write on
 release. One addition from #209: in Place a block the pending block shows
-the **tags it would write** as ghost quadrants under the pointer, not just an
-outline, so what a click does is visible before the click. The default sheet
-is the one that holds most of the subject's tags.
+the **tags it would write** under the pointer, not just an outline, so what
+a click does is visible before the click. The ghost is opaque enough to read
+over the sheet, and the over material's region is drawn as a shape — its
+convex corners rounded, its concave ones filleted, the way the art rounds —
+rather than as four flat quadrants, so where each material lands is plain
+(the owner's direction of 2026-09-19, on the canvas). The default sheet is
+the one that holds most of the subject's tags.
 
 **3D** is new: the subject on a fixture the real renderer draws.
 
@@ -205,8 +226,12 @@ the level. The fixture is generated from the subject:
 | Wall meets wall | A cliff banded across the two, the later above. |
 | Anything with a ramp | The ramp material descending from a plateau of the other to ground of the other: the slope's surface, its head and its foot. |
 
-The default view follows the subject: Preview for a floor alone or two
-floors, 3D for anything with a wall or a ramp in it. Cost: a second WebGL
+The strip is there too, the same crop-of-the-sheet as in Preview, so the
+tiles can be seen and picked from 3D as well: a mark on the fixture lights
+its tile, a tile lights every corner it draws (the owner's direction of
+2026-09-19, on the canvas). The default view follows the subject: Preview
+for a floor alone or two floors, 3D for anything with a wall or a ramp in
+it. Cost: a second WebGL
 context inside the modal, built lazily the first time 3D is opened, its
 look rebuilt when the sets or materials change — the same events the map
 viewport already reacts to. The map's `Picker` makes hover-to-arrangement
@@ -223,7 +248,9 @@ way the strip and the patch do; not in the first cut.
 | Corners / Block | Tag corners / Erase / Place a block, in the Tagging block. |
 | Sheet picker in the tools row | In the Tagging block; the tools row holds undo, redo, zoom. |
 | Per-sheet corner counts | Project-wide coverage per material. |
-| Materials' archetype groups, form, Meets, priority, delete | Unchanged. |
+| Materials' archetype groups | One flat list by priority, with face icons per material. |
+| Materials' Meets list in the form | Pairing chips in the subject bar; a Meeting block in the form for the lit one. |
+| Materials' form, priority, delete | Unchanged. |
 | Images' New from template… | Stays in Images; also reachable from Meets as Draw a template…. |
 | Inspector picker | Unchanged. |
 
