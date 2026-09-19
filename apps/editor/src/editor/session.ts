@@ -673,20 +673,22 @@ export async function revealInFolder(host: Host, path: string): Promise<void> {
   await reveal.reveal(joinPath(folder, path))
 }
 
-/** A face's layers with every `from` swapped for `to`, or `null` when none held it. */
-function repainted(stack: Readonly<MaterialLayers>, from: number, to: number): MaterialLayers | null {
+/** A face's layers with every `from` swapped for `to` — or cleared, for `null` — or `null` when none held it. */
+function repainted(stack: Readonly<MaterialLayers>, from: number, to: number | null): MaterialLayers | null {
   if (!stack.some((slot) => slotMaterial(slot) === from)) return null
-  return stack.map((slot) => (slotMaterial(slot) === from ? slotOf(to) : slot)) as MaterialLayers
+  return stack.map((slot) => (slotMaterial(slot) === from ? (to === null ? null : slotOf(to)) : slot)) as MaterialLayers
 }
 
 /**
  * Take a material out of the library, repainting everything that uses it — in the open map through the document,
- * in every other map through its file — as `to`. The one edit that touches every map, so it is one call.
+ * in every other map through its file — as `to`, or leaving those faces unpainted for `null` (which is what lets
+ * the last material go: the library may be empty, ruling of 2026-09-19). The one edit that touches every map, so
+ * it is one call. Its tags go with it, in the host.
  */
-export async function repaintAndDeleteMaterial(host: Host, session: Session, from: number, to: number): Promise<void> {
+export async function repaintAndDeleteMaterial(host: Host, session: Session, from: number, to: number | null): Promise<void> {
   const { folder, map, project } = host.children.project.getSnapshot().context
   if (folder === null) throw new Error('No project is open.')
-  if (!project.materials.some((m) => m.id === to) || from === to) throw new Error('Pick another material to repaint with.')
+  if (to !== null && (!project.materials.some((m) => m.id === to) || from === to)) throw new Error('Pick another material to repaint with.')
   // The open map: one labelled edit, undoable like any stroke.
   const doc = host.reader.doc
   const patches: Patch[] = []

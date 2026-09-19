@@ -905,9 +905,10 @@ describe('a project file is checked before it is believed', () => {
     const version = raw()
     version.formatVersion = 1
     expect(() => parseProject(JSON.stringify(version))).toThrow(/format 1/)
+    // An empty library is allowed (ruling of 2026-09-19); a missing one gets the defaults.
     const bare = raw()
     bare.materials = []
-    expect(() => parseProject(JSON.stringify(bare))).toThrow(/at least one material/)
+    expect(parseProject(JSON.stringify(bare)).materials).toEqual([])
     const shared = raw()
     shared.materials = [{ id: 1, name: 'A' }, { id: 1, name: 'B' }]
     expect(() => parseProject(JSON.stringify(shared))).toThrow(/share the id 1/)

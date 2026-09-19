@@ -153,6 +153,21 @@ describe('the document commands, routed to the document actor', () => {
     expect(dispatch('project.materials.set', { materials: [{ id: 9, name: 'X', color: 0, archetype: 'floor', side: 9 }] })).toMatchObject({ ok: false, kind: 'invalid-args' })
   })
 
+  it('takes a deleted material\'s tags with it, and lets the library empty (ruling of 2026-09-19)', () => {
+    const { host, dispatch } = makeHost()
+    const project = () => host.children.project.getSnapshot().context.project
+    const [first, second] = project().materials
+    const entry = { ...project().images[0], terrain: { tiles: { 0: [tagOf(first.id), tagOf(second.id), null, null], 1: [tagOf(first.id), null, null, null] } }, layout: { convention: 'corner-blocks', origin: { x: 0, y: 0 }, materials: [first.id, second.id] } }
+    expect(dispatch('project.images.set', { images: [entry] })).toEqual({ ok: true })
+    expect(dispatch('project.materials.set', { materials: project().materials.filter((m) => m.id !== first.id) })).toEqual({ ok: true })
+    // The tag naming it is cleared; a tile left with no tag is dropped; the layout lays out the rest.
+    expect(project().images[0].terrain.tiles).toEqual({ 0: [null, tagOf(second.id), null, null] })
+    expect(project().images[0].layout?.materials).toEqual([second.id])
+    expect(dispatch('project.materials.set', { materials: [] })).toEqual({ ok: true })
+    expect(project().materials).toEqual([])
+    expect(project().images[0].terrain.tiles).toEqual({})
+  })
+
   it('holds the project the app opened, and takes its settings and lists as commands', () => {
     const opened = createProject('Harbour Town', 32)
     const { host, dispatch } = makeHost(undefined, opened)

@@ -861,3 +861,11 @@ Each entry:
 - **SCOPE:** minor/local
 - **WHAT:** New Project… offers the generated placeholder tileset (`sheets/ground.png`, with its image entry and terrain set in `papercut.json`) as an option rather than always writing it, off by default. Left out, the project starts with no images at all; its default materials draw as their swatch colours until an image is listed and tagged, exactly as a project that unlists the placeholder does today. The "Will create" list shows only what will actually be written.
 - **WHY:** A project set up around existing art has no use for the placeholder — it is a file to delete and an entry to unlist, and it stands in for materials the project will define from its own sheets. The placeholder exists so a first project opens with something to paint; a project that already has something to paint should not be made to carry it.
+
+## A project may have no materials; the defaults can all be deleted
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** project format / editor-ui
+- **SCOPE:** moderate
+- **WHAT:** The default materials still seed every new project, but every one of them can be deleted: the library may be empty. Deleting a material nothing uses — no face in any map, no tag on any image — asks nothing; one that is in use still asks what to repaint with, as today. A voxel whose material id no longer exists draws the fallback colour, as an unpainted one does.
+- **WHY:** The defaults exist so a first project has something to paint with, not as a floor. A project built on its own art defines its own library, and being made to keep one stranger in it — renamed to pretend — is a papercut. Skipping the repaint prompt where there is nothing to repaint makes clearing the defaults five clicks, not five dialogs.

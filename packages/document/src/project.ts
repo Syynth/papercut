@@ -213,10 +213,9 @@ export function createProject(name = 'Untitled Project', texelDensity = 16, plac
   }
 }
 
-/** A material is an id and a name; the rest defaults. Ids are unique, or the list is refused. */
+/** A material is an id and a name; the rest defaults. Ids are unique, or the list is refused. The list may be empty (ruling of 2026-09-19): a library is built up from a project's own art. */
 export function normaliseMaterials(raw: unknown): MaterialDef[] {
   if (!Array.isArray(raw)) return DEFAULT_MATERIALS.map((m) => ({ ...m }))
-  if (raw.length === 0) throw new LoadError('A project has at least one material.')
   const ids = new Set<number>()
   const out: MaterialDef[] = raw.map((value, index): MaterialDef => {
     const m = value as Partial<MaterialDef>

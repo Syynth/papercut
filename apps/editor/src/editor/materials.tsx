@@ -15,7 +15,7 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
-import { DEFAULT_FRINGE_ANGLE, DEFAULT_PICKET_DISTANCE, MAX_PICKET_DISTANCE, materialById, slotMaterial, nextMaterialId, tagOf, type MaterialDef, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage, type Tag } from '@papercut/document'
+import { DEFAULT_FRINGE_ANGLE, DEFAULT_PICKET_DISTANCE, MAX_PICKET_DISTANCE, materialById, materialOfTag, slotMaterial, nextMaterialId, tagOf, type MaterialDef, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage, type Tag } from '@papercut/document'
 import { useDocumentSelector, useHost, useProject, type SettingsSection } from '@papercut/editor-host'
 import { CORNER_BITS, FRINGE, PICKET, archetypeOf, archetypes, arrangements, exactTile, templateTags, type Archetype, type CornerTags, type LoadedSet } from '@papercut/geometry'
 import { Action, Actions, ColorInput, Dialog, Field, Item, Library, LibraryGroup, List, Note, NumberInput, Section, Select, Status, TextInput } from '@papercut/ui'
@@ -70,6 +70,14 @@ export function swatchFor(sets: readonly LoadedSet[], material: number): string 
 
 const cssColor = (color: number): string => `#${color.toString(16).padStart(6, '0')}`
 const materialsOf = (project: ReadonlyProjectDoc): readonly MaterialDef[] => project.materials
+const imagesOf = (project: ReadonlyProjectDoc): ReadonlyProjectDoc['images'] => project.images
+
+/** How many tiles across the project's images carry a tag naming the material: what deleting it clears. */
+function tilesTagged(images: ReadonlyProjectDoc['images'], id: number): number {
+  let n = 0
+  for (const image of images) for (const tags of Object.values(image.terrain.tiles)) if (tags.some((tag) => materialOfTag(tag) === id)) n++
+  return n
+}
 
 /** How many faces of the open map hold each material on any material layer, by id. Walks every face, so it is selected settled. */
 function usage(doc: ReadonlyMapDoc): Record<number, number> {
@@ -364,6 +372,7 @@ interface Meeting {
 export function MaterialsSettings({ session, selected, onSelect, sets }: { session: Session; selected: number; onSelect: (id: number) => void; sets: readonly LoadedSet[] }) {
   const host = useHost()
   const materials = useProject(materialsOf)
+  const images = useProject(imagesOf)
   const counts = useDocumentSelector(usage, { equal: sameCounts, settled: true })
   const summaries = useSyncExternalStore(session.summaries.subscribe, session.summaries.get)
   const currentMap = host.children.project.getSnapshot().context.map
@@ -371,7 +380,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
   const [meeting, setMeeting] = useState<number | null>(null)
   // The arrangement the pointer is over, in the strip or in the patch; each lights the other.
   const [lit, setLit] = useState<number | null>(null)
-  const [deleting, setDeleting] = useState<{ from: MaterialDef; to: number } | null>(null)
+  const [deleting, setDeleting] = useState<{ from: MaterialDef; to: number | null } | null>(null)
   const notify = (notice: string): void => void run(host, 'view.set', { notice })
 
   const material = materialById(materials, selected) ?? materials[0]
@@ -401,14 +410,18 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
     setMeeting(null)
     setLit(null)
   }
+  // Any material can go, the last one included (ruling of 2026-09-19). One a map paints with asks what to repaint
+  // with; one nothing paints with goes at once. Its tags go with it either way, cleared by the host.
   const remove = (): void => {
-    if (!material || materials.length <= 1) return
+    if (!material) return
     if (mapsUsing(active) > 0) {
-      setDeleting({ from: material, to: materials.find((m) => m.id !== active)?.id ?? active })
+      setDeleting({ from: material, to: materials.find((m) => m.id !== active)?.id ?? null })
       return
     }
+    const tagged = tilesTagged(images, active)
     commit(materials.filter((m) => m.id !== active))
     onSelect(materials.find((m) => m.id !== active)?.id ?? -1)
+    notify(tagged > 0 ? `${material.name} deleted; its tags on ${tagged} ${tagged === 1 ? 'tile' : 'tiles'} are cleared` : `${material.name} deleted`)
   }
 
   // Everything this material can meet, and how far its art goes, grouped by the archetype it is drawn in.
@@ -606,7 +619,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
         <Action title="Move up" disabled={position <= 0} onClick={() => move(position - 1)} />
         <Action title="Move down" disabled={position >= materials.length - 1} onClick={() => move(position + 1)} />
-        <Action title="Delete" tone="danger" disabled={materials.length <= 1} onClick={remove} />
+        <Action title="Delete" tone="danger" onClick={remove} />
       </div>
       <div className="ui-hint-line">Used in {mapsUsing(active)} of {summaries.length} maps.</div>
     </>
@@ -620,7 +633,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
           opened
           onClose={() => setDeleting(null)}
           title={`Delete ${deleting.from.name}`}
-          description={`${mapsUsing(deleting.from.id)} maps paint with it. Everything made of it is repainted as whatever you pick, in every map, and that cannot be undone beyond this map's history.`}
+          description={`${mapsUsing(deleting.from.id)} ${mapsUsing(deleting.from.id) === 1 ? 'map paints' : 'maps paint'} with it. Everything made of it is repainted as whatever you pick — or left unpainted — in every map, and that cannot be undone beyond this map's history.${tilesTagged(images, deleting.from.id) > 0 ? ` Its tags on ${tilesTagged(images, deleting.from.id)} tiles are cleared.` : ''}`}
           width={460}
           footer={
             <>
@@ -633,8 +646,8 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
                   setDeleting(null)
                   repaintAndDeleteMaterial(host, session, from.id, to)
                     .then(() => {
-                      onSelect(to)
-                      notify(`${from.name} deleted; everything it painted is now ${materialById(materials, to)?.name ?? 'another material'}`)
+                      onSelect(to ?? -1)
+                      notify(to === null ? `${from.name} deleted; everything it painted is unpainted` : `${from.name} deleted; everything it painted is now ${materialById(materials, to)?.name ?? 'another material'}`)
                     })
                     .catch((error: unknown) => notify(error instanceof Error ? error.message : String(error)))
                 }}
@@ -644,9 +657,9 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
         >
           <Field label="Repaint as">
             <Select
-              value={String(deleting.to)}
-              options={materials.filter((m) => m.id !== deleting.from.id).map((m) => ({ value: String(m.id), label: m.name }))}
-              onChange={(value) => setDeleting({ ...deleting, to: Number(value) })}
+              value={deleting.to === null ? '' : String(deleting.to)}
+              options={[...materials.filter((m) => m.id !== deleting.from.id).map((m) => ({ value: String(m.id), label: m.name })), { value: '', label: 'Nothing — leave those faces unpainted' }]}
+              onChange={(value) => setDeleting({ ...deleting, to: value === '' ? null : Number(value) })}
             />
           </Field>
         </Dialog>
