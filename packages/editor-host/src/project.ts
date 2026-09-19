@@ -18,7 +18,7 @@
  * is what the startup screen shows for.
  */
 
-import { createProject, normaliseTerrain, parseProject, type ImageEntry, type ProjectDoc } from '@papercut/document'
+import { MAX_PICKET_DISTANCE, createProject, normaliseTerrain, parseProject, type ImageEntry, type ProjectDoc } from '@papercut/document'
 import { commands, defineContextKey, reserveOwner } from '@papercut/registry'
 import { setup, types } from 'xstate'
 import { z } from 'zod'
@@ -38,6 +38,10 @@ const materialDef = z
     name: z.string().min(1),
     color: z.int().min(0).max(0xffffff),
     archetype: z.enum(['floor', 'wall', 'ramp']),
+    /** Degrees below horizontal its fringe flap hangs at. */
+    fringeAngle: z.number().min(0).max(90).exactOptional(),
+    /** Pixels of art its picket stands out from the wall. */
+    picketDistance: z.number().min(0).max(MAX_PICKET_DISTANCE).exactOptional(),
   })
   .strict()
 /** The whole list, replaced: its order is the materials' priority, so a reorder is as much an edit as a rename. */

@@ -789,3 +789,11 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** A material with fringe or picket tiles puts them on every cliff top or wall foot it stands on, with nothing painted. A Fringe brush in Paint mode switches single edges off, or back on. The map stores only these exceptions, per edge. Like face paint, they are written and removed as sculpting creates and removes edges, so none are left dormant.
 - **WHY:** Most edges want the fringe, so the art should decide by default and the artist should only mark where it's wrong. Storing exceptions keeps the file small and keeps untouched edges following the art when the art changes.
+
+## A material sets its own fringe angle and picket distance
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model / geometry
+- **SCOPE:** minor/local (refines "A fringe is a flap of geometry hanging off the rim" and "Pickets stand at the foot of a wall")
+- **WHAT:** A material with trim has two settings of its own: the angle its fringe flap hangs at (degrees below horizontal, 45 by default), and how far its picket stands out from the wall (in pixels of art, 0 by default). Changing the angle changes how far the flap drops and juts out, never its length, which stays the height of its art.
+- **WHY:** How far a fringe should overhang and how far a picket should stand from the wall depend on the art. Each material's trim needs tuning to look right.

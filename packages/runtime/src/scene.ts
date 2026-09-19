@@ -100,9 +100,9 @@ export interface SceneStats {
   lastMeshMs: number
 }
 
-/** Whether two material lists draw the same: same ids in the same order, each with the same colour. */
+/** Whether two material lists draw the same: same ids in the same order, each with the same colour and trim settings. */
 export function sameLook(a: readonly MaterialDef[], b: readonly MaterialDef[]): boolean {
-  return a.length === b.length && a.every((m, i) => m.id === b[i].id && m.color === b[i].color)
+  return a.length === b.length && a.every((m, i) => m.id === b[i].id && m.color === b[i].color && m.fringeAngle === b[i].fringeAngle && m.picketDistance === b[i].picketDistance)
 }
 
 export interface SceneAssets {
