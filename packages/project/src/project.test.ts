@@ -76,10 +76,15 @@ describe('a project folder', () => {
     expect(map.name).toBe('Harbour Town')
     // A second project cannot land in the same folder.
     await expect(createProjectFolder(fs, '/projects/harbour', { name: 'Again', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)).rejects.toThrow(/already holds a project/)
-    // With no first map asked for, the project starts with none (ruling of 2026-09-19).
-    const bare = await createProjectFolder(fs, '/projects/bare', { name: 'Bare', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)
+    // With no first map and no placeholder asked for, the project starts with neither (rulings of 2026-09-19).
+    const bare = await createProjectFolder(fs, '/projects/bare', { name: 'Bare', texelDensity: 4 }, rawImageCodec)
     expect(bare.project.maps).toEqual([])
+    expect(bare.project.images).toEqual([])
+    expect(bare.project.materials.length).toBeGreaterThan(0)
+    expect(bare.sets).toEqual([])
     expect(await fs.readDir('/projects/bare/maps')).toEqual([])
+    expect(await fs.readDir('/projects/bare/sheets')).toEqual([])
+    expect((await openProject(fs, '/projects/bare', rawImageCodec)).project).toEqual(bare.project)
   })
 
   it('gives a file from before projects had ids one on open, and writes it back', async () => {

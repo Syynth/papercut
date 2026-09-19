@@ -224,8 +224,8 @@ export function mapPathFor(project: ReadonlyProjectDoc, name: string): string {
 export interface NewProjectOptions {
   name: string
   texelDensity: number
-  /** The placeholder terrain set drawn for that density, written into `sheets/` so the folder stands on its own. */
-  placeholder: LoadedSet
+  /** The placeholder terrain set drawn for that density, written into `sheets/` and listed. Absent, the project starts with no images (ruling of 2026-09-19). */
+  placeholder?: LoadedSet
   /** The first map, written and listed first. Absent, the project starts with no map (ruling of 2026-09-19). */
   firstMap?: MapDoc
 }
@@ -252,12 +252,17 @@ export async function createProjectFolder(fs: ProjectFs, folder: string, options
   await fs.mkdir(folder, { recursive: true })
   await fs.mkdir(joinPath(folder, MAPS_DIR), { recursive: true })
   await fs.mkdir(joinPath(folder, SHEETS_DIR), { recursive: true })
-  const project = createProject(options.name, options.texelDensity, terrainOf(options.placeholder.set))
-  const image = project.images[0]
-  image.path = await freePath(fs, folder, image.path)
-  const bytes = await codec.encode(options.placeholder.image)
-  await fs.writeFile(joinPath(folder, image.path), bytes)
-  image.hash = await hashBytes(bytes)
+  const project = createProject(options.name, options.texelDensity, options.placeholder ? terrainOf(options.placeholder.set) : undefined)
+  if (options.placeholder) {
+    const image = project.images[0]
+    image.path = await freePath(fs, folder, image.path)
+    const bytes = await codec.encode(options.placeholder.image)
+    await fs.writeFile(joinPath(folder, image.path), bytes)
+    image.hash = await hashBytes(bytes)
+  } else {
+    // No placeholder: no images at all. The default materials draw as their swatches until a sheet is listed and tagged.
+    project.images = []
+  }
   if (options.firstMap) {
     const path = await freePath(fs, folder, mapPathFor(project, options.firstMap.name), '.map.json')
     await writeMap(fs, folder, path, options.firstMap, project)

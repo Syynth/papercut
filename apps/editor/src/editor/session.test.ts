@@ -29,7 +29,7 @@ describe('opening a project', () => {
   it('creates, opens on the first map, and comes back to the map that was open there last', async () => {
     const host = makeHost()
     const session = makeSession()
-    await createProjectAt(host, session, { folder: '/p/harbour', name: 'Harbour', texelDensity: 4, firstMap: true })
+    await createProjectAt(host, session, { folder: '/p/harbour', name: 'Harbour', texelDensity: 4, firstMap: true, placeholder: true })
     expect(location(host)).toMatchObject({ folder: '/p/harbour', map: 'maps/harbour.map.json' })
     expect(host.reader.doc.name).toBe('Harbour')
     expect(recents().map((r) => r.folder)).toEqual(['/p/harbour'])
@@ -48,7 +48,7 @@ describe('opening a project', () => {
   it('refuses a project whose map will not read, leaving nothing half-open, and keeps it in recents', async () => {
     const host = makeHost()
     const session = makeSession()
-    await createProjectAt(host, session, { folder: '/p/bad', name: 'Bad', texelDensity: 4, firstMap: true })
+    await createProjectAt(host, session, { folder: '/p/bad', name: 'Bad', texelDensity: 4, firstMap: true, placeholder: true })
     await closeProject(host, session)
     await session.fs.writeFile('/p/bad/maps/bad.map.json', '{ "not": "a map" }')
     await expect(openProjectAt(host, session, '/p/bad')).rejects.toThrow(/bad\.map\.json/)
@@ -89,7 +89,7 @@ describe('opening a project', () => {
   it('drops a folder from recents only when it is gone, not when it is unreadable', async () => {
     const host = makeHost()
     const session = makeSession()
-    await createProjectAt(host, session, { folder: '/p/a', name: 'A', texelDensity: 4, firstMap: true })
+    await createProjectAt(host, session, { folder: '/p/a', name: 'A', texelDensity: 4, firstMap: true, placeholder: true })
     await closeProject(host, session)
     await session.fs.writeFile('/p/a/papercut.json', 'nope')
     await expect(openProjectAt(host, session, '/p/a')).rejects.toThrow(/Could not open/)
@@ -103,7 +103,7 @@ describe('the map summaries and repainting', () => {
   it("knows every map's size and materials without opening it, and repaints a deleted material in all of them", async () => {
     const host = makeHost()
     const session = makeSession()
-    await createProjectAt(host, session, { folder: '/p/many', name: 'Many', texelDensity: 4, firstMap: true })
+    await createProjectAt(host, session, { folder: '/p/many', name: 'Many', texelDensity: 4, firstMap: true, placeholder: true })
     const ground = host.reader.doc.structures.ground as VoxelStructure
     host.children.document.send({ type: 'patch', label: 'Paint', patches: [{ t: 'voxelPaint', id: ground.id, layer: 'faces', key: '0,0,0,4', value: layersOf(4) }] })
     await newMapIn(host, session, 'Second', 8, 6)
@@ -128,14 +128,14 @@ describe('switching and saving', () => {
   it('saves the open map before opening another project, and reopening the open map is a no-op', async () => {
     const host = makeHost()
     const session = makeSession()
-    await createProjectAt(host, session, { folder: '/p/one', name: 'One', texelDensity: 4, firstMap: true })
+    await createProjectAt(host, session, { folder: '/p/one', name: 'One', texelDensity: 4, firstMap: true, placeholder: true })
     const ground = host.reader.doc.structures.ground as VoxelStructure
     host.children.document.send({ type: 'patch', label: 'Raise', patches: raise(host.reader.doc, ground, [[1, 1]], 2) })
     expect(host.reader.undoLabel()).toBe('Raise')
     await openMapAt(host, session, 'maps/one.map.json')
     expect(host.reader.undoLabel()).toBe('Raise')
 
-    await createProjectAt(host, session, { folder: '/p/two', name: 'Two', texelDensity: 4, firstMap: true })
+    await createProjectAt(host, session, { folder: '/p/two', name: 'Two', texelDensity: 4, firstMap: true, placeholder: true })
     expect(location(host).folder).toBe('/p/two')
     const saved = deserialize(await session.fs.readTextFile('/p/one/maps/one.map.json'))
     expect((saved.structures.ground as VoxelStructure).voxels.shape.filter((m) => m !== -1).length).toBeGreaterThan(32 * 32)
@@ -144,7 +144,7 @@ describe('switching and saving', () => {
   it('keeps the project open when closing cannot save it', async () => {
     const host = makeHost()
     const session = makeSession()
-    await createProjectAt(host, session, { folder: '/p/stuck', name: 'Stuck', texelDensity: 4, firstMap: true })
+    await createProjectAt(host, session, { folder: '/p/stuck', name: 'Stuck', texelDensity: 4, firstMap: true, placeholder: true })
     const broken = session as { fs: Session['fs'] }
     broken.fs = { ...session.fs, writeFile: () => Promise.reject(new Error('[EACCES] no')) } as Session['fs']
     await expect(closeProject(host, session)).rejects.toThrow(/Not closed/)
