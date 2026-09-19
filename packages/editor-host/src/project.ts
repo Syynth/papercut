@@ -134,17 +134,35 @@ const projectLoad = z
 /** Which of the project's maps the document is, by its path in the project; `null` between maps. */
 const projectCurrent = z.object({ map: relativePath.nullable() }).strict()
 
+/** The whole sprite list, replaced (ruling of 2026-09-18): each a name, the listed image it is cut from, and a rectangle of its tiles. */
+const spritesSet = z
+  .object({
+    sprites: z.array(
+      z
+        .object({
+          name: z.string().min(1),
+          image: z.string().min(1),
+          rect: z.object({ x: z.int().min(0), y: z.int().min(0), w: z.int().min(1), h: z.int().min(1) }).strict(),
+        })
+        .strict(),
+    ),
+  })
+  .strict()
+  .refine(({ sprites }) => new Set(sprites.map((s) => s.name)).size === sprites.length, { message: 'sprite names must be unique' })
+
 export type ProjectSettings = z.infer<typeof projectSettings>
 export type ProjectLoadArgs = z.infer<typeof projectLoad>
 export type ProjectCurrentArgs = z.infer<typeof projectCurrent>
 export type MaterialsSetArgs = z.infer<typeof materialsSet>
 export type ImagesSetArgs = z.infer<typeof imagesSet>
 export type MapsSetArgs = z.infer<typeof mapsSet>
+export type SpritesSetArgs = z.infer<typeof spritesSet>
 
 commands.declare(PROJECT_OWNER, { id: 'project.set', title: 'Set Project Settings', category: 'Project', args: projectSettings })
 commands.declare(PROJECT_OWNER, { id: 'project.materials.set', title: 'Set Materials', category: 'Project', args: materialsSet })
 commands.declare(PROJECT_OWNER, { id: 'project.images.set', title: 'Set Images', category: 'Project', args: imagesSet })
 commands.declare(PROJECT_OWNER, { id: 'project.maps.set', title: 'Set Map List', category: 'Project', args: mapsSet })
+commands.declare(PROJECT_OWNER, { id: 'project.sprites.set', title: 'Set Sprites', category: 'Project', args: spritesSet })
 commands.declare(PROJECT_OWNER, { id: 'project.load', title: 'Open Project', category: 'File', args: projectLoad })
 commands.declare(PROJECT_OWNER, { id: 'project.current', title: 'Set Current Map', category: 'File', args: projectCurrent })
 commands.declare(PROJECT_OWNER, { id: 'project.close', title: 'Close Project', category: 'File', when: projectKeys.open.is(true) })
@@ -184,10 +202,21 @@ export function projectLogicWith(initial: ProjectDoc, folder: string | null = nu
               }
               case 'project.materials.set':
                 return { context: { project: { ...project, materials: (event.args as MaterialsSetArgs).materials.map((m) => ({ ...m })) } } }
-              case 'project.images.set':
-                return { context: { project: { ...project, images: (event.args as ImagesSetArgs).images.map((i) => JSON.parse(JSON.stringify(i)) as ImageEntry) } } }
+              case 'project.images.set': {
+                const images = (event.args as ImagesSetArgs).images.map((i) => JSON.parse(JSON.stringify(i)) as ImageEntry)
+                // A sprite goes with its image, the way a material's tags go with it: nothing is kept that could not draw.
+                const listed = new Set(images.map((i) => i.path))
+                return { context: { project: { ...project, images, sprites: project.sprites.filter((s) => listed.has(s.image)) } } }
+              }
               case 'project.maps.set':
                 return { context: { project: { ...project, maps: [...(event.args as MapsSetArgs).maps] } } }
+              case 'project.sprites.set': {
+                // A sprite cut from an image the project does not list could never draw: the whole list is refused.
+                const { sprites } = event.args as SpritesSetArgs
+                const listed = new Set(project.images.map((i) => i.path))
+                if (sprites.some((s) => !listed.has(s.image))) return undefined
+                return { context: { project: { ...project, sprites: sprites.map((s) => ({ ...s, rect: { ...s.rect } })) } } }
+              }
               case 'project.load': {
                 const { folder, json } = event.args as ProjectLoadArgs
                 return { context: { project: parseProject(json), folder, map: null } }

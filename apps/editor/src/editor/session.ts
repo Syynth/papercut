@@ -23,7 +23,7 @@ import { MemoryFs, addImage, addMap, createProjectFolder, forget, hashBytes, joi
 import { exportGltf } from '@papercut/runtime/export'
 import { desktopShell, type MenuCommand, type ShellDialogs, type ShellMenu } from '@papercut/shell-api'
 
-import { artFor, drawableTerrain, listsPlaceholder } from './art'
+import { artFor, drawableTerrain, listsPlaceholder, withProjectSprites } from './art'
 import { refusal, run } from './commands'
 import { encodePngWithCanvas } from './rgba'
 
@@ -662,7 +662,9 @@ export async function exportCurrentMap(host: Host, session?: Session): Promise<s
   // The same sets the stage draws with — the project's sheets, the generated placeholder standing in — so what is exported is what was seen.
   const art = artFor(project)
   const terrain = drawableTerrain(art.generatedTerrain, host.children.viewport.getSnapshot().context.loadedTerrain as readonly LoadedSet[], project.resolution.texelDensity, listsPlaceholder(project))
-  const bytes = await exportGltf(doc, { merge: false, textures: art.textures, terrain, materials: project.materials, resolution: project.resolution, sprites: art.sprites, encodePng: encodePngWithCanvas })
+  const loaded = host.children.viewport.getSnapshot().context.loadedTerrain as readonly LoadedSet[]
+  const sprites = withProjectSprites(art.sprites, project.sprites, loaded)
+  const bytes = await exportGltf(doc, { merge: false, textures: art.textures, terrain, materials: project.materials, resolution: project.resolution, sprites, encodePng: encodePngWithCanvas })
   const file = `${doc.name.replace(/\s+/g, '-').toLowerCase()}.glb`
   const { folder } = host.children.project.getSnapshot().context
   if (session && desktopShell() && folder !== null) {

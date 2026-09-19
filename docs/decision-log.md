@@ -805,3 +805,11 @@ Each entry:
 - **SCOPE:** minor/local (refines "A fringe is a flap of geometry hanging off the rim")
 - **WHAT:** A material's fringe can include its two outer corner tiles, tagged with the fringe slot on their one material corner: `[5:fringe, -, -, -]` (material top-left only) where the rim runs in from the left and stops, `[-, 5:fringe, -, -]` (material top-right only) where it runs in from the right. At a plateau's outside corner, the flap pieces there draw these instead of the straight fringe tile, still reaching out to meet the flap round the corner. Without them the straight fringe is used, as now.
 - **WHY:** The kit already draws how its fringe turns a corner. Using that art makes the corner read like the art instead of two straight flaps cut on a diagonal.
+
+## A project's sprites are named regions of its images, standing in for generated ones by name
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** project format / art
+- **SCOPE:** moderate
+- **WHAT:** A project lists its sprites, each a name, an image and a rectangle in that image's tiles, drawn with one facing for now. A sprite with the same name as a generated one (tree, bush, rock, lamp, barrel, sign, statue, hero) stands in for it everywhere. Any other name adds a new sprite objects can use.
+- **WHY:** The generated sprites are placeholders, and a real project like one built from RPG Maker's sheets has its own trees and props in images it already lists. Standing in by name mirrors how the placeholder terrain sheet works, so maps built on placeholders pick up real art without being edited.

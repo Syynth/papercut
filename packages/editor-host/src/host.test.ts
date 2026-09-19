@@ -165,6 +165,14 @@ describe('the document commands, routed to the document actor', () => {
     expect(project().maps).toEqual(['maps/a.map.json', 'maps/b.map.json'])
     // Paths stay inside the folder, and a sheet is named by its file name, so two cannot share one.
     expect(dispatch('project.maps.set', { maps: ['../outside.map.json'] })).toMatchObject({ ok: false, kind: 'invalid-args' })
+    // A sprite is a named region of a listed image (ruling of 2026-09-18); one cut from an image the project does not
+    // list could never draw, and two of one name would be ambiguous.
+    const tree = { name: 'tree', image: 'sheets/ground.png', rect: { x: 0, y: 0, w: 2, h: 3 } }
+    expect(dispatch('project.sprites.set', { sprites: [tree] })).toEqual({ ok: true })
+    expect(project().sprites).toEqual([tree])
+    dispatch('project.sprites.set', { sprites: [{ ...tree, image: 'sheets/elsewhere.png' }] })
+    expect(project().sprites).toEqual([tree])
+    expect(dispatch('project.sprites.set', { sprites: [tree, tree] })).toMatchObject({ ok: false, kind: 'invalid-args' })
     const image = (path: string, terrain: { tiles: Record<string, [Tag, Tag, Tag, Tag]> } = { tiles: {} }) => ({ path, name: 'A', kind: 'tileset', hash: null, grid: { tile: 16, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, terrain })
     expect(dispatch('project.images.set', { images: [image('sheets/a.png'), image('other/a.png')] })).toMatchObject({ ok: false, kind: 'invalid-args' })
     // A tag names a material (ruling of 2026-09-17), so a word that is nobody's id is refused.
@@ -173,6 +181,8 @@ describe('the document commands, routed to the document actor', () => {
     expect(dispatch('project.images.set', { images: [tagged] })).toEqual({ ok: true })
     // An entry always carries a layout; leaving it out means there is none, and it comes back as `null`.
     expect(project().images).toEqual([{ ...tagged, layout: null }])
+    // The tree sprite was cut from the placeholder sheet, which this list no longer has: it went with its image.
+    expect(project().sprites).toEqual([])
     // A layout names its materials by id, and rides through the command the same way the tags do.
     const laid = { ...tagged, layout: { convention: 'corner-blocks', origin: { x: 0, y: 0 }, materials: [0, 2] } }
     expect(dispatch('project.images.set', { images: [laid] })).toEqual({ ok: true })

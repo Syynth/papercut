@@ -42,6 +42,8 @@ export type { Template, TemplateMaterial, TemplateOptions } from './template'
 export type { GridCells, Remapped } from './grid'
 export { DEFAULT_FALLBACK, TerrainAtlas } from './atlas'
 export { createTerrainLook } from './look'
+export { projectSprites } from './sprites'
+export type { ProjectSprites } from './sprites'
 export type { TerrainLook, TrimSettings } from './look'
 export type { AtlasOptions, AtlasTile, CornerKeys, LoadedSet, MissingReport, TrimPart } from './atlas'
 
