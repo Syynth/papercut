@@ -22,7 +22,7 @@ import { Action, Actions, ColorInput, Dialog, Field, Item, Library, LibraryGroup
 
 import { run } from './commands'
 import { rgbaToCanvas, rgbaToDataUrl } from './rgba'
-import { repaintAndDeleteMaterial, type Session } from './session'
+import { repaintAndDeleteMaterial, resyncTerrainSets, type Session } from './session'
 
 /** One tile's pixels as a data URL, once per image and tile. */
 const swatches = new WeakMap<RgbaImage, Map<number, string>>()
@@ -124,6 +124,8 @@ export function useDeleteMaterial(session: Session, onDeleted: (next: number) =>
     }
     const tagged = tilesTagged(images, id)
     run(host, 'project.materials.set', { materials: materials.filter((m) => m.id !== id).map((m) => ({ ...m })) })
+    // Its tags went with it (in the host); the loaded sets follow, so the map and the tagger stop drawing them.
+    if (tagged > 0) resyncTerrainSets(host)
     onDeleted(next)
     notify(tagged > 0 ? `${material.name} deleted; its tags on ${tagged} ${tagged === 1 ? 'tile' : 'tiles'} are cleared` : `${material.name} deleted`)
   }
