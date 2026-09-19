@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Materials, Tag view, placing a block</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#15171c;color:#e8eaf0;font:13px/1.4 'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#e9a23b}a:hover{color:#f0b65c}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+img{display:block;image-rendering:pixelated}
+.k{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7b8294}
+.mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:1px solid #353b4a;border-radius:4px;background:#242833;color:#aab0c0;font-size:12px}
+.btn.accent{background:#e9a23b;border-color:#e9a23b;color:#1a1206;font-weight:600}
+.btn.danger{color:#e5636f;border-color:#4a2f34}
+.btn:disabled{opacity:.4;cursor:default}
+.kbd{font:500 10.5px/1 'IBM Plex Mono',ui-monospace,monospace;color:#7b8294;background:#1b1e25;border:1px solid #353b4a;border-bottom-width:2px;border-radius:3px;padding:2px 4px 1px}
+.seg{display:inline-flex;background:#1b1e25;border:1px solid #353b4a;border-radius:6px;padding:2px;gap:2px}
+.seg button{height:22px;padding:0 10px;border-radius:4px;color:#aab0c0;font-size:12px;display:inline-flex;align-items:center;gap:5px}
+.seg button.on{background:#2c3140;color:#e8eaf0;box-shadow:inset 0 -2px 0 #e9a23b}
+.row{display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:center;gap:8px;height:26px;padding:0 4px 0 8px;border-radius:4px;color:#aab0c0}
+.row.on{background:rgba(233,162,59,.16);color:#e9a23b}
+.row.meets{background:#242833;color:#e8eaf0}
+.sw{width:12px;height:12px;border-radius:3px;overflow:hidden}
+.chip{height:20px;padding:0 8px;border-radius:10px;border:1px solid #353b4a;color:#aab0c0;font-size:11px;display:inline-flex;align-items:center;gap:4px}
+.chip.on{background:#2c3140;border-color:#414859;color:#e8eaf0}
+.field{display:grid;gap:4px}
+.field label{font-size:11px;color:#7b8294}
+.input{height:28px;border:1px solid #353b4a;border-radius:4px;background:#1b1e25;padding:0 8px;display:flex;align-items:center;color:#e8eaf0;font-size:12.5px}
+.status{font-size:11px;font-weight:500}
+.status.ok{color:#7bc47f}.status.warn{color:#e9a23b}.status.muted{color:#7b8294}
+.hint{font-size:11.5px;color:#7b8294;line-height:1.45}
+.rail-item{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-radius:4px;color:#aab0c0;font-size:12.5px;width:100%}
+.rail-item.on{background:#2c3140;color:#e8eaf0}
+.rail-item svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.sentence{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12.5px;color:#aab0c0}
+.sentence b{display:inline-flex;align-items:center;gap:5px;color:#e8eaf0;font-weight:600;border:1px solid #353b4a;border-radius:4px;padding:2px 7px 2px 5px;background:#242833}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 860px; overflow: hidden; background: #15171c;">
+
+  <div style="position: absolute; inset: 0; display: grid; grid-template-rows: 44px 40px 1fr 28px; grid-template-columns: 52px 1fr 300px; opacity: .45;">
+    <div style="grid-column: 1 / -1; background: #1b1e25; border-bottom: 1px solid #353b4a; display: flex; align-items: center; gap: 10px; padding: 0 12px;"><span style="font-weight: 600; color: #aab0c0;">Papercut</span><span style="color: #7b8294;">the test project · <b style="color: #e8eaf0; font-weight: 500;">Valley</b></span></div>
+    <div style="grid-row: 2 / 4; background: #1b1e25; border-right: 1px solid #353b4a;"></div>
+    <div style="background: #242833; border-bottom: 1px solid #353b4a;"></div>
+    <div style="grid-row: 2 / 4; background: #1b1e25; border-left: 1px solid #353b4a;"></div>
+    <div style="background: #0f1115;"></div>
+    <div style="grid-column: 1 / -1; background: #1b1e25; border-top: 1px solid #353b4a;"></div>
+  </div>
+  <div style="position: absolute; inset: 0; background: rgba(8, 9, 12, .55);"></div>
+
+  <div style="position: absolute; left: 48px; top: 48px; width: 1344px; height: 764px; background: #242833; border: 1px solid #353b4a; border-radius: 6px; box-shadow: 0 16px 48px rgba(0,0,0,.45); display: grid; grid-template-columns: 176px minmax(0, 1fr); overflow: hidden;">
+
+    <div style="background: #1b1e25; border-right: 1px solid #353b4a; padding: 10px 8px; display: flex; flex-direction: column; gap: 8px;">
+      <div class="seg" style="width: 100%; box-sizing: border-box;"><button class="on" type="button" style="flex: 1; justify-content: center;">Project</button><button type="button" disabled style="flex: 1; justify-content: center; opacity: .45;">Map</button></div>
+      <div class="input" style="height: 26px; color: #7b8294; font-size: 12px;">Search settings</div>
+      <div style="display: grid; gap: 2px; margin-top: 4px;">
+        <button class="rail-item" type="button"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"></circle><path d="M8 2v2M8 12v2M2 8h2M12 8h2"></path></svg>General</button>
+        <button class="rail-item" type="button"><svg viewBox="0 0 16 16"><path d="M2 4l4-1.5 4 1.5 4-1.5v10l-4 1.5-4-1.5-4 1.5z"></path><path d="M6 2.5v10M10 4v10"></path></svg>Maps</button>
+        <button class="rail-item" type="button"><svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="1"></rect><path d="M2.5 8h11M8 2.5v11"></path></svg>Images</button>
+        <button class="rail-item on" type="button"><svg viewBox="0 0 16 16"><path d="M2 12l3-6 3 4 2-2 4 4z"></path></svg>Materials</button>
+      </div>
+      <div class="hint" style="padding: 8px 10px; border-top: 1px solid #353b4a; margin-top: 4px;">Tagging is undoable while the section is open; the rest of the form is not.</div>
+    </div>
+
+    <div style="display: grid; grid-template-rows: 44px minmax(0, 1fr); min-height: 0;">
+      <div style="display: flex; align-items: center; padding: 0 12px 0 16px; border-bottom: 1px solid #353b4a; gap: 12px;">
+        <span style="font-size: 14px; font-weight: 600;">Materials</span>
+        <span style="flex: 1;"></span>
+        <span style="font-size: 12px; color: #7b8294;">5 materials · priority top to bottom · 72 of 75 arrangements drawn</span>
+        <button type="button" aria-label="Close" style="width: 24px; height: 24px; display: grid; place-items: center; color: #aab0c0; border-radius: 4px;"><svg viewBox="0 0 14 14" width="12" height="12" style="stroke: currentColor; stroke-width: 1.6; fill: none;"><path d="M3 3l8 8M11 3l-8 8"></path></svg></button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 224px minmax(0, 1fr) 272px; grid-template-rows: 38px minmax(0, 1fr); min-height: 0;">
+
+        <div style="grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid #353b4a;">
+          <img class="sw" src="swatch-0.png" alt="" style="width: 14px; height: 14px;">
+          <span style="font-size: 13px; font-weight: 600;">Grass</span>
+          <span style="font-size: 11px; color: #7b8294;">meets</span>
+          <img class="sw" src="swatch-2.png" alt="" style="width: 14px; height: 14px;">
+          <span style="font-size: 13px;">Stone</span>
+          <span style="font-size: 11px; color: #7b8294; border: 1px solid #353b4a; border-radius: 3px; padding: 1px 5px;">Wall</span>
+          <a href="Main.dc.html" style="font-size: 12px; margin-left: 4px;">Back to Grass</a>
+          <span style="flex: 1;"></span>
+          <div class="seg"><a href="Main.dc.html" style="height: 22px; padding: 0 10px; border-radius: 4px; color: #aab0c0; font-size: 12px; display: inline-flex; align-items: center; text-decoration: none;">Preview</a><button class="on" type="button">Tag</button><a href="Fixture.dc.html" style="height: 22px; padding: 0 10px; border-radius: 4px; color: #aab0c0; font-size: 12px; display: inline-flex; align-items: center; text-decoration: none;">3D</a></div>
+          <span style="width: 1px; height: 16px; background: #353b4a; margin: 0 4px;"></span>
+          <button class="btn" type="button">Undo <span class="kbd">⌘Z</span></button>
+          <button class="btn" type="button" disabled>Redo <span class="kbd">⌘⇧Z</span></button>
+          <span style="width: 1px; height: 16px; background: #353b4a; margin: 0 4px;"></span>
+          <button class="btn" type="button" aria-label="Zoom out" style="width: 26px; justify-content: center; padding: 0;">−</button>
+          <span class="mono" style="width: 44px; text-align: center; font-size: 11.5px; color: #aab0c0;">200%</span>
+          <button class="btn" type="button" aria-label="Zoom in" style="width: 26px; justify-content: center; padding: 0;">+</button>
+        </div>
+
+        <div style="background: #1b1e25; border-right: 1px solid #353b4a; display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0;">
+          <div style="padding: 8px; display: grid; gap: 2px; align-content: start; overflow-y: auto;">
+            <div class="k" style="padding: 4px 8px 2px;">Floor</div>
+            <div class="row on"><img class="sw" src="swatch-0.png" alt=""><span>Grass</span><span class="mono status warn">12/15</span></div>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap; padding: 2px 8px 8px 26px;">
+              <span class="chip on">Surface</span><span class="chip">Fringe <span class="mono" style="color: #7b8294;">3</span></span><span class="chip">Picket <span class="mono" style="color: #7b8294;">0</span></span>
+            </div>
+            <div class="row"><img class="sw" src="swatch-1.png" alt=""><span>Dirt</span><span class="mono status ok">15/15</span></div>
+            <div class="row"><img class="sw" src="swatch-3.png" alt=""><span>Sand</span><span class="mono status ok">15/15</span></div>
+            <div class="row"><img class="sw" src="swatch-4.png" alt=""><span>Path</span><span class="mono status ok">15/15</span></div>
+            <div class="k" style="padding: 10px 8px 2px;">Wall</div>
+            <div class="row meets"><img class="sw" src="swatch-2.png" alt=""><span>Stone <span style="font-size: 10.5px; color: #7b8294; margin-left: 4px;">meets</span></span><span class="mono status ok">15/15</span></div>
+            <div class="k" style="padding: 10px 8px 2px;">Ramp</div>
+            <div class="hint" style="padding: 2px 8px 6px;">none</div>
+          </div>
+          <div style="border-top: 1px solid #353b4a; padding: 8px; display: grid; gap: 6px;">
+            <button class="btn accent" type="button" style="justify-content: center;">New material</button>
+            <button class="btn" type="button" style="justify-content: center;">Duplicate</button>
+          </div>
+        </div>
+
+        <!-- stage: the sheet, the tags, and the block the pointer stands for -->
+        <div style="position: relative; overflow: hidden; min-height: 0; background-color: #0f1115; background-image: linear-gradient(45deg, #171a21 25%, transparent 25%), linear-gradient(-45deg, #171a21 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #171a21 75%), linear-gradient(-45deg, transparent 75%, #171a21 75%); background-size: 12px 12px; background-position: 0 0, 0 6px, 6px -6px, -6px 0;">
+          <img src="sheet-pending.png" alt="ground.png with every tagged corner drawn as a quadrant, and a 5 × 3 block ghosted where the pointer is" style="position: absolute; left: 20px; top: 20px; width: 512px; height: 512px;">
+          <div style="position: absolute; left: 356px; top: 436px; background: #242833; border: 1px solid #414859; border-radius: 4px; padding: 5px 8px; font-size: 11.5px; color: #aab0c0; white-space: nowrap; box-shadow: 0 6px 20px rgba(0,0,0,.4);"><b style="color: #e8eaf0; font-weight: 600;">Tile 202</b> · 5 × 3 block from here · click to place</div>
+          <div style="position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 16px; background: rgba(21, 23, 28, .88); border-top: 1px solid #353b4a; font-size: 11.5px; color: #aab0c0; display: flex; gap: 6px; align-items: center;">
+            <b style="color: #e8eaf0; font-weight: 600;">Stone</b> drawn over <b style="color: #e8eaf0; font-weight: 600;">Grass</b> · 5 × 3 · the tags it writes are shown under the pointer · click its top-left tile · ⌘ wheel to zoom
+          </div>
+        </div>
+
+        <!-- form: the Tagging block first, then the subject -->
+        <div style="border-left: 1px solid #353b4a; background: #1b1e25; padding: 14px 16px; display: grid; gap: 12px; align-content: start; overflow-y: auto; min-height: 0;">
+          <div class="k">Tagging</div>
+          <div class="field"><label>Sheet</label>
+            <div class="input" style="height: 36px; gap: 8px; padding-left: 5px;"><img src="sheet-tagged.png" alt="" style="width: 26px; height: 26px; border-radius: 3px;"><span style="display: grid; line-height: 1.2;"><span>ground.png</span><span class="mono" style="font-size: 10.5px; color: #7b8294;">16 × 16 tiles · 16 px · 240 tagged</span></span><span style="flex: 1;"></span><span style="color: #7b8294;">▾</span></div>
+          </div>
+          <div class="field"><label>Tool</label>
+            <div class="seg" style="width: 100%; box-sizing: border-box;"><button type="button" style="flex: 1; justify-content: center;">Tag corners</button><button type="button" style="flex: 1; justify-content: center;">Erase</button><button class="on" type="button" style="flex: 1; justify-content: center;">Place a block</button></div>
+          </div>
+          <div class="sentence">
+            <b><img class="sw" src="swatch-2.png" alt="">Stone</b><span>drawn over</span><b><img class="sw" src="swatch-0.png" alt="">Grass</b><a href="#third" style="font-size: 12px;">and a third…</a>
+          </div>
+          <div class="hint">From the pairing you picked: the later material by priority over the earlier. A 5 × 3 block holds the fifteen ways two values meet at a corner; a third makes it 6 × 6.</div>
+
+          <div style="border-top: 1px solid #353b4a; margin: 2px 0;"></div>
+          <div class="field"><label>Name</label><div class="input">Grass</div></div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="field"><label>Fringe angle</label><div class="input mono">45°</div></div>
+            <div class="field"><label>Picket distance</label><div class="input mono">0 px</div></div>
+          </div>
+          <div class="k" style="margin-top: 4px;">Meets</div>
+          <div style="display: grid; gap: 2px;">
+            <div class="k" style="color: #e9a23b;">Floor</div>
+            <div class="row"><img class="sw" src="swatch-1.png" alt=""><span>Dirt</span><span class="status ok">drawn</span></div>
+            <div class="row"><img class="sw" src="swatch-3.png" alt=""><span>Sand</span><span class="status ok">drawn</span></div>
+            <div class="row"><img class="sw" src="swatch-4.png" alt=""><span>Path</span><span class="status ok">drawn</span></div>
+            <div class="k" style="color: #e9a23b; margin-top: 4px;">Wall</div>
+            <div class="row on"><img class="sw" src="swatch-2.png" alt=""><span>Stone</span><span class="status warn mono">3 / 14</span></div>
+            <div class="k" style="color: #e9a23b; margin-top: 4px;">Ramp</div>
+            <div class="hint" style="padding: 0 0 4px;">nothing yet</div>
+          </div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
+            <button class="btn" type="button" disabled>Move up</button>
+            <button class="btn" type="button">Move down</button>
+            <button class="btn danger" type="button">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":860}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

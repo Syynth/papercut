@@ -47,3 +47,10 @@
   editor's sheet picker is the first rich typeahead. Decisions of 2026-09-17 in
   `docs/decision-log.md`. Published copy:
   https://claude.ai/artifact/XLJUUeheTo28GYFnAzS465
+- [`materials-section/`](materials-section/README.md) — the 2026-09-19 design pass over
+  Materials and Terrain sets as one section: the README inventories both, says where the
+  seam shows, and proposes the material as the subject with three views of it — the assembled
+  preview, the sheet for tagging (with #209's block-placement rework folded in), and a 3D
+  fixture the runtime's own renderer draws for anything with a wall or a ramp. **Proposed,
+  not decided**; its open questions are listed in the README and as notes on the canvas.
+  Published copy: https://claude.ai/artifact/AsSJRC2UoYhVzzBzyrB3yY
