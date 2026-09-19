@@ -51,6 +51,6 @@
   Materials and Terrain sets as one section: the README inventories both, says where the
   seam shows, and proposes the material as the subject with three views of it — the assembled
   preview, the sheet for tagging (with #209's block-placement rework folded in), and a 3D
-  fixture the runtime's own renderer draws for anything with a wall or a ramp. **Proposed,
-  not decided**; its open questions are listed in the README and as notes on the canvas.
+  fixture the runtime's own renderer draws for anything with a wall or a ramp. Decided
+  2026-09-19; the decisions are in `docs/decision-log.md` under that date.
   Published copy: https://claude.ai/artifact/AsSJRC2UoYhVzzBzyrB3yY
