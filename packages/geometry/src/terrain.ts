@@ -13,9 +13,10 @@
  *     this cell, so a height edge between neighbours lands on the split and
  *     nothing stretches;
  *   - one side face per side where the cell stands above its neighbour,
- *     cut exactly to the slopes on either side and into half-tile bands,
- *     each band again in quarters, its corner tiles looked up in face space:
- *     run along the side across, layers up;
+ *     cut exactly to the slopes on either side and into courses, one cube
+ *     tall so a wall's tiles are square like a floor's, each course again in
+ *     quarters, its corner tiles looked up in face space: run along the side
+ *     across, courses up;
  *   - one water quad if the column holds water.
  *
  * Every quarter is looked up once per MATERIAL LAYER (ruling of 2026-09-18):
@@ -34,7 +35,7 @@
  * Comparing vertex heights rather than cell tops is what lets a ramp's low
  * edge meet the ground it lands on.
  *
- * What a band sees: the bands above, below and beside it on the same side
+ * What a course sees: the courses above, below and beside it on the same side
  * of the same or adjacent cell. The top surface above and the ground below
  * are nothing; so is a bend in the face for now, which the spec means to
  * connect through the corner later.
@@ -297,12 +298,12 @@ class Cells {
     return this.at(x, y).corners[CORNER_AT[vx - x][vy - y]]
   }
 
-  /** The terrains a band of a side is drawn with: the face of the voxel the band belongs to. */
-  band(x: number, y: number, dir: number, level: number): FaceKeys {
-    const key = ((y * this.voxel.size.width + x) * 4 + dir) * 256 + level
+  /** The terrains a course of a side is drawn with: the face of the voxel whose layer the course is. */
+  course(x: number, y: number, dir: number, course: number): FaceKeys {
+    const key = ((y * this.voxel.size.width + x) * 4 + dir) * 256 + course
     const known = this.bands.get(key)
     if (known !== undefined) return known
-    const answer = this.faceKeys(x, y, Math.floor(level / 2), dir)
+    const answer = this.faceKeys(x, y, course, dir)
     this.bands.set(key, answer)
     return answer
   }
@@ -473,37 +474,38 @@ function topCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, vx:
 }
 
 /**
- * Whether cell (x, y)'s side `dir` has a band at half-tile `level`: the wall
- * the mesher emits there — between this cell's edge and the neighbour's,
- * corner for corner — reaches into that band. Judged from the same edges
- * the wall is cut from, so a slope beside a level of the same top, whose
- * wall is the triangle under the slope, still sees its own bands.
+ * Whether cell (x, y)'s side `dir` has wall in course `course`, the cube-tall
+ * row of its face at that voxel layer: the wall the mesher emits there —
+ * between this cell's edge and the neighbour's, corner for corner — reaches
+ * into it. Judged from the same edges the wall is cut from, so a slope beside
+ * a level of the same top, whose wall is the triangle under the slope, still
+ * sees its own courses.
  */
-function bandExists(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, level: number): boolean {
+function courseExists(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, course: number): boolean {
   if (!inBounds(voxel.size, x, y)) return false
   const corners = cells.at(x, y).corners
   const [startCorner, endCorner] = SIDE_CORNERS[dir]
   const [lowStart, lowEnd] = neighbourEdge(cells, voxel, x, y, dir)
-  return Math.max(corners[startCorner], corners[endCorner]) > level && Math.min(lowStart, lowEnd) < level + 1
+  return Math.max(corners[startCorner], corners[endCorner]) > course * 2 && Math.min(lowStart, lowEnd) < course * 2 + 2
 }
 
 /**
- * The four terrains around a corner of a band on material layer `layer`, in face space: `atEnd` picks
+ * The four terrains around a corner of a course on material layer `layer`, in face space: `atEnd` picks
  * the corner at the side's end (u = 1) rather than its start, `atTop` the
- * corner at the band's top rather than its bottom. Bands beside are on the
+ * corner at the course's top rather than its bottom. Courses beside are on the
  * cell before or after this one along the side; off the volume continues.
  */
-function bandCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, level: number, atEnd: boolean, atTop: boolean, layer: number): CornerKeys {
+function courseCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, course: number, atEnd: boolean, atTop: boolean, layer: number): CornerKeys {
   const [ux, uy] = SIDE_GEOMETRY[dir].u
-  const own = cells.band(x, y, dir, level).keys[layer]
-  const at = (along: number, l: number): Tag => {
+  const own = cells.course(x, y, dir, course).keys[layer]
+  const at = (along: number, c: number): Tag => {
     const cx = x + along * ux
     const cy = y + along * uy
     if (!inBounds(voxel.size, cx, cy)) return own
-    return bandExists(cells, voxel, cx, cy, dir, l) ? cells.band(cx, cy, dir, l).keys[layer] : null
+    return courseExists(cells, voxel, cx, cy, dir, c) ? cells.course(cx, cy, dir, c).keys[layer] : null
   }
   const before = atEnd ? 0 : -1
-  const upper = atTop ? level + 1 : level
+  const upper = atTop ? course + 1 : course
   return [at(before, upper), at(before + 1, upper), at(before, upper - 1), at(before + 1, upper - 1)]
 }
 
@@ -684,27 +686,33 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
             )
           }
         }
-        for (let level = bottomLevel; level <= topLevel; level++) {
-          // Bands sitting in a pit read darker at the bottom.
-          const deep = 1 - AO_STRENGTH * Math.min(2, topLevel - level) * 0.5
+        // A wall is tiled a COURSE at a time: one cube tall, the height of the voxel it belongs to, so its tiles are
+        // square in the world like a floor's, one tile to a world unit each way (ruling of 2026-09-18: every surface
+        // shares one texel scale). A course is two half-tile bands, and each band is still its own pick address.
+        const topCourse = Math.ceil(Math.max(topStart, topEnd) / 2) - 1
+        const bottomCourse = Math.floor(Math.min(lowStart, lowEnd) / 2)
+        for (let course = bottomCourse; course <= topCourse; course++) {
           for (let q = 0; q < 4; q++) {
             const atEnd = q % 2 === 1
             const atTop = q < 2
             const t0 = atEnd ? 0.5 : 0
-            const h0 = atTop ? level + 0.5 : level
-            // The wall region cut to this quarter of this band, exactly: a slope crossing it is followed, not approximated.
-            const piece = clipToRect(region, t0, t0 + 0.5, h0, h0 + 0.5)
+            // A quarter of a course is one band tall: half a tile of art on half a world unit.
+            const level = atTop ? course * 2 + 1 : course * 2
+            // Bands sitting in a pit read darker at the bottom.
+            const deep = 1 - AO_STRENGTH * Math.min(2, topLevel - level) * 0.5
+            // The wall region cut to this quarter, exactly: a slope crossing it is followed, not approximated.
+            const piece = clipToRect(region, t0, t0 + 0.5, level, level + 1)
             if (piece.length === 0) continue
             const rects = quarterRects(
-              cells.band(x, y, dir, level).empty,
+              cells.course(x, y, dir, course).empty,
               QUADRANT_OF_QUARTER[q],
-              (layer) => bandCorner(cells, voxel, x, y, dir, level, atEnd, atTop, layer),
-              () => mark(ox + u[0] * (atEnd ? 1 : 0), (atTop ? level + 1 : level) * HALF, oz + u[1] * (atEnd ? 1 : 0)),
+              (layer) => courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer),
+              () => mark(ox + u[0] * (atEnd ? 1 : 0), (atTop ? course + 1 : course) * 2 * HALF, oz + u[1] * (atEnd ? 1 : 0)),
             )
             solid.polygon(
               piece.map(([t, h]) => [ox + u[0] * t, h * HALF, oz + u[1] * t] as const),
-              // The texture keeps its scale however the piece is cut: u along the side, v up the band.
-              piece.map(([t, h]) => [(t - t0) / 0.5, (h - h0) / 0.5] as const),
+              // The texture keeps its scale however the piece is cut: u along the side, v up the course.
+              piece.map(([t, h]) => [(t - t0) / 0.5, h - level] as const),
               rects,
               piece.map(([, h]) => deep + (1 - deep) * (h - level)),
               tint,
