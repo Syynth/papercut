@@ -87,8 +87,6 @@ img{display:block;image-rendering:pixelated}
           <span style="font-size: 11px; color: #7b8294; border: 1px solid #353b4a; border-radius: 3px; padding: 1px 5px;">Wall</span>
           <a href="Main.dc.html" style="font-size: 12px; margin-left: 4px;">Back to Grass</a>
           <span style="flex: 1;"></span>
-          <div class="seg"><a href="Main.dc.html" style="height: 22px; padding: 0 10px; border-radius: 4px; color: #aab0c0; font-size: 12px; display: inline-flex; align-items: center; text-decoration: none;">Preview</a><a href="Tag.dc.html" style="height: 22px; padding: 0 10px; border-radius: 4px; color: #aab0c0; font-size: 12px; display: inline-flex; align-items: center; text-decoration: none;">Tag</a><button class="on" type="button">3D</button></div>
-          <span style="width: 1px; height: 16px; background: #353b4a; margin: 0 4px;"></span>
           <span class="k">Fixture</span>
           <div class="seg"><button class="on" type="button">Plateau</button><button type="button">Ramp</button></div>
           <label class="leg" style="margin-left: 6px;"><input type="checkbox" checked style="margin: 0; accent-color: #e9a23b;">Show missing</label>
@@ -157,6 +155,8 @@ img{display:block;image-rendering:pixelated}
             <span class="mono" style="font-size: 10.5px;">[Grass, Grass, Stone@wall, Stone@wall]</span>
             <span style="color: #e9a23b;">Place block…</span>
           </div>
+          <!-- the view switch floats on the stage itself, not in the tools row -->
+          <div class="seg" style="position: absolute; top: 12px; right: 12px; z-index: 2; background: #242833; box-shadow: 0 4px 16px rgba(0,0,0,.45);"><a href="Main.dc.html" style="height: 22px; padding: 0 10px; border-radius: 4px; color: #aab0c0; font-size: 12px; display: inline-flex; align-items: center; text-decoration: none;">Preview</a><a href="Tag.dc.html" style="height: 22px; padding: 0 10px; border-radius: 4px; color: #aab0c0; font-size: 12px; display: inline-flex; align-items: center; text-decoration: none;">Tag</a><button class="on" type="button">3D</button></div>
           <div style="position: absolute; left: 16px; top: 12px; display: flex; gap: 14px;">
             <span class="leg"><i style="background: #e04fc0;"></i>no tile answers · 4 corners, 1 slope</span>
             <span class="leg"><i style="background: #4f8a3a;"></i>fringe, 45°</span>

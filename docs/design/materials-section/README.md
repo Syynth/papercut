@@ -104,9 +104,9 @@ what it is today: a material, or a material meeting another.
 
 ```
 ┌ tabs ─────────────────────────────────────────────────────────────────────┐
-│ ■ Grass  meets  ■ Rock   · Wall        [ Preview | Tag | 3D ]   ⌘Z ⌘⇧Z  − 200% + │
+│ ■ Grass  meets  ■ Rock   · Wall                                 ⌘Z ⌘⇧Z  − 200% + │
 ├ side ──────────┬ stage ─────────────────────────────────┬ form ────────────┤
-│ Floor          │                                        │ Name  Swatch      │
+│ Floor          │              [ Preview | Tag | 3D ]    │ Name  Swatch      │
 │ ■ Grass  14/15 │   Preview: the patch + the strip       │ Fringe  Picket    │
 │   Surface Fringe Picket  (slots of the selected)        │                   │
 │ ■ Path   15/15 │   Tag:  the sheet, tags, hover, block  │ Meets             │
@@ -162,6 +162,9 @@ That puts the block picker and its values together, next to the Meets list
 that motivates them, and stops the side column changing meaning with the
 mode — the three things #209 lists. The tools row keeps only what belongs to
 the view: undo, redo and zoom in Tag view; the face switch in Preview and 3D.
+The view switch itself is not in the tools row: it floats on the stage, top
+right, the way a viewport control does (the owner's direction of 2026-09-19,
+given on the canvas).
 
 ### The stage: three views of the subject
 
