@@ -42,7 +42,7 @@ export type { Template, TemplateMaterial, TemplateOptions } from './template'
 export type { GridCells, Remapped } from './grid'
 export { DEFAULT_FALLBACK, TerrainAtlas } from './atlas'
 export { createTerrainLook } from './look'
-export type { TerrainLook } from './look'
+export type { TerrainLook, TrimSettings } from './look'
 export type { AtlasOptions, AtlasTile, CornerKeys, LoadedSet, MissingReport } from './atlas'
 
 export { meshTerrainChunk } from './terrain'

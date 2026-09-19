@@ -65,7 +65,7 @@ import {
 
 import { FRINGE, PICKET } from './archetype'
 import type { CornerKeys } from './atlas'
-import type { TerrainLook } from './look'
+import type { TerrainLook, TrimSettings } from './look'
 
 export interface MeshBuffers {
   positions: Float32Array
@@ -516,14 +516,14 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
   const solid = new BufferBuilder(true)
   const water = new BufferBuilder(false)
   const trim = new BufferBuilder(false)
-  /** The trim tile a face's material has, from its topmost layer that has one; `null` when none does. */
-  const trimOf = (face: FaceKeys, slot: typeof FRINGE | typeof PICKET): number | null => {
+  /** The trim tile a face's material has, and that material's settings, from its topmost layer that has one; `null` when none does. */
+  const trimOf = (face: FaceKeys, slot: typeof FRINGE | typeof PICKET): { tile: number; settings: TrimSettings } | null => {
     if (face.empty) return null
     for (let layer = face.keys.length - 1; layer >= 0; layer--) {
       const tag = face.keys[layer]
       if (tag === null) continue
       const tile = atlas.trimTile(tag, slot)
-      if (tile !== null) return tile
+      if (tile !== null) return { tile, settings: look.trimOf(tag) }
     }
     return null
   }
@@ -652,17 +652,21 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
           const lerp = (a: number, b: number, t: number): number => (t <= 0 ? a : t >= 1 ? b : a + (b - a) * t)
           const fringe = edgeOff(voxel.paint, x, y, dir, 'top') ? null : trimOf(cells.at(x, y).face, FRINGE)
           if (fringe !== null) {
-            const [u0, v0, u1, v1] = atlas.uv(fringe, -1)
+            const [u0, v0, u1, v1] = atlas.uv(fringe.tile, -1)
+            // The material's angle below horizontal: it sets how far the flap juts and drops, never how long it is.
+            const angle = (fringe.settings.fringeAngle * Math.PI) / 180
+            const out = Math.cos(angle)
+            const down = Math.sin(angle)
             // An outside corner of the plateau: this cell walls the side round the corner too, so the flap reaches out to meet that one's.
             const walls = (vx: number, vz: number): boolean => cells.top(x, y) > cells.top(x + vx, y + vz)
-            const reach = TRIM_LENGTH / Math.SQRT2
+            const reach = TRIM_LENGTH * out
             const e0 = walls(-u[0], -u[1]) ? reach : 0
             const e1 = walls(u[0], u[1]) ? reach : 0
             strip(
               [[0, 0], [1, 0], [1 + e1, TRIM_LENGTH], [-e0, TRIM_LENGTH]],
               // The tile's lower half, the edge that hangs: the hinge at its middle, the tip at its bottom.
               [u0, v0, u1, (v0 + v1) / 2],
-              (t, sv) => [ox + u[0] * t + (nx * sv) / Math.SQRT2, lerp(topStart, topEnd, t) * HALF - sv / Math.SQRT2, oz + u[1] * t + (nz * sv) / Math.SQRT2],
+              (t, sv) => [ox + u[0] * t + nx * sv * out, lerp(topStart, topEnd, t) * HALF - sv * down, oz + u[1] * t + nz * sv * out],
               (sv) => 1 - sv / TRIM_LENGTH,
               true,
               tint,
@@ -673,12 +677,14 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
           const bz = y + nz
           const picket = inBounds(voxel.size, bx, bz) && !edgeOff(voxel.paint, x, y, dir, 'foot') ? trimOf(cells.at(bx, bz).face, PICKET) : null
           if (picket !== null) {
-            const [u0, v0, u1, v1] = atlas.uv(picket, -1)
+            const [u0, v0, u1, v1] = atlas.uv(picket.tile, -1)
+            // The material's distance, in pixels of art, is world units at one tile to the unit; the gap keeps it off the wall's own pixels.
+            const off = PICKET_GAP + picket.settings.picketDistance / atlas.tile
             strip(
               [[0, 0], [1, 0], [1, TRIM_LENGTH], [0, TRIM_LENGTH]],
               // The tile's upper half, the edge that pokes up: its middle on the ground, its top edge in the air.
               [u0, (v0 + v1) / 2, u1, v1],
-              (t, sv) => [ox + u[0] * t + nx * PICKET_GAP, lerp(lowStart, lowEnd, t) * HALF + sv, oz + u[1] * t + nz * PICKET_GAP],
+              (t, sv) => [ox + u[0] * t + nx * off, lerp(lowStart, lowEnd, t) * HALF + sv, oz + u[1] * t + nz * off],
               (sv) => sv / TRIM_LENGTH,
               false,
               unpackTint(tintPaint(voxel.paint, bx, bz)),

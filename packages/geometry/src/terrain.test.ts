@@ -287,6 +287,35 @@ describe('fringes and pickets', () => {
     expect(picket).toBeGreaterThan(0)
   })
 
+  it('hangs the flap at the material\u2019s angle and stands the picket at its distance, the flap never longer for it', () => {
+    const doc = createMap(8, 8)
+    setHeight(doc, 3, 3, 6)
+    const top = 6 * HALF
+    const floor = 2 * HALF
+    const grass = { ...DEFAULT_MATERIALS[0], fringeAngle: 90, picketDistance: 1 }
+    const look = createTerrainLook([grass, ...DEFAULT_MATERIALS.slice(1)], [trimmedSet()])
+    const t = meshTerrainChunk(ground(doc), '0,0', look).trim as MeshBuffers
+    let flap = 0
+    let picket = 0
+    for (let v = 0; v < t.positions.length / 3; v++) {
+      const [x, y, z] = [t.positions[v * 3], t.positions[v * 3 + 1], t.positions[v * 3 + 2]]
+      if (z < 3.01 || z > 3.99 || x < 3.9 || x > 5) continue
+      // At 90\u00b0 the flap hangs flat against the east wall: no jut, and half a tile down, never more.
+      if (y > top - 1) {
+        flap += 1
+        expect(x).toBeCloseTo(4, 5)
+        expect(top - y).toBeLessThanOrEqual(0.5 + 1e-6)
+      }
+      // One pixel out from the wall, at one tile (TILE pixels) to the world unit.
+      if (y < floor + 0.5 + 1e-6 && y > floor - 1e-6) {
+        picket += 1
+        expect(x).toBeCloseTo(4 + 0.02 + 1 / TILE, 5)
+      }
+    }
+    expect(flap).toBeGreaterThan(0)
+    expect(picket).toBeGreaterThan(0)
+  })
+
   it('draws no trim for a material with none tagged', () => {
     const doc = createMap(8, 8)
     setHeight(doc, 3, 3, 6)

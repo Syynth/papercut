@@ -296,7 +296,23 @@ export interface MaterialDef {
    * a material belonged without saying what it owed.
    */
   archetype: ArchetypeId
+  /**
+   * The angle its fringe flap hangs at, in degrees below horizontal: 0 juts
+   * straight out, 90 hangs flat against the wall. Absent is
+   * `DEFAULT_FRINGE_ANGLE`. The flap's length never changes with it; only how
+   * far it drops and juts (ruling of 2026-09-18).
+   */
+  fringeAngle?: number
+  /** How far its picket stands out from the wall, in pixels of art. Absent is `DEFAULT_PICKET_DISTANCE`. */
+  picketDistance?: number
 }
+
+/** What a material's fringe hangs at when it says nothing: halfway between jutting out and hanging flat. */
+export const DEFAULT_FRINGE_ANGLE = 45
+/** How far a material's picket stands from the wall when it says nothing: against it. */
+export const DEFAULT_PICKET_DISTANCE = 0
+/** The most a picket can stand off its wall, in pixels: half a tile at the densest profile papercut ships. */
+export const MAX_PICKET_DISTANCE = 32
 
 /** The surface vocabularies papercut ships. `@papercut/geometry` says what each owes. */
 export type ArchetypeId = 'floor' | 'wall' | 'ramp'

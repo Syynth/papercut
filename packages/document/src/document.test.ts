@@ -949,6 +949,11 @@ describe('a project file is checked before it is believed', () => {
     const project = (materials: unknown[], image: Record<string, unknown>) => JSON.stringify({ formatVersion: PROJECT_FORMAT_VERSION, materials, images: [{ path: 'sheets/a.png', grid: { tile: 16 }, ...image }] })
     expect(() => parseProject(project([{ id: 0, name: 'Grass' }], { terrain: { tiles: { 0: [tagOf(7), null, null, null] } } }))).toThrow(/tagged with material 7, which the project does not have/)
     expect(() => parseProject(project([{ id: 0, name: 'Grass' }], { layout: { convention: 'corner-blocks', materials: [0, 7] } }))).toThrow(/lays out material 7/)
+    // A material's trim settings are read when in range, and dropped, to their defaults, when not.
+    const trimmed = parseProject(project([{ id: 0, name: 'Grass', fringeAngle: 30, picketDistance: 2 }, { id: 1, name: 'Dirt', fringeAngle: 200, picketDistance: -1 }], {}))
+    expect(trimmed.materials[0]).toMatchObject({ fringeAngle: 30, picketDistance: 2 })
+    expect(trimmed.materials[1]).not.toHaveProperty('fringeAngle')
+    expect(trimmed.materials[1]).not.toHaveProperty('picketDistance')
     // A material has no `side` any more (ruling of 2026-09-18): one a file still carries is not read.
     const ok = parseProject(project([{ id: 0, name: 'Grass', side: 7 }, { id: 7, name: 'Dirt' }], { terrain: { tiles: { 0: [tagOf(7), null, null, null] } } }))
     expect(ok.materials[0]).not.toHaveProperty('side')

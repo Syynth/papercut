@@ -20,7 +20,7 @@
  * 2026-09-17).
  */
 
-import { DEFAULT_MATERIALS, PLACEHOLDER_SHEET, defaultCameraRig, type CameraRig, type DeepReadonly, type MaterialDef } from './document'
+import { DEFAULT_MATERIALS, MAX_PICKET_DISTANCE, PLACEHOLDER_SHEET, defaultCameraRig, type CameraRig, type DeepReadonly, type MaterialDef } from './document'
 import { LoadError } from './io'
 
 export const PROJECT_FORMAT_VERSION = 3
@@ -198,6 +198,8 @@ export function normaliseMaterials(raw: unknown): MaterialDef[] {
       name: typeof m.name === 'string' ? m.name : `Material ${index + 1}`,
       color: typeof m.color === 'number' ? m.color : 0x808080,
       archetype: m.archetype === 'wall' || m.archetype === 'ramp' ? m.archetype : 'floor',
+      ...(typeof m.fringeAngle === 'number' && m.fringeAngle >= 0 && m.fringeAngle <= 90 ? { fringeAngle: m.fringeAngle } : {}),
+      ...(typeof m.picketDistance === 'number' && m.picketDistance >= 0 && m.picketDistance <= MAX_PICKET_DISTANCE ? { picketDistance: m.picketDistance } : {}),
     }
   })
   return out

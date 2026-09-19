@@ -15,10 +15,10 @@
 
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
-import { materialById, slotMaterial, nextMaterialId, tagOf, type MaterialDef, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage, type Tag } from '@papercut/document'
+import { DEFAULT_FRINGE_ANGLE, DEFAULT_PICKET_DISTANCE, MAX_PICKET_DISTANCE, materialById, slotMaterial, nextMaterialId, tagOf, type MaterialDef, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage, type Tag } from '@papercut/document'
 import { useDocumentSelector, useHost, useProject, type SettingsSection } from '@papercut/editor-host'
 import { CORNER_BITS, FRINGE, PICKET, archetypeOf, archetypes, arrangements, exactTile, templateTags, type Archetype, type CornerTags, type LoadedSet } from '@papercut/geometry'
-import { Action, Actions, ColorInput, Dialog, Field, Item, Library, LibraryGroup, List, Note, Section, Select, Status, TextInput } from '@papercut/ui'
+import { Action, Actions, ColorInput, Dialog, Field, Item, Library, LibraryGroup, List, Note, NumberInput, Section, Select, Status, TextInput } from '@papercut/ui'
 
 import { run } from './commands'
 import { rgbaToCanvas, rgbaToDataUrl } from './rgba'
@@ -566,6 +566,14 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
         </Field>
         <Field label="Archetype" hint={archetype.note}>
           <Select value={material.archetype} options={archetypes().map((a) => ({ value: a.id, label: a.title }))} onChange={(id) => change({ archetype: id })} />
+        </Field>
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        <Field label="Fringe angle" hint="Degrees below level: 0 juts out, 90 hangs flat on the wall">
+          <NumberInput value={material.fringeAngle ?? DEFAULT_FRINGE_ANGLE} min={0} max={90} step={5} onChange={(fringeAngle) => change({ fringeAngle })} />
+        </Field>
+        <Field label="Picket distance" hint="Pixels of art out from the wall">
+          <NumberInput value={material.picketDistance ?? DEFAULT_PICKET_DISTANCE} min={0} max={MAX_PICKET_DISTANCE} step={1} onChange={(picketDistance) => change({ picketDistance })} />
         </Field>
       </div>
 

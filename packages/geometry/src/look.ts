@@ -13,7 +13,7 @@
  * between caches a stale answer.
  */
 
-import { tagOf, type MaterialDef, type Tag } from '@papercut/document'
+import { DEFAULT_FRINGE_ANGLE, DEFAULT_PICKET_DISTANCE, tagOf, type MaterialDef, type Tag } from '@papercut/document'
 
 import { TerrainAtlas, type LoadedSet } from './atlas'
 
@@ -21,12 +21,24 @@ export interface TerrainLook {
   readonly atlas: TerrainAtlas
   /** The tag a material layer holding `material` is drawn with; `null`, nothing, for an empty one. */
   keyOf(material: number | null): Tag
+  /** How a tag's material hangs its fringe and stands its picket (ruling of 2026-09-18): the defaults for one that says nothing. */
+  trimOf(tag: Tag): TrimSettings
+}
+
+export interface TrimSettings {
+  /** Degrees below horizontal the fringe flap hangs at. */
+  readonly fringeAngle: number
+  /** Pixels of art the picket stands out from its wall. */
+  readonly picketDistance: number
 }
 
 export function createTerrainLook(materials: readonly MaterialDef[], sets: readonly LoadedSet[], fallback?: number): TerrainLook {
   const names = new Map(materials.map((m) => [tagOf(m.id), m.name]))
+  const trims = new Map(materials.map((m) => [tagOf(m.id), { fringeAngle: m.fringeAngle ?? DEFAULT_FRINGE_ANGLE, picketDistance: m.picketDistance ?? DEFAULT_PICKET_DISTANCE }]))
+  const plain: TrimSettings = { fringeAngle: DEFAULT_FRINGE_ANGLE, picketDistance: DEFAULT_PICKET_DISTANCE }
   return {
     atlas: new TerrainAtlas(sets, { nameOf: (key) => names.get(key) ?? String(key), fallback }),
     keyOf: (material) => (material === null ? null : tagOf(material)),
+    trimOf: (tag) => trims.get(tag) ?? plain,
   }
 }
