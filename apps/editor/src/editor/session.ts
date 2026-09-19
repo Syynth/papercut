@@ -18,7 +18,7 @@
 import { MAPS_DIR, PROJECT_FILE, createMap, slotMaterial, slotOf, plainGrid, serialize, serializeProject, sheetName, type Grid, type ImageEntry, type ImageKind, type MapDoc, type MaterialLayers, type Patch, type ReadonlyMapDoc, type RgbaImage } from '@papercut/document'
 import type { Host } from '@papercut/editor-host'
 import { createSampleMap, generatePlaceholderTerrainSet } from '@papercut/fixtures'
-import { conventionOf, remapTags, renderTemplate, terrainOf, type LoadedSet, type TerrainSet } from '@papercut/geometry'
+import { conventionOf, remapTags, renderTemplate, terrainFromLayout, terrainOf, terrainSetFrom, type LoadedSet, type TerrainSet } from '@papercut/geometry'
 import { MemoryFs, addImage, addMap, createProjectFolder, forget, hashBytes, joinPath, listImage, openProject, parseRecents, readMap, remember, writeMap, writeProject, type ImageCodec, type OpenedProject, type ProjectFs, type RecentProject, type StrayMap } from '@papercut/project'
 import { exportGltf } from '@papercut/runtime/export'
 import { desktopShell, type MenuCommand, type ShellDialogs, type ShellMenu } from '@papercut/shell-api'
@@ -622,6 +622,25 @@ export async function setImageTerrain(host: Host, session: Session, file: string
   else await reloadImages(host, session, folder)
 }
 
+/**
+ * Swap every loaded set's tags for what its entry now says, without re-reading a file: what a change to the tags
+ * that did not go through the tagger — a deleted material taking its tags with it — needs, so the map and the
+ * tagger draw what the project holds rather than what was loaded.
+ */
+export function resyncTerrainSets(host: Host): void {
+  const { project } = host.children.project.getSnapshot().context
+  const { loadedTerrain, terrainWarning } = host.children.viewport.getSnapshot().context
+  const density = project.resolution.texelDensity
+  const sets = (loadedTerrain as readonly LoadedSet[]).map((loaded): LoadedSet => {
+    const entry = project.images.find((i) => i.id === loaded.imageId)
+    if (!entry) return loaded
+    const { columns, rows, sheet } = loaded.set
+    const terrain = entry.layout === null ? entry.terrain : terrainFromLayout(entry.layout, entry.terrain, columns, rows)
+    return { ...loaded, set: { ...terrainSetFrom(sheet, density, columns, rows, terrain).set, sheet } }
+  })
+  host.children.viewport.send({ type: 'terrain', sets, warning: terrainWarning })
+}
+
 /** Take an image off the project's list. The file stays in the folder, and shows as unlisted; the materials that pointed into it draw from the placeholder or as colour. */
 export async function unlistImage(host: Host, session: Session, file: string): Promise<void> {
   const { folder } = location(host)
@@ -729,6 +748,8 @@ export async function repaintAndDeleteMaterial(host: Host, session: Session, fro
     }
   }
   host.dispatch('project.materials.set', { materials: project.materials.filter((m) => m.id !== from).map((m) => ({ ...m })) })
+  // Its tags went with it (in the host); the loaded sets follow.
+  resyncTerrainSets(host)
   await saveNow(host, session)
 }
 

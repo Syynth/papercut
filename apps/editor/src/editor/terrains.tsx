@@ -120,12 +120,14 @@ function draw(canvas: HTMLCanvasElement, image: RgbaImage, set: TerrainSet, colo
     const y = pending.row * t
     const w = pending.columns * t
     const h = pending.rows * t
+    // Warn colour for anything a click would refuse: off the sheet, or values not yet picked.
+    const ok = pending.fits && pending.ready
     ctx.globalAlpha = 0.18
-    ctx.fillStyle = pending.fits ? '#e9a23b' : '#e5636f'
+    ctx.fillStyle = ok ? '#e9a23b' : '#e5636f'
     ctx.fillRect(x, y, w, h)
     ctx.globalAlpha = 1
     ctx.setLineDash([4, 3])
-    ctx.strokeStyle = pending.fits ? '#e9a23b' : '#e5636f'
+    ctx.strokeStyle = ok ? '#e9a23b' : '#e5636f'
     ctx.lineWidth = 2
     ctx.strokeRect(x + 1, y + 1, w - 2, h - 2)
     ctx.setLineDash([])
@@ -144,7 +146,10 @@ interface Pending {
   row: number
   columns: number
   rows: number
+  /** Whether it lies within the sheet. */
   fits: boolean
+  /** Whether every value it is drawn in has been picked; a block is never placed with a corner meant as a material left as nothing. */
+  ready: boolean
 }
 
 const nearestZoom = (scale: number): number => ZOOMS.reduce<number>((best, z) => (Math.abs(z - scale) < Math.abs(best - scale) ? z : best), ZOOMS[0])
@@ -288,8 +293,8 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
     if (mode !== 'block' || !hover || !set || !shape) return null
     const column = hover.index % set.columns
     const row = Math.floor(hover.index / set.columns)
-    return { column, row, columns: shape.columns, rows: shape.rows, fits: column + shape.columns <= set.columns && row + shape.rows <= set.rows }
-  }, [mode, hover, set, shape])
+    return { column, row, columns: shape.columns, rows: shape.rows, fits: column + shape.columns <= set.columns && row + shape.rows <= set.rows, ready: values.slice(1).every((v) => v !== null) }
+  }, [mode, hover, set, shape, values])
   useEffect(() => {
     const canvas = canvasRef.current
     if (canvas && loaded && set) draw(canvas, loaded.image, set, colours, scale, hover, pending)
@@ -459,13 +464,23 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
           <canvas ref={canvasRef} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={() => setHover(null)} onContextMenu={(event) => event.preventDefault()} />
           {hover ? (
             <div className="ui-tagger-tip" style={hover.flip ? { right: undefined, left: hover.x - 14, top: hover.y + 14, transform: 'translateX(-100%)' } : { left: hover.x + 14, top: hover.y + 14 }}>
-              <b>Tile {hover.index}</b> · {CORNER_NAMES[hover.corner]} · {hoveredName}
-              {hovered !== brush ? (
+              {pending ? (
+                // Block mode: what a click here would do, or why it would not.
                 <>
-                  {' → '}
-                  <b>{brushName}</b>
+                  <b>Tile {hover.index}</b> · {pending.columns} × {pending.rows} block from here ·{' '}
+                  {!pending.ready ? <b>pick what it is drawn in first</b> : !pending.fits ? <b>does not fit on the sheet</b> : 'click to place'}
                 </>
-              ) : null}
+              ) : (
+                <>
+                  <b>Tile {hover.index}</b> · {CORNER_NAMES[hover.corner]} · {hoveredName}
+                  {hovered !== brush ? (
+                    <>
+                      {' → '}
+                      <b>{brushName}</b>
+                    </>
+                  ) : null}
+                </>
+              )}
             </div>
           ) : null}
         </>
@@ -477,7 +492,8 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
               <b>
                 {values.slice(1).map((v) => nameOfTag(v)).join(' + ') || 'nothing picked'} over {nameOfTag(values[0])}
               </b>{' '}
-              · {shape ? `${shape.columns} × ${shape.rows}` : 'no block'} · click its top-left tile · ⌘ wheel to zoom
+              · {shape ? `${shape.columns} × ${shape.rows}` : 'no block'} ·{' '}
+              {values.slice(1).some((v) => v === null) ? <span style={{ color: 'var(--ui-warn)' }}>pick what the block is drawn in, under Drawn in, before placing it</span> : 'click its top-left tile'} · ⌘ wheel to zoom
             </>
           ) : (
             <>
