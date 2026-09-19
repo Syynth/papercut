@@ -37,6 +37,10 @@ img{display:block;image-rendering:pixelated}
 .face{display:inline-flex;gap:3px;align-items:center;margin-left:6px}
 .face svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linejoin:round;display:block}
 .face .off{opacity:.22}
+.sub{display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:center;gap:6px;height:24px;padding:0 6px 0 8px;border-radius:4px;color:#aab0c0;font-size:12px;text-decoration:none}
+.sub:hover{background:#242833;color:#e8eaf0}
+.sub.on{background:rgba(233,162,59,.16);color:#e9a23b}
+.sub .k{font-size:9.5px;margin-left:4px}
 .field{display:grid;gap:4px}
 .field label{font-size:11px;color:#7b8294}
 .input{height:28px;border:1px solid #353b4a;border-radius:4px;background:#1b1e25;padding:0 8px;display:flex;align-items:center;color:#e8eaf0;font-size:12.5px}
@@ -94,14 +98,7 @@ img{display:block;image-rendering:pixelated}
           <img class="sw" src="swatch-0.png" alt="" style="width: 14px; height: 14px;">
           <span style="font-size: 13px; font-weight: 600;">Grass</span>
           <span class="face" title="Has floor art; no wall or ramp art yet"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg class="off" viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span>
-          <span style="width: 1px; height: 16px; background: #353b4a; margin: 0 6px;"></span>
-          <!-- the pairings are the filter: what the preview shows, what a block places, what the fixture is built for -->
-          <a class="pair on" href="Main.dc.html">Alone <span class="st mono">12/15</span></a>
-          <span class="k" style="margin: 0 2px;">meets</span>
-          <a class="pair" href="Main.dc.html"><img class="sw" src="swatch-1.png" alt="">Dirt <span class="st status ok">drawn</span></a>
-          <a class="pair" href="Main.dc.html"><img class="sw" src="swatch-3.png" alt="">Sand <span class="st status ok">drawn</span></a>
-          <a class="pair" href="Main.dc.html"><img class="sw" src="swatch-4.png" alt="">Path <span class="st status ok">drawn</span></a>
-          <a class="pair" href="Fixture.dc.html"><img class="sw" src="swatch-2.png" alt="">Stone <span class="st status warn mono">3/14</span><span class="k" style="font-size: 9.5px;">wall</span></a>
+          <span class="hint" style="margin-left: 4px;">on its own · 12 of 15 arrangements drawn</span>
           <span style="flex: 1;"></span>
           <span class="k">Face</span>
           <div class="seg"><button class="on" type="button">Floor</button><button type="button">Wall</button><button type="button">Ramp</button></div>
@@ -113,8 +110,14 @@ img{display:block;image-rendering:pixelated}
             <div class="k" style="padding: 4px 8px 2px;">By priority</div>
             <!-- one flat list in priority order; the faces a material has art for are icons on its row, not groups -->
             <div class="row on"><img class="sw" src="swatch-0.png" alt=""><span style="display: inline-flex; align-items: center;">Grass<span class="face"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg class="off" viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span></span><span class="mono status warn">12/15</span></div>
-            <div style="display: flex; gap: 4px; flex-wrap: wrap; padding: 2px 8px 8px 26px;">
-              <span class="chip on">Surface</span><span class="chip">Fringe <span class="mono" style="color: #7b8294;">3</span></span><span class="chip">Picket <span class="mono" style="color: #7b8294;">0</span></span>
+            <!-- the selected material expands: its pairings as a vertical list, the lit one being the subject of every view, and New transition… below them -->
+            <div style="display: grid; gap: 1px; padding: 2px 0 8px 16px;">
+              <a class="sub on" href="Main.dc.html"><span></span><span>On its own</span><span class="mono status">12/15</span></a>
+              <a class="sub" href="Main.dc.html"><img class="sw" src="swatch-1.png" alt=""><span><span class="hint">meets</span> Dirt</span><span class="status ok">drawn</span></a>
+              <a class="sub" href="Main.dc.html"><img class="sw" src="swatch-3.png" alt=""><span><span class="hint">meets</span> Sand</span><span class="status ok">drawn</span></a>
+              <a class="sub" href="Main.dc.html"><img class="sw" src="swatch-4.png" alt=""><span><span class="hint">meets</span> Path</span><span class="status ok">drawn</span></a>
+              <a class="sub" href="Fixture.dc.html"><img class="sw" src="swatch-2.png" alt=""><span><span class="hint">meets</span> Stone<span class="k">wall</span></span><span class="mono status warn">3/14</span></a>
+              <a class="btn" href="Tag.dc.html" style="margin: 6px 6px 0 0; justify-content: center; text-decoration: none;">New transition…</a>
             </div>
             <div class="row"><img class="sw" src="swatch-1.png" alt=""><span style="display: inline-flex; align-items: center;">Dirt<span class="face"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg class="off" viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span></span><span class="mono status ok">15/15</span></div>
             <div class="row"><img class="sw" src="swatch-2.png" alt=""><span style="display: inline-flex; align-items: center;">Stone<span class="face"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span></span><span class="mono status ok">15/15</span></div>
@@ -162,7 +165,7 @@ img{display:block;image-rendering:pixelated}
           </div>
           <div class="hint">Priority is the order a block places a pair in: the later material is drawn over the earlier.</div>
 
-          <div class="hint">Grass on its own. Pick a pairing in the bar above to preview the two together, place their block, or see them in 3D.</div>
+          <div class="hint">Grass on its own. Pick a pairing under it in the list to preview the two together, place their block, or see them in 3D; New transition… spells one that is not there yet.</div>
 
           <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
             <button class="btn" type="button" disabled>Move up</button>
