@@ -19,7 +19,7 @@
 
 import { useMemo } from 'react'
 
-import type { ReadonlyProjectDoc, RgbaImage, SpriteAsset } from '@papercut/document'
+import { PLACEHOLDER_SHEET, sheetName, type ReadonlyProjectDoc, type RgbaImage, type SpriteAsset } from '@papercut/document'
 import { useProject, useViewportSelector } from '@papercut/editor-host'
 import { generatePlaceholderTerrainSet } from '@papercut/fixtures'
 // Behind its own subpath (#48): the sprite generator draws with a canvas, and the package root stays DOM-free.
@@ -72,15 +72,22 @@ const densityOf = (project: ReadonlyProjectDoc): number => project.resolution.te
 
 /**
  * What the terrain draws with: the project's sheets at the profile's tile size, with the generated placeholder
- * standing in for any it lacks. A sheet at another tile size is left out — the atlas is one tile size — and reported
- * by the project settings instead.
+ * standing in for the placeholder sheet when the project lists it and has not supplied its own. A sheet at another
+ * tile size is left out — the atlas is one tile size — and reported by the project settings instead.
+ *
+ * The placeholder is tagged for the default materials, by their ids; a project that does not list it has materials of
+ * its own under those same ids, and the placeholder joining first would draw them with its art (found building a map
+ * from RPG Maker sheets: its meadow and dirt drew as the placeholder's grass and dirt).
  */
-export function drawableTerrain(generated: readonly LoadedSet[], loaded: readonly LoadedSet[], density: number): LoadedSet[] {
+export function drawableTerrain(generated: readonly LoadedSet[], loaded: readonly LoadedSet[], density: number, placeholder = true): LoadedSet[] {
   const usable = loaded.filter((s) => s.set.tile === density)
-  if (usable.length === 0) return [...generated]
+  if (!placeholder) return usable
   const names = new Set(usable.map((s) => s.set.sheet))
   return [...generated.filter((s) => !names.has(s.set.sheet)), ...usable]
 }
+
+/** Whether the project lists the placeholder sheet, the one the generated set stands in for. */
+export const listsPlaceholder = (project: ReadonlyProjectDoc): boolean => project.images.some((i) => sheetName(i.path) === PLACEHOLDER_SHEET)
 
 /** The art, re-rendering only when what it is made from changes. */
 export function useArt(): Art {
@@ -89,8 +96,9 @@ export function useArt(): Art {
   const loaded = useViewportSelector((snapshot) => snapshot.context.loadedTerrain) as readonly LoadedSet[]
   const terrainWarning = useViewportSelector((snapshot) => snapshot.context.terrainWarning)
   const generatedTerrain = terrainFor(density)
+  const placeholder = useProject(listsPlaceholder)
   // The loaded sets join the generated one rather than replacing it: the default materials point into the placeholder
   // sheet, and would draw as nothing without it. A set named like a generated one stands in for it.
-  const terrain = useMemo(() => drawableTerrain(generatedTerrain, loaded, density), [loaded, generatedTerrain, density])
+  const terrain = useMemo(() => drawableTerrain(generatedTerrain, loaded, density, placeholder), [loaded, generatedTerrain, density, placeholder])
   return { terrain, loadedTerrain: loaded, generatedTerrain, sprites: spritesFor(density), textures: texturesFor(density), terrainWarning }
 }

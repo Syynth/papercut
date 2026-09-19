@@ -55,13 +55,15 @@ export async function exportMapFile(
   const { sprites } = await loadBakedAssets()
   // The map's project, found by walking up to its `papercut.json`: its materials, its resolution and its images.
   // Without one the map exports under the default project, which is what a map made before there were projects
-  // paints with. Either way the generated placeholder stands in for any sheet the folder does not supply.
+  // paints with. The generated placeholder stands in for the placeholder sheet when the project lists it and the
+  // folder does not supply it; a project that does not list it has materials of its own under the placeholder's ids.
   const folder = await findProjectFolder(inputPath)
   const opened = folder === null ? { project: createProject(), sets: [], warnings: [], unlisted: [] } : await openProject(nodeFs, folder, fastPngCodec)
   const { project } = opened
   const generated = generatePlaceholderTerrainSet(project.resolution.texelDensity)
   const usable = opened.sets.filter((s) => s.set.tile === project.resolution.texelDensity)
-  const terrain = [...(usable.some((s) => s.set.sheet === sheetName(generated.set.sheet)) ? [] : [generated]), ...usable]
+  const listed = project.images.some((i) => sheetName(i.path) === sheetName(generated.set.sheet))
+  const terrain = [...(listed && !usable.some((s) => s.set.sheet === sheetName(generated.set.sheet)) ? [generated] : []), ...usable]
 
   const bytes = new Uint8Array(await exportGltf(doc, { merge: options.merge, terrain, materials: project.materials, resolution: project.resolution, sprites, textures: {}, encodePng: encodePngPure }))
   await writeFile(outputPath, bytes)
