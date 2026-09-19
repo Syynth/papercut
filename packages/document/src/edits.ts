@@ -20,11 +20,11 @@
  * slot, and the per-address compaction (#11) collapses it to first/last.
  */
 
-import type { MapDoc, MapObject, MaterialLayers, ReadonlyMapDoc } from './document'
+import type { EdgeSwitch, MapDoc, MapObject, MaterialLayers, ReadonlyMapDoc } from './document'
 import type { SketchStructure, Structure, StructureBase, VoxelStructure } from './structure'
 
 export type TerrainField = 'shape' | 'water'
-export type PaintLayer = 'faces' | 'tint'
+export type PaintLayer = 'faces' | 'tint' | 'edges'
 export type DocField = 'name' | 'camera' | 'atmosphere' | 'surfaceMaterials'
 export type SketchField = 'points' | 'closed' | 'layers' | 'wall' | 'lip' | 'capMaterial' | 'wallMaterial'
 export type StructureMetaField = 'name' | 'parent' | 'placement'
@@ -35,6 +35,7 @@ export type SketchPatch = { [K in SketchField]: { t: 'sketch'; id: string; field
 export type PaintPatch =
   | { t: 'voxelPaint'; id: string; layer: 'faces'; key: string; value: MaterialLayers | undefined }
   | { t: 'voxelPaint'; id: string; layer: 'tint'; key: string; value: number | undefined }
+  | { t: 'voxelPaint'; id: string; layer: 'edges'; key: string; value: EdgeSwitch | undefined }
 export type StructureMetaPatch = { [K in StructureMetaField]: { t: 'structure.meta'; id: string; field: K; value: StructureBase[K] } }[StructureMetaField]
 
 export type Patch =
@@ -155,6 +156,9 @@ function applyPatch(doc: MapDoc, patch: Patch): Patch {
       if (patch.layer === 'faces') {
         if (patch.value === undefined) delete paint.faces[patch.key]
         else paint.faces[patch.key] = [...patch.value]
+      } else if (patch.layer === 'edges') {
+        if (patch.value === undefined) delete paint.edges[patch.key]
+        else paint.edges[patch.key] = patch.value
       } else if (patch.value === undefined) delete paint.tint[patch.key]
       else paint.tint[patch.key] = patch.value
       break

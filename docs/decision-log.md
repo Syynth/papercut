@@ -757,3 +757,35 @@ Each entry:
 - **SCOPE:** minor/local (refines "The paint layers are a collapsing widget on the stage")
 - **WHAT:** Collapsed, the widget is a compact row with one target per layer that is large enough to click, so you can switch the active layer without opening it. Its header is an icon, not the words "Material layers". It appears only while the Terrain tool is in Paint mode.
 - **WHY:** Switching layers is the frequent action while painting, so it should take one click and not a trip into the panel. The text label wrapped and made the widget bulkier than its job. Outside terrain painting the layers aren't being worked with, so the widget would only cover the map.
+
+## A fringe is a flap of geometry hanging off the rim
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model / geometry
+- **SCOPE:** moderate (shapes stage 3; builds on "A material spans archetypes; the archetype is named per corner")
+- **WHAT:** A material can have fringe tiles, tagged with the `fringe` slot on the sheet. Wherever that material stands on a cliff top, the mesher hangs its fringe off the rim as geometry of its own: a strip hinged at the edge and angled 45° out from the wall, like a box flap. This is the only kind of any-to-any fringing. A fringe is never laid flat over the wall's art, whether automatically or by painting the floor's material a layer up. Drawn joins across a fold stay available where an artist draws them.
+- **WHY:** Seen side by side, the flap reads as a real overhang and looks far better than a fringe lying flat on the wall. Compositing a fringe over wall art by hand isn't worth the effort. Wall art as drawn meets anything, with a cap, a middle and a foot, so the fringe is what makes the rim look finished.
+
+## Fringe flaps keep the world's texel density
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** geometry
+- **SCOPE:** minor/local (refines "A fringe is a flap of geometry hanging off the rim")
+- **WHAT:** A fringe flap is sized to its art: its length along the slope equals the height of the fringe art in world units (half a tile for the lower half of a fringe tile), so its UVs have the same texels per world unit as the floors and walls. The flap never stretches its art to reach a length. Changing the angle changes how far it drops and juts out, not how the art is scaled.
+- **WHY:** A stretched flap reads as wrong beside pixel art at a fixed density; every surface in the level has to share one texel scale.
+
+## Pickets stand at the foot of a wall
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model / geometry
+- **SCOPE:** moderate (companion to "A fringe is a flap of geometry hanging off the rim")
+- **WHAT:** A material can have picket tiles, its top edge tagged with the `picket` slot. Where that material meets the foot of a wall, the mesher stands the picket art upright at the base, just in front of the wall, as geometry of its own, e.g. grass poking up where it meets the wall. It follows the same texel-density rule as the flap: half a tile tall because the art is, never stretched.
+- **WHY:** Seen in the preview, the picket finishes the foot of a wall the way the flap finishes its top, from art the kit already has, with nothing painted by hand.
+
+## Fringes and pickets follow the art, with edges switched off by brush
+- **WHEN:** 2026-09-18
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model / editor-ui
+- **SCOPE:** moderate
+- **WHAT:** A material with fringe or picket tiles puts them on every cliff top or wall foot it stands on, with nothing painted. A Fringe brush in Paint mode switches single edges off, or back on. The map stores only these exceptions, per edge. Like face paint, they are written and removed as sculpting creates and removes edges, so none are left dormant.
+- **WHY:** Most edges want the fringe, so the art should decide by default and the artist should only mark where it's wrong. Storing exceptions keeps the file small and keeps untouched edges following the art when the art changes.

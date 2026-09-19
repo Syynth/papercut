@@ -202,6 +202,23 @@ describe('the terrain tool contract', () => {
     expect(rampDirAt(ground(doc), 2, 2)).toBe(NO_RAMP)
   })
 
+  it('switches a wall\u2019s fringe off from its upper half and its picket from its lower, and shift switches back on', () => {
+    const doc = createMap(8, 8)
+    // (2,2) stands three cubes over the one-cube ground: its east wall runs from level 2 to level 6.
+    fillColumn(ground(doc), 2, 2, 6)
+    const band = (level: number): SurfaceAddress => ({ structure: 'ground', x: 2, y: 2, kind: SURFACE_CLIFF, dir: 0, level })
+    const { deps } = stub(doc, { terrainMode: 'paint', paintVerb: 'fringe' })
+    const upper = terrainContract(deps).stroke(sample(band(5)))?.begin(sample(band(5)))
+    expect(upper).toEqual([{ t: 'voxelPaint', id: 'ground', layer: 'edges', key: '2,2,0,top', value: 'off' }])
+    const lower = terrainContract(deps).stroke(sample(band(2)))?.begin(sample(band(2)))
+    expect(lower).toEqual([{ t: 'voxelPaint', id: 'ground', layer: 'edges', key: '2,2,0,foot', value: 'off' }])
+    ground(doc).paint.edges['2,2,0,top'] = 'off'
+    const back = terrainContract(deps).stroke(sample(band(5), { shift: true }))?.begin(sample(band(5), { shift: true }))
+    expect(back).toEqual([{ t: 'voxelPaint', id: 'ground', layer: 'edges', key: '2,2,0,top', value: undefined }])
+    // A top has no wall to switch.
+    expect(terrainContract(deps).stroke(sample(top(4, 4)))?.begin(sample(top(4, 4)))).toEqual([])
+  })
+
   it('paints, empties and picks up the active material layer, leaving the others', () => {
     const doc = createMap(8, 8)
     // (1,1)'s top holds grass on its first layer, from the new map, and path on its third.

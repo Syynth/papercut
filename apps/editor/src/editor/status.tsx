@@ -69,6 +69,11 @@ export function hintsFor(params: EditorParams): ReadonlyArray<{ kbd?: string; te
             ]
         }
       }
+      if (params.paintVerb === 'fringe')
+        return [
+          { kbd: 'drag a wall', text: 'switch its fringe or picket off' },
+          { kbd: '⇧ drag', text: 'switch it back on' },
+        ]
       return params.paintVerb === 'tint'
         ? [
             { kbd: 'drag', text: 'tint' },

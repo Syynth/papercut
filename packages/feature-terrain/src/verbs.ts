@@ -13,6 +13,7 @@
 
 import {
   DIR_VECTORS,
+  inBounds,
   FACE_TOP,
   SURFACE_CLIFF,
   SURFACE_TOP,
@@ -26,6 +27,7 @@ import {
   paintTint,
   raise,
   rectCells,
+  setEdges,
   setMaterial,
   setWater,
   slotMaterial,
@@ -33,6 +35,7 @@ import {
   topHeight,
   type Brush,
   type Cell,
+  type EdgeEnd,
   type FaceRef,
   type Patch,
   type RampEdge,
@@ -43,7 +46,7 @@ import {
 
 export type TerrainMode = 'sculpt' | 'paint'
 export type SculptVerb = 'raise' | 'flatten' | 'smooth' | 'ramp' | 'water'
-export type PaintVerb = 'material' | 'tint'
+export type PaintVerb = 'material' | 'tint' | 'fringe'
 export type StrokeShape = 'brush' | 'rect' | 'fill'
 
 /**
@@ -152,7 +155,21 @@ export function terrainLabel(params: TerrainParams, modifiers: TerrainModifiers,
       return 'Set material'
     case 'tint':
       return modifiers.shift ? 'Clear tint' : 'Tint'
+    case 'fringe':
+      return modifiers.shift ? 'Fringe back on' : 'Fringe off'
   }
+}
+
+/**
+ * Which end of a wall a cliff band is nearer: its top, where the fringe
+ * hangs, or its foot, where the picket stands. The band's middle against the
+ * wall's, measured on the column the band belongs to.
+ */
+export function edgeEndOf(voxel: ReadonlyVoxel, address: SurfaceAddress): EdgeEnd {
+  const [dx, dz] = DIR_VECTORS[address.dir]
+  const top = topHeight(voxel, address.x, address.y)
+  const low = inBounds(voxel.size, address.x + dx, address.y + dz) ? topHeight(voxel, address.x + dx, address.y + dz) : 0
+  return address.level + 0.5 >= (top + low) / 2 ? 'top' : 'foot'
 }
 
 /** The face of a voxel a cliff-band address names: the band's layer, on that side. */
@@ -179,6 +196,7 @@ function faceMaterial(voxel: ReadonlyVoxel, face: FaceRef, layer: number): numbe
 export function eyedrop(voxel: ReadonlyVoxel, params: TerrainParams, address: SurfaceAddress): Partial<TerrainParams> {
   // Under Sculpt the pointer picks up a height, and pins it: what Flatten wants from another cell.
   if (params.terrainMode === 'sculpt') return { height: topHeight(voxel, address.x, address.y), heightPinned: true }
+  if (params.paintVerb === 'fringe') return {}
   if (params.paintVerb === 'tint') {
     const tint = tintPaint(voxel.paint, address.x, address.y)
     return tint === undefined ? {} : { tint }
@@ -252,5 +270,12 @@ export function paintPatches(voxel: ReadonlyVoxel, params: TerrainParams, addres
       return []
     case 'tint':
       return paintTint(voxel, cells, erase ? undefined : params.tint)
+    case 'fringe': {
+      // A fringe or a picket is switched per wall: along the face pressed, at the end of the wall pressed nearer.
+      if (address.kind !== SURFACE_CLIFF) return []
+      const end = edgeEndOf(voxel, address)
+      const along = cells.filter(([x, y]) => (address.dir % 2 === 0 ? x === address.x : y === address.y))
+      return setEdges(voxel, along.map(([x, z]) => ({ x, z, dir: address.dir, end })), erase)
+    }
   }
 }

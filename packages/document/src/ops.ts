@@ -8,11 +8,11 @@
  */
 
 import type { Patch } from './edits'
-import { DEFAULT_LAYERS, DIR_VECTORS, MATERIAL_LAYERS, NO_RAMP, NO_WATER, SHAPE_BLOCK, SHAPE_HALF_RAMP, SHAPE_SLAB, cellIndex, inBounds, newId, slotOf, worldHeight, type DeepReadonly, type MapObject, type MaterialLayers, type ReadonlyMapDoc } from './document'
-import { FACE_BOTTOM, FACE_TOP, faceKey, parseFaceKey, tintKey } from './paint'
+import { DEFAULT_LAYERS, DIR_VECTORS, MATERIAL_LAYERS, NO_RAMP, NO_WATER, SHAPE_BLOCK, SHAPE_HALF_RAMP, SHAPE_SLAB, cellIndex, inBounds, newId, slotOf, worldHeight, type DeepReadonly, type EdgeEnd, type MapObject, type MaterialLayers, type ReadonlyMapDoc } from './document'
+import { FACE_BOTTOM, FACE_TOP, edgeKey, faceKey, parseFaceKey, tintKey } from './paint'
 import { descendantsOf, type Placement, type ProfilePoint, type QuarterTurn, type ReadonlySketch, type ReadonlyVoxel, type SketchStructure, type Structure } from './structure'
 import { frameOf, groundHeight, toLocal, type Frame } from './terrain'
-import { columnShapes, columnTopAt, exposedFacesOf, halfRampShape, halfRampUpShape, maxHeightOf, rampDirAt, rampShape, topHeight, topLayersAt, voxelIndex } from './voxels'
+import { columnShapes, columnTopAt, exposedFacesOf, wallStands, halfRampShape, halfRampUpShape, maxHeightOf, rampDirAt, rampShape, topHeight, topLayersAt, voxelIndex } from './voxels'
 
 export type BrushShape = 'square' | 'circle'
 
@@ -190,6 +190,18 @@ export function reconcileFaces(voxel: ReadonlyVoxel, pending: readonly Patch[]):
   for (const key of removed) written.set(key, undefined)
   const patches: Patch[] = []
   for (const [key, value] of written) if (value !== undefined || voxel.paint.faces[key] !== undefined) patches.push({ t: 'voxelPaint', id: voxel.id, layer: 'faces', key, value })
+  // An edge switched off goes with its wall: nothing is kept for a wall that is not there.
+  for (const column of touched) {
+    const x = column % width
+    const z = Math.floor(column / width)
+    for (let dir = 0; dir < 4; dir++) {
+      if (wallStands(after, x, z, dir)) continue
+      for (const end of ['top', 'foot'] as const) {
+        const key = edgeKey(x, z, dir, end)
+        if (voxel.paint.edges[key] !== undefined) patches.push({ t: 'voxelPaint', id: voxel.id, layer: 'edges', key, value: undefined })
+      }
+    }
+  }
   return patches
 }
 
@@ -391,6 +403,26 @@ export function paintFace(voxel: ReadonlyVoxel, faces: readonly FaceRef[], mater
     if (stack[layer] === slot) continue
     stack[layer] = slot
     patches.push({ t: 'voxelPaint', id: voxel.id, layer: 'faces', key, value: stack })
+  }
+  return patches
+}
+
+/** One end of one wall: column (x, z)'s side `dir`, at its top (the fringe) or its foot (the picket). */
+export interface EdgeRef {
+  x: number
+  z: number
+  dir: number
+  end: EdgeEnd
+}
+
+/** Switch these walls' fringes or pickets off, or back on to what the art does. Only a wall that stands takes a switch. */
+export function setEdges(voxel: ReadonlyVoxel, edges: readonly EdgeRef[], on: boolean): Patch[] {
+  const patches: Patch[] = []
+  for (const edge of edges) {
+    if (!inBounds(voxel.size, edge.x, edge.z) || !wallStands(voxel, edge.x, edge.z, edge.dir)) continue
+    const key = edgeKey(edge.x, edge.z, edge.dir, edge.end)
+    if ((voxel.paint.edges[key] === 'off') === !on) continue
+    patches.push({ t: 'voxelPaint', id: voxel.id, layer: 'edges', key, value: on ? undefined : 'off' })
   }
   return patches
 }

@@ -29,6 +29,8 @@ export class LoadError extends Error {}
 const FACE_KEY = /^\d+,\d+,-?\d+,[0-5]$/
 /** A material layer's slot as the format spells it; `t:<gid>` is reserved and not read yet. */
 const SLOT = /^m:\d+$/
+/** `x,z,dir,top|foot`: a column, one of its four sides, and which end of the wall there. */
+const EDGE_KEY = /^\d+,\d+,[0-3],(top|foot)$/
 
 export function serialize(doc: ReadonlyMapDoc): string {
   return JSON.stringify(doc, null, 2)
@@ -89,7 +91,11 @@ function normaliseStructure(raw: Record<string, unknown>, id: string): Structure
         throw new LoadError(`${id}.paint.faces["${key}"] should be ${MATERIAL_LAYERS} material layers, each "m:<id>" or null.`)
       }
     }
-    return { ...base, kind: 'voxel', size, layers, voxels: { shape }, water: water as number[], paint: { faces, tint: paint.tint ?? {} } }
+    const edges = paint.edges ?? {}
+    for (const [key, value] of Object.entries(edges)) {
+      if (!EDGE_KEY.test(key) || value !== 'off') throw new LoadError(`${id}.paint.edges["${key}"] is not an edge switched off.`)
+    }
+    return { ...base, kind: 'voxel', size, layers, voxels: { shape }, water: water as number[], paint: { faces, tint: paint.tint ?? {}, edges } }
   }
   if (raw.kind === 'sketch') {
     const wall = (raw.wall ?? {}) as Partial<SketchStructure['wall']>

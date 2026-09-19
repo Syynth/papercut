@@ -32,7 +32,9 @@
  * headless export can build one.
  */
 
-import type { RgbaImage } from '@papercut/document'
+import { materialOfTag, slotOfTag, tagOf, type RgbaImage } from '@papercut/document'
+
+import { FRINGE, PICKET } from './archetype'
 
 import { CORNER_BITS, cornerKey, type CornerTags, type Tag, type TerrainSet } from './terrainset'
 
@@ -43,6 +45,12 @@ export interface LoadedSet {
   image: RgbaImage
   /** The file's pixels as they are, before the grid was cut and scaled; what a library shows. Absent for a generated set. */
   source?: RgbaImage
+}
+
+/** A trim tag, read as the plain tag it also is; any other tag as it is. */
+const plainTrim = (tag: Tag): Tag => {
+  const slot = slotOfTag(tag)
+  return slot === FRINGE || slot === PICKET ? tagOf(materialOfTag(tag) as number) : tag
 }
 
 /** What the fallback is until the settings say otherwise. */
@@ -124,6 +132,10 @@ export class TerrainAtlas {
         this.sheetTile(loaded, index)
         const key = cornerKey(tags)
         if (!this.authored.has(key)) this.authored.set(key, { loaded, index })
+        // A fringe or picket tile is also the ordinary edge it is, indexed under its plain tags too, by the same
+        // first-drawn-wins order: tagging a tile as trim never hands its corner to a later one.
+        const plain = cornerKey(tags.map(plainTrim) as unknown as CornerTags)
+        if (plain !== key && !this.authored.has(plain)) this.authored.set(plain, { loaded, index })
       }
     }
   }
@@ -175,6 +187,20 @@ export class TerrainAtlas {
     const v1 = 1 - (row + qy) / rows - insetV
     const v0 = 1 - (row + qy + half) / rows + insetV
     return [u0, v0, u1, v1]
+  }
+
+  /**
+   * The tile a material's trim is drawn from, or `null` when it has none: its
+   * fringe is its bottom edge tagged `fringe` (the material on top, nothing
+   * below), its picket its top edge tagged `picket`. `tag` is the material's
+   * plain tag, as a face's layer carries it.
+   */
+  trimTile(tag: Tag, slot: typeof FRINGE | typeof PICKET): number | null {
+    const material = materialOfTag(tag)
+    if (material === null) return null
+    const t = tagOf(material, slot)
+    const found = this.authored.get(cornerKey(slot === FRINGE ? [t, t, null, null] : [null, null, t, t]))
+    return found ? this.sheetTile(found.loaded, found.index) : null
   }
 
   /** Every corner no tile answered so far, each combination named once: the artist's list of tiles to draw. */

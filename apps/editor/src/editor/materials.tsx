@@ -17,7 +17,7 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'reac
 
 import { materialById, slotMaterial, nextMaterialId, tagOf, type MaterialDef, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage, type Tag } from '@papercut/document'
 import { useDocumentSelector, useHost, useProject, type SettingsSection } from '@papercut/editor-host'
-import { CORNER_BITS, archetypeOf, archetypes, arrangements, exactTile, templateTags, type Archetype, type CornerTags, type LoadedSet } from '@papercut/geometry'
+import { CORNER_BITS, FRINGE, PICKET, archetypeOf, archetypes, arrangements, exactTile, templateTags, type Archetype, type CornerTags, type LoadedSet } from '@papercut/geometry'
 import { Action, Actions, ColorInput, Dialog, Field, Item, Library, LibraryGroup, List, Note, Section, Select, Status, TextInput } from '@papercut/ui'
 
 import { run } from './commands'
@@ -538,12 +538,12 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
               )}
             </span>
           </div>
-          {previewArchetype.slots.length > 1 ? (
+          {previewArchetype.slots.some((slot) => !slot.ordinary && slot.id !== FRINGE && slot.id !== PICKET) ? (
             <div style={{ display: 'grid', gap: 6, justifyItems: 'start' }}>
               <div className="ui-k">{previewArchetype.title} slots</div>
               <span className="ui-hint-line">
                 {previewArchetype.slots
-                  .filter((slot) => !slot.ordinary)
+                  .filter((slot) => !slot.ordinary && slot.id !== FRINGE && slot.id !== PICKET)
                   .map((slot) => `${slot.name}${slot.note ? ` — ${slot.note}` : ''}`)
                   .join('. ')}
                 . Nothing authors these yet; a tag can name one, and the mesher mitres what is undrawn.

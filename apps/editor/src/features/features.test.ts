@@ -101,6 +101,7 @@ describe('what the feature declares, before anything is running', () => {
       .sort()
     expect(ids).toEqual([
       'terrain.brush.resize',
+      'terrain.edges',
       'terrain.face',
       'terrain.flatten',
       'terrain.material',
@@ -184,6 +185,14 @@ describe('the terrain commands, dispatched through the host', () => {
     expect(dispatch('terrain.face', { structure: 'ground', faces: [{ x: 1, z: 1, y: 0, dir: 2 }], material: null })).toEqual({ ok: true })
     expect(ground(host.reader.doc).paint.faces[faceKey(1, 1, 0, 2)]).toEqual([null, 'm:3', null, null])
     expect(host.reader.undoLabel()).toBe('Clear face')
+
+    // (1,1) stands above its neighbours, so its sides are walls: a wall's fringe switches off, and back on.
+    expect(dispatch('terrain.edges', { structure: 'ground', edges: [{ x: 1, z: 1, dir: 0, end: 'top' }], on: false })).toEqual({ ok: true })
+    expect(ground(host.reader.doc).paint.edges['1,1,0,top']).toBe('off')
+    expect(host.reader.undoLabel()).toBe('Fringe off')
+    expect(dispatch('terrain.edges', { structure: 'ground', edges: [{ x: 1, z: 1, dir: 0, end: 'top' }], on: true })).toEqual({ ok: true })
+    expect(ground(host.reader.doc).paint.edges['1,1,0,top']).toBeUndefined()
+    expect(host.reader.undoLabel()).toBe('Fringe back on')
 
     expect(dispatch('terrain.tint', { structure: 'ground', cells: [[1, 1]], tint: 0x00ff00 })).toEqual({ ok: true })
     expect(tintPaint(ground(host.reader.doc).paint, 1, 1)).toBe(0x00ff00)

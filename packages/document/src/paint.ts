@@ -37,7 +37,7 @@
  * what draws, and nothing is hidden waiting for the ground to come back.
  */
 
-import type { DeepReadonly, MaterialLayers, SurfacePaint } from './document'
+import type { DeepReadonly, EdgeEnd, MaterialLayers, SurfacePaint } from './document'
 
 /** The side ids beyond the four compass sides. */
 export const FACE_TOP = 4
@@ -49,6 +49,16 @@ export function faceKey(x: number, z: number, y: number, dir: number): string {
 
 export function tintKey(x: number, z: number): string {
   return `${x},${z}`
+}
+
+/** The address of one end of the wall on column (x, z)'s side `dir`: its top, where a fringe hangs, or its foot. */
+export function edgeKey(x: number, z: number, dir: number, end: EdgeEnd): string {
+  return `${x},${z},${dir},${end}`
+}
+
+/** Whether a wall end's trim — its fringe or its picket — has been switched off. */
+export function edgeOff(paint: DeepReadonly<SurfacePaint>, x: number, z: number, dir: number, end: EdgeEnd): boolean {
+  return paint.edges[edgeKey(x, z, dir, end)] === 'off'
 }
 
 export function parseFaceKey(key: string): { x: number; z: number; y: number; dir: number } {
