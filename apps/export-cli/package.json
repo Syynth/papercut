@@ -16,6 +16,7 @@
   "dependencies": {
     "@papercut/document": "workspace:*",
     "@papercut/fixtures": "workspace:*",
+    "@papercut/geometry": "workspace:*",
     "@papercut/project": "workspace:*",
     "@papercut/runtime": "workspace:*",
     "fast-png": "8.0.0"

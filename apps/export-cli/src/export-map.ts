@@ -13,6 +13,7 @@ import { readFile, writeFile } from 'node:fs/promises'
 import { createProject, deserialize, sheetName } from '@papercut/document'
 import { generatePlaceholderTerrainSet } from '@papercut/fixtures'
 import { openProject } from '@papercut/project'
+import { projectSprites } from '@papercut/geometry'
 import { exportGltf } from '@papercut/runtime/export'
 
 import { loadBakedAssets } from './baked-assets'
@@ -65,8 +66,10 @@ export async function exportMapFile(
   const listed = project.images.some((i) => sheetName(i.path) === sheetName(generated.set.sheet))
   const terrain = [...(listed && !usable.some((s) => s.set.sheet === sheetName(generated.set.sheet)) ? [generated] : []), ...usable]
 
-  const bytes = new Uint8Array(await exportGltf(doc, { merge: options.merge, terrain, materials: project.materials, resolution: project.resolution, sprites, textures: {}, encodePng: encodePngPure }))
+  // The project's own sprites stand in for the baked ones of the same name (ruling of 2026-09-18).
+  const own = projectSprites(project.sprites, opened.sets)
+  const bytes = new Uint8Array(await exportGltf(doc, { merge: options.merge, terrain, materials: project.materials, resolution: project.resolution, sprites: { ...sprites, ...own.sprites }, textures: {}, encodePng: encodePngPure }))
   await writeFile(outputPath, bytes)
 
-  return { name: doc.name, bytes: bytes.byteLength, project: folder, warnings: opened.warnings }
+  return { name: doc.name, bytes: bytes.byteLength, project: folder, warnings: [...opened.warnings, ...own.warnings] }
 }

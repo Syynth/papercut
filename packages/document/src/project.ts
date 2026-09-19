@@ -142,6 +142,23 @@ export interface ProjectDoc {
   camera: CameraRig
   /** The maps, by path relative to the folder, in the order the project shows them. */
   maps: string[]
+  /** The project's own sprites, cut from its images (ruling of 2026-09-18); each stands in for a generated one of its name. */
+  sprites: SpriteDef[]
+}
+
+/**
+ * A sprite the project draws from one of its images: a name, the image it is
+ * cut from, and a rectangle on that image's tile grid. Named like a generated
+ * sprite — `tree`, `barrel` — it stands in for that one wherever an object
+ * names it; any other name is a sprite of the project's own. One facing for
+ * now; its footprint in the world is its rectangle, one tile to a tile.
+ */
+export interface SpriteDef {
+  name: string
+  /** The image's path, as the project lists it. */
+  image: string
+  /** In the image's tiles, from its top-left: where the sprite is and how big. */
+  rect: { x: number; y: number; w: number; h: number }
 }
 
 export type ReadonlyProjectDoc = DeepReadonly<ProjectDoc>
@@ -180,6 +197,7 @@ export function createProject(name = 'Untitled Project', texelDensity = 16, plac
     materials: DEFAULT_MATERIALS.map((m) => ({ ...m })),
     camera: defaultCameraRig(),
     maps: [],
+    sprites: [],
   }
 }
 
@@ -317,9 +335,35 @@ export function parseProject(text: string): ProjectDoc {
     materials: normaliseMaterials(raw.materials),
     camera: { ...defaultCameraRig(), ...((raw.camera as Partial<CameraRig>) ?? {}) },
     maps: [...((raw.maps) ?? [])],
+    sprites: [],
   }
+  project.sprites = normaliseSprites(raw.sprites, project.images)
   checkTags(project)
   return project
+}
+
+/**
+ * A project's sprites, checked the way everything a file holds is: a name,
+ * unique; an image the project lists; a rectangle of whole tiles, at least
+ * one each way. Anything else refuses the file, saying which.
+ */
+export function normaliseSprites(raw: unknown, images: readonly ImageEntry[]): SpriteDef[] {
+  if (raw === undefined) return []
+  if (!Array.isArray(raw)) throw new LoadError('The sprite list is not a list.')
+  const names = new Set<string>()
+  const paths = new Set(images.map((i) => i.path))
+  return raw.map((value, index): SpriteDef => {
+    const s = value as Partial<SpriteDef>
+    const where = typeof s.name === 'string' ? `Sprite ${s.name}` : `Sprite ${index}`
+    if (typeof s.name !== 'string' || !s.name.trim()) throw new LoadError(`${where} has no name.`)
+    if (names.has(s.name)) throw new LoadError(`Two sprites are called ${s.name}.`)
+    names.add(s.name)
+    if (typeof s.image !== 'string' || !paths.has(s.image)) throw new LoadError(`${where} is cut from ${String(s.image)}, which the project does not list.`)
+    const r = s.rect
+    const whole = (v: unknown, min: number): v is number => typeof v === 'number' && Number.isInteger(v) && v >= min
+    if (!r || !whole(r.x, 0) || !whole(r.y, 0) || !whole(r.w, 1) || !whole(r.h, 1)) throw new LoadError(`${where} has no rectangle of whole tiles.`)
+    return { name: s.name, image: s.image, rect: { x: r.x, y: r.y, w: r.w, h: r.h } }
+  })
 }
 
 /**

@@ -19,12 +19,12 @@
 
 import { useMemo } from 'react'
 
-import { PLACEHOLDER_SHEET, sheetName, type ReadonlyProjectDoc, type RgbaImage, type SpriteAsset } from '@papercut/document'
+import { PLACEHOLDER_SHEET, sheetName, type ReadonlyProjectDoc, type RgbaImage, type SpriteAsset, type SpriteDef } from '@papercut/document'
 import { useProject, useViewportSelector } from '@papercut/editor-host'
 import { generatePlaceholderTerrainSet } from '@papercut/fixtures'
 // Behind its own subpath (#48): the sprite generator draws with a canvas, and the package root stays DOM-free.
 import { generateSketchTextures, generateSprites } from '@papercut/fixtures/textures'
-import type { LoadedSet } from '@papercut/geometry'
+import { projectSprites, type LoadedSet } from '@papercut/geometry'
 
 /**
  * One result per density, kept: a density changed and changed back — the Resolution field, a project reopened —
@@ -86,6 +86,14 @@ export function drawableTerrain(generated: readonly LoadedSet[], loaded: readonl
   return [...generated.filter((s) => !names.has(s.set.sheet)), ...usable]
 }
 
+const spriteDefsOf = (project: ReadonlyProjectDoc): readonly SpriteDef[] => project.sprites
+
+/** The generated sprites with the project's own laid over them by name: what objects draw with. */
+export function withProjectSprites(generated: Record<string, SpriteAsset>, defs: readonly SpriteDef[], loaded: readonly LoadedSet[]): Record<string, SpriteAsset> {
+  if (defs.length === 0) return generated
+  return { ...generated, ...projectSprites(defs, loaded).sprites }
+}
+
 /** Whether the project lists the placeholder sheet, the one the generated set stands in for. */
 export const listsPlaceholder = (project: ReadonlyProjectDoc): boolean => project.images.some((i) => sheetName(i.path) === PLACEHOLDER_SHEET)
 
@@ -97,8 +105,11 @@ export function useArt(): Art {
   const terrainWarning = useViewportSelector((snapshot) => snapshot.context.terrainWarning)
   const generatedTerrain = terrainFor(density)
   const placeholder = useProject(listsPlaceholder)
+  const spriteDefs = useProject(spriteDefsOf)
   // The loaded sets join the generated one rather than replacing it: the default materials point into the placeholder
   // sheet, and would draw as nothing without it. A set named like a generated one stands in for it.
   const terrain = useMemo(() => drawableTerrain(generatedTerrain, loaded, density, placeholder), [loaded, generatedTerrain, density, placeholder])
-  return { terrain, loadedTerrain: loaded, generatedTerrain, sprites: spritesFor(density), textures: texturesFor(density), terrainWarning }
+  // The project's own sprites stand in for generated ones of the same name, and add their own (ruling of 2026-09-18).
+  const sprites = useMemo(() => withProjectSprites(spritesFor(density), spriteDefs, loaded), [density, spriteDefs, loaded])
+  return { terrain, loadedTerrain: loaded, generatedTerrain, sprites, textures: texturesFor(density), terrainWarning }
 }

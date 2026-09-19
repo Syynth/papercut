@@ -954,6 +954,16 @@ describe('a project file is checked before it is believed', () => {
     expect(trimmed.materials[0]).toMatchObject({ fringeAngle: 30, picketDistance: 2 })
     expect(trimmed.materials[1]).not.toHaveProperty('fringeAngle')
     expect(trimmed.materials[1]).not.toHaveProperty('picketDistance')
+    // Sprites are named regions of listed images; one cut from an unlisted image, or without whole tiles, refuses the file.
+    const withSprites = (sprites: unknown) => {
+      const raw = JSON.parse(project([{ id: 0, name: 'Grass' }], {})) as Record<string, unknown>
+      raw.sprites = sprites
+      return JSON.stringify(raw)
+    }
+    const listed = (JSON.parse(project([{ id: 0, name: 'Grass' }], {})) as { images: { path: string }[] }).images[0].path
+    expect(parseProject(withSprites([{ name: 'tree', image: listed, rect: { x: 0, y: 1, w: 2, h: 3 } }])).sprites).toEqual([{ name: 'tree', image: listed, rect: { x: 0, y: 1, w: 2, h: 3 } }])
+    expect(() => parseProject(withSprites([{ name: 'tree', image: 'sheets/nope.png', rect: { x: 0, y: 0, w: 1, h: 1 } }]))).toThrow(/does not list/)
+    expect(() => parseProject(withSprites([{ name: 'tree', image: listed, rect: { x: 0, y: 0, w: 0, h: 1 } }]))).toThrow(/whole tiles/)
     // A material has no `side` any more (ruling of 2026-09-18): one a file still carries is not read.
     const ok = parseProject(project([{ id: 0, name: 'Grass', side: 7 }, { id: 7, name: 'Dirt' }], { terrain: { tiles: { 0: [tagOf(7), null, null, null] } } }))
     expect(ok.materials[0]).not.toHaveProperty('side')

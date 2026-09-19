@@ -248,6 +248,9 @@ importers:
       '@papercut/fixtures':
         specifier: workspace:*
         version: link:../../packages/fixtures
+      '@papercut/geometry':
+        specifier: workspace:*
+        version: link:../../packages/geometry
       '@papercut/project':
         specifier: workspace:*
         version: link:../../packages/project

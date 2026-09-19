@@ -30,7 +30,7 @@
 
   // `references` (#46), matching `apps/editor` — see that config for why an
   // app carries them but is not referenced back by the root solution. This
-  // app's `vite build` still resolves `document`, `fixtures` and `runtime`
+  // app's `vite build` still resolves `document`, `fixtures`, `geometry` and `runtime`
   // through the `exports` map's `default` condition, so `dist/cli.js` really
   // is assembled from their built output.
   "include": ["src", "vite.config.ts"],
@@ -38,6 +38,7 @@
   "references": [
     { "path": "../../packages/document" },
     { "path": "../../packages/fixtures" },
+    { "path": "../../packages/geometry" },
     { "path": "../../packages/project" },
     { "path": "../../packages/runtime" }
   ]
