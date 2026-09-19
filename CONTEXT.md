@@ -179,13 +179,14 @@ That is the whole model of what a tile is: a tile is authored as the
 transition it shows, half grass and half path, and tagged so. The
 **template** fills a 4×4 block's tags from position for a pair of terrains,
 which is how art drawn to the template is wired in one placement; art that
-was not is tagged one corner at a time, in the Terrain sets section of
-Project settings, which works the way Tiled's terrain editor does (decision
-of 2026-09-14): pick a terrain, click or drag over tile corners on the
-image, and every tagged corner shows as a translucent quadrant in its
-terrain's colour. The section takes the window while it is open, and tagging
-there is undoable in the editor's own history (decision of 2026-09-17),
-unlike the other Project settings.
+was not is tagged one corner at a time, in the Tag view of the Materials
+section of Project settings (decisions of 2026-09-19, which folded the
+Terrain sets section into it), which works the way Tiled's terrain editor
+does (decision of 2026-09-14): pick a material, click or drag over tile
+corners on the image, and every tagged corner shows as a translucent
+quadrant in its material's colour. A transition is SPELLED as its values and
+placed as a block. Tagging there is undoable in the editor's own history
+(decision of 2026-09-17), unlike the other Project settings.
 
 A corner's tag names a **material**, and optionally the **archetype** of the
 face the art is for — `3@wall` — and a slot, `3@wall:convex` (rulings of

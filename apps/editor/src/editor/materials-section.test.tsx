@@ -1,0 +1,207 @@
+// @vitest-environment jsdom
+/**
+ * The Materials section, under a real renderer (decisions of 2026-09-19).
+ *
+ * What the tags amount to is covered where it is computed, in `coverage.ts`.
+ * What only the SCREEN can show is that the list is the project's materials
+ * with their coverage, that the selected one expands into its subjects, that
+ * picking one swaps every view to it, that the tiles and the patch point at
+ * each other, and that a transition is spelled from the subject.
+ *
+ * jsdom has no 2D canvas, so `getContext` and `toDataURL` are stubbed: the
+ * patch's pixels are not what is under test, its arithmetic is.
+ */
+
+import { createDocument, createMap } from '@papercut/document'
+import { HostProvider, createHost, type Host } from '@papercut/editor-host'
+import { tagOf } from '@papercut/document'
+import { templateTags, type CornerTags, type LoadedSet } from '@papercut/geometry'
+import { DecodedImageCache, MemoryFs, rawImageCodec } from '@papercut/project'
+import { UiProvider } from '@papercut/ui'
+import { act, type ReactNode } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+import { afterEach, describe, expect, it } from 'vitest'
+
+import { features } from '../features'
+
+import { run } from './commands'
+import { MaterialsSection } from './materials-section'
+import { LibraryStore, StrayStore, SummaryStore, type Session } from './session'
+
+;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+
+// jsdom has no media queries and no resize observer; Mantine asks for both.
+window.matchMedia ??= ((query: string) => ({ matches: false, media: query, onchange: null, addListener: () => undefined, removeListener: () => undefined, addEventListener: () => undefined, removeEventListener: () => undefined, dispatchEvent: () => false })) as unknown as typeof window.matchMedia
+globalThis.ResizeObserver ??= class {
+  observe(): void {}
+  unobserve(): void {}
+  disconnect(): void {}
+} as unknown as typeof ResizeObserver
+
+// jsdom has no canvas at all; the screen draws to one, so give it a surface that answers.
+const context = new Proxy({} as CanvasRenderingContext2D, { get: () => () => undefined, set: () => true })
+window.HTMLCanvasElement.prototype.getContext = (() => context) as unknown as HTMLCanvasElement['getContext']
+window.HTMLCanvasElement.prototype.toDataURL = () => 'data:,'
+globalThis.ImageData ??= class {
+  constructor(
+    readonly data: Uint8ClampedArray,
+    readonly width: number,
+    readonly height: number,
+  ) {}
+} as unknown as typeof ImageData
+
+const started: Array<{ host: Host; root: Root; container: HTMLElement }> = []
+
+afterEach(() => {
+  for (const { host, root, container } of started.splice(0)) {
+    act(() => root.unmount())
+    container.remove()
+    host.stop()
+  }
+})
+
+function session(): Session {
+  return { fs: new MemoryFs(), codec: rawImageCodec, images: new DecodedImageCache(), dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
+}
+
+/**
+ * A sheet that has drawn something: for each pair given, the fifteen
+ * arrangements of the first material over the second, tagged with material
+ * ids. `null` as the second is the material on its own against nothing.
+ */
+function sheet(name: string, drawn: ReadonlyArray<readonly [number, number | null]>): LoadedSet {
+  const tile = 4
+  const columns = 15
+  const rows = Math.max(1, drawn.length)
+  const tiles = new Map<number, CornerTags>()
+  drawn.forEach(([over, under], row) => {
+    for (let mask = 1; mask <= 15; mask++) tiles.set(row * columns + (mask - 1), templateTags(mask, under === null ? null : tagOf(under), tagOf(over)))
+  })
+  const width = columns * tile
+  const height = rows * tile
+  return { set: { sheet: name, tile, columns, rows, tiles }, image: { width, height, data: new Uint8ClampedArray(width * height * 4) } }
+}
+
+/** Grass alone and grass over dirt, both on one sheet: the ordinary case. */
+const ground = (drawn: ReadonlyArray<readonly [number, number | null]>): LoadedSet[] => [sheet('ground.png', drawn)]
+
+/** The same art spread over two sheets, every other tile on each: what the section shows as a grid of tiles rather than a crop of one sheet. */
+function scattered(drawn: ReadonlyArray<readonly [number, number | null]>): LoadedSet[] {
+  return [0, 1].map((parity) => {
+    const whole = sheet(parity ? 'odd.png' : 'even.png', drawn)
+    return { ...whole, set: { ...whole.set, tiles: new Map([...whole.set.tiles].filter(([index]) => index % 2 === parity)) } }
+  })
+}
+
+function mount(ui: (host: Host) => ReactNode): HTMLElement {
+  const host = createHost({ document: createDocument(createMap(8, 8)), features })
+  const container = window.document.createElement('div')
+  window.document.body.append(container)
+  const root = createRoot(container)
+  started.push({ host, root, container })
+  act(() => root.render(<UiProvider><HostProvider host={host}>{ui(host)}</HostProvider></UiProvider>))
+  return container
+}
+
+const text = (): string => window.document.body.textContent ?? ''
+const named = (label: string): HTMLButtonElement | undefined => [...window.document.querySelectorAll('button')].find((b) => (b.textContent ?? '').trim() === label)
+/** A subject under the selected material: `meets Dirt`. */
+const subject = (label: string): HTMLButtonElement | undefined => [...window.document.querySelectorAll<HTMLButtonElement>('.ui-subject-row button')].find((b) => (b.textContent ?? '').replace(/\s+/g, ' ').trim().startsWith(label))
+const section = (sets: readonly LoadedSet[], tagSets: readonly LoadedSet[] = sets) => () => <MaterialsSection session={session()} selected={0} onSelect={() => undefined} sets={sets} tagSets={tagSets} />
+
+describe('the materials section', () => {
+  it("lists the project's materials with their coverage, and the selected one's subjects under it", () => {
+    // Grass (0) alone, and grass over dirt (1). Stone, Sand and Path have nothing drawn.
+    mount(section(ground([[0, null], [0, 1]])))
+
+    // No Floor / Wall / Ramp groups: a material is not one archetype (ruling of 2026-09-18).
+    expect(text()).toContain('By priority')
+    expect(window.document.querySelectorAll('.ui-material-row')).toHaveLength(5)
+    expect(window.document.querySelector('.ui-material-row.is-active')?.textContent).toContain('15/15')
+
+    // Grass expands into its subjects: on its own, then meeting each of the other four, and a way to spell a new one.
+    expect(window.document.querySelectorAll('.ui-subject-row')).toHaveLength(5)
+    expect(subject('meets Dirt')?.closest('.ui-subject-row')?.textContent).toContain('14/14')
+    expect(subject('meets Stone')?.closest('.ui-subject-row')?.textContent).toContain('0/14')
+    expect(named('New transition…')).toBeDefined()
+  })
+
+  it('takes an authored tile from another sheet', () => {
+    // Grass's own art is on one image and its meeting with Dirt on a second.
+    mount(section([sheet('ground.png', [[0, null]]), sheet('cliffs.png', [[0, 1]])]))
+    act(() => subject('meets Dirt')?.click())
+    // Fourteen, not fifteen: the all-grass arrangement is grass's own tile, not something the pairing owes.
+    expect(text()).toContain('14 of 14 drawn')
+    expect(text()).toContain('cliffs.png')
+  })
+
+  it('swaps every view to the two materials together when a pairing is picked, and back', () => {
+    mount(section(ground([[0, null], [0, 1]])))
+    expect(text()).toContain('how it draws on a floor')
+    act(() => subject('meets Dirt')?.click())
+    expect(text()).toContain('how the two draw where they meet')
+    expect(text()).toContain('Meeting Dirt')
+    act(() => subject('On its own')?.click())
+    expect(text()).toContain('how it draws on a floor')
+  })
+
+  it('lights an arrangement from a tile and says how much of the patch it draws', () => {
+    // The tiles are spread over two sheets, so they are shown as a grid of tiles rather than as a crop of one.
+    mount(section(scattered([[0, null]])))
+
+    const slots = [...window.document.querySelectorAll('.ui-slot')]
+    expect(slots).toHaveLength(15)
+    // Every one of the fifteen corner masks is somewhere in the preview shape, so hovering any of them names it and
+    // counts the corners of the patch it draws.
+    for (const [index, slot] of slots.entries()) {
+      act(() => slot.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true })))
+      expect(slot.className).toContain('is-lit')
+      expect(text()).toContain(`mask ${index + 1} ·`)
+      expect(Number(/· (\d+) corners? of the patch/.exec(text())?.[1] ?? 0)).toBeGreaterThan(0)
+    }
+  })
+
+  it('lights only the corners of the pairing, not where the material meets nothing', () => {
+    mount(section(scattered([[0, null], [0, 1]])))
+    act(() => subject('meets Dirt')?.click())
+
+    // Worked out from the pairing's preview shape by hand. Counting only which corners are Grass made the outer edge
+    // of the blob, where Grass meets nothing, answer the same mask as the boundary with Dirt.
+    const expected: Record<number, number> = { 1: 1, 2: 1, 3: 4, 4: 2, 5: 1, 6: 1, 7: 3, 8: 2, 9: 1, 10: 1, 11: 3, 12: 2, 13: 4, 14: 4 }
+    const slots = [...window.document.querySelectorAll('.ui-slot')]
+    expect(slots).toHaveLength(14)
+    for (const slot of slots) {
+      act(() => slot.dispatchEvent(new window.MouseEvent('pointerover', { bubbles: true })))
+      const mask = Number(/mask (\d+) ·/.exec(text())?.[1])
+      expect(Number(/· (\d+) corners? of the patch/.exec(text())?.[1])).toBe(expected[mask])
+    }
+  })
+
+  it('spells a transition from the subject: the later material by priority over the earlier', () => {
+    mount(section(ground([[0, null]])))
+    act(() => subject('meets Stone')?.click())
+    act(() => named('New transition…')?.click())
+
+    // The Tag view, the block tool, and the three values: Grass is first in the library, so Stone is drawn over it.
+    expect(text()).toContain('Tagging')
+    expect(text()).toContain('Spell the transition')
+    const values = [...window.document.querySelectorAll<HTMLSelectElement>('.ui-spell select')].map((s) => s.selectedOptions[0]?.textContent)
+    expect(values).toEqual(['Grass', 'Stone', 'none — a 5 × 3 block'])
+    expect(named('Place on the sheet')?.disabled).toBe(false)
+
+    // Pressing it arms the pointer; pressing it again, or Esc, leaves the block unplaced.
+    act(() => named('Place on the sheet')?.click())
+    expect(named('Placing: point at its top-left tile')).toBeDefined()
+    act(() => window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' })))
+    expect(named('Place on the sheet')).toBeDefined()
+  })
+
+  it('keeps the list and New material when the library is empty', () => {
+    mount(section(ground([[0, null]])))
+    const { host } = started[started.length - 1]
+    act(() => void run(host, 'project.materials.set', { materials: [] }))
+    expect(text()).toContain('No materials')
+    act(() => named('New material')?.click())
+    expect(host.children.project.getSnapshot().context.project.materials).toHaveLength(1)
+  })
+})

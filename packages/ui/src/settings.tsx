@@ -436,3 +436,90 @@ export function AssetPicker({ value, options, onChange, footer, placeholder = 'T
     </div>
   )
 }
+
+// --- the Materials section (decisions of 2026-09-19) ------------------------------
+
+/**
+ * How much of a subject is drawn: a 4 × 4 grid of cells with the number beside it. Cell k is arrangement mask k, laid
+ * out as the classic mask block (column k mod 4, row k div 4): `on` where a tile answers it, `off` where it is owed
+ * and missing, `na` where it is not owed.
+ */
+export function CoverageMark({ cells, drawn, owed, large = false }: { cells: ReadonlyArray<'on' | 'off' | 'na'>; drawn: number; owed: number; large?: boolean }) {
+  return (
+    <span className="ui-coverage" title={`${drawn} of ${owed} arrangements drawn`}>
+      <span className={`ui-coverage-grid ${large ? 'is-large' : ''}`} aria-hidden="true">
+        {cells.map((cell, k) => (
+          <i key={k} className={`is-${cell}`} />
+        ))}
+      </span>
+      <span className={`ui-coverage-count is-${drawn === owed ? 'ok' : drawn === 0 ? 'muted' : 'warn'}`}>
+        {drawn}/{owed}
+      </span>
+    </span>
+  )
+}
+
+/** The kinds of face a material has art for, as three icons: lit for art of its own, half-lit where art for any face draws there, dim for none. */
+export function FaceMarks({ faces }: { faces: ReadonlyArray<{ readonly id: string; readonly title: string; readonly icon: IconName; readonly art: 'own' | 'any' | 'none' }> }) {
+  return (
+    <span className="ui-faces">
+      {faces.map((face) => (
+        <span key={face.id} className={`is-${face.art}`} title={`${face.title}: ${face.art === 'own' ? 'has art drawn for it' : face.art === 'any' ? 'draws with art tagged for any face' : 'no art'}`}>
+          <Icon name={face.icon} size={11} />
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/** A material in the section's list: swatch, name, what `marks` says about it, and its coverage at the right. */
+export function MaterialRow({ name, swatch, active, marks, trailing, onClick }: { name: string; swatch: string; active: boolean; marks?: ReactNode; trailing?: ReactNode; onClick: () => void }) {
+  return (
+    <div className={`ui-material-row ${active ? 'is-active' : ''}`}>
+      <span className="ui-tagger-swatch" style={{ background: swatch, cursor: 'default' }} />
+      <button type="button" className="ui-material-row-name" onClick={onClick}>
+        <span>{name}</span>
+        {marks}
+      </button>
+      {trailing}
+    </div>
+  )
+}
+
+/** One of a material's subjects, under it in the list: on its own, or meeting another. The lit one is what every view shows. */
+export function SubjectRow({ label, prefix, note, swatch, active, trailing, onClick }: { label: string; prefix?: string; note?: string; swatch?: string; active: boolean; trailing?: ReactNode; onClick: () => void }) {
+  return (
+    <div className={`ui-subject-row ${active ? 'is-active' : ''}`}>
+      {swatch ? <span className="ui-tagger-swatch" style={{ background: swatch, cursor: 'default' }} /> : <span />}
+      <button type="button" className="ui-material-row-name" onClick={onClick}>
+        <span>
+          {prefix ? <span className="ui-subject-prefix">{prefix} </span> : null}
+          {label}
+        </span>
+        {note ? <span className="ui-subject-note">{note}</span> : null}
+      </button>
+      {trailing}
+    </div>
+  )
+}
+
+/**
+ * A stage with controls floating on it (decision of 2026-09-19): the content scrolls underneath, the floats stay
+ * where they are. `foot` is the one line of small print along the bottom.
+ */
+export function FloatStage({ children, floats, foot, scrollRef }: { children: ReactNode; floats?: ReactNode; foot?: ReactNode; scrollRef?: Ref<HTMLDivElement> }) {
+  return (
+    <div className="ui-float-stage">
+      <div className="ui-float-stage-scroll" ref={scrollRef}>
+        {children}
+      </div>
+      {floats}
+      {foot ? <div className="ui-tagger-foot">{foot}</div> : null}
+    </div>
+  )
+}
+
+/** A control floating on a stage, in one of its top corners. */
+export function StageFloat({ corner, children }: { corner: 'left' | 'right'; children: ReactNode }) {
+  return <div className={`ui-stage-float is-${corner}`}>{children}</div>
+}

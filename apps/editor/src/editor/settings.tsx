@@ -20,8 +20,7 @@ import type { IconName } from '@papercut/ui'
 import { useArt } from './art'
 import { run } from './commands'
 import { ImagesSettings } from './images'
-import { MaterialsSettings } from './materials'
-import { TerrainsSettings } from './terrains'
+import { MaterialsSection } from './materials-section'
 import { CameraRigProperties } from './panels'
 import { loadPrefs, savePrefs, type EditorPrefs } from './prefs'
 import { onStray, strayNote } from './nomap'
@@ -33,8 +32,7 @@ const SECTIONS: ReadonlyArray<{ id: SettingsSection; title: string; icon: IconNa
   { id: 'general', title: 'General', icon: 'rect', scope: 'project', keywords: 'name folder maps order' },
   { id: 'resolution', title: 'Resolution', icon: 'grid', scope: 'project', keywords: 'texel density pixels per tile filtering nearest linear' },
   { id: 'images', title: 'Images', icon: 'tile', scope: 'project', keywords: 'library tileset sprites textures png grid tile size margin spacing import missing relink replace reveal' },
-  { id: 'terrains', title: 'Terrain sets', icon: 'terrain', scope: 'project', keywords: 'sidecar tags corners transitions author edge set pairs tag paint image tiled' },
-  { id: 'materials', title: 'Materials', icon: 'sculpt', scope: 'project', keywords: 'brush paint library priority top side role swatch delete repaint' },
+  { id: 'materials', title: 'Materials', icon: 'sculpt', scope: 'project', keywords: 'brush paint library priority swatch delete repaint terrain sets tags corners transitions author edge set pairs tag sheet tiled block fringe picket floor wall ramp' },
   { id: 'camera', title: 'Camera rig', icon: 'camera', scope: 'project', keywords: 'yaw pitch fov bounds projection orthographic' },
   { id: 'editor', title: 'Editor', icon: 'grid', scope: 'app', keywords: 'grid missing marks projection defaults autosave' },
   { id: 'keymap', title: 'Keymap', icon: 'select', scope: 'app', keywords: 'shortcuts keys chords bindings' },
@@ -69,8 +67,7 @@ export function ProjectSettings({ session, platform }: { session: Session; platf
     general: `${project.maps.length} ${project.maps.length === 1 ? 'map' : 'maps'}`,
     resolution: `${project.resolution.texelDensity} px · ${project.resolution.filtering}`,
     images: `${project.images.length} ${project.images.length === 1 ? 'image' : 'images'}${missingCount ? ` · ${missingCount} with a problem` : ''}`,
-    terrains: `${art.loadedTerrain.length} ${art.loadedTerrain.length === 1 ? 'sheet' : 'sheets'} · ${art.loadedTerrain.reduce((n, s) => n + s.set.tiles.size, 0)} tagged`,
-    materials: `${project.materials.length} materials · priority top to bottom`,
+    materials: `${project.materials.length} materials · priority top to bottom · ${art.loadedTerrain.length} ${art.loadedTerrain.length === 1 ? 'sheet' : 'sheets'}, ${art.loadedTerrain.reduce((n, s) => n + s.set.tiles.size, 0)} tiles tagged`,
     camera: `${project.camera.projection} · ${project.camera.fov}°`,
     editor: 'This machine',
     keymap: `${keymap.all().length} bindings`,
@@ -81,7 +78,7 @@ export function ProjectSettings({ session, platform }: { session: Session; platf
       opened={section !== null}
       onClose={close}
       title={current?.title ?? ''}
-      wide={section === 'terrains' || section === 'images' || section === 'materials'}
+      wide={section === 'images' || section === 'materials'}
       aside={<span>{section ? aside[section] : ''}</span>}
       rail={
         <>
@@ -98,8 +95,7 @@ export function ProjectSettings({ session, platform }: { session: Session; platf
       {section === 'general' ? <GeneralSettings session={session} /> : null}
       {section === 'resolution' ? <ResolutionSettings /> : null}
       {section === 'images' ? <ImagesSettings session={session} sets={art.loadedTerrain} warning={art.terrainWarning} selected={selectedSheet} onSelect={setSelectedSheet} /> : null}
-      {section === 'terrains' ? <TerrainsSettings session={session} sets={art.loadedTerrain} /> : null}
-      {section === 'materials' ? <MaterialsSettings session={session} selected={selectedMaterial} onSelect={setSelectedMaterial} sets={art.terrain} /> : null}
+      {section === 'materials' ? <MaterialsSection session={session} selected={selectedMaterial} onSelect={setSelectedMaterial} sets={art.terrain} tagSets={art.loadedTerrain} /> : null}
       {section === 'camera' ? <CameraSettings /> : null}
       {section === 'editor' ? <EditorSettings /> : null}
       {section === 'keymap' ? <KeymapSettings platform={platform} /> : null}
