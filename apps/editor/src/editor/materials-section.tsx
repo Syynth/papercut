@@ -23,7 +23,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 import { DEFAULT_FRINGE_ANGLE, DEFAULT_PICKET_DISTANCE, MAX_PICKET_DISTANCE, materialById, materialOfTag, nextMaterialId, archetypeOfTag, slotOfTag, tagOf, withArchetype, type ArchetypeId, type MaterialDef, type ReadonlyProjectDoc, type Tag } from '@papercut/document'
 import { useHost, useProject, useViewSelector } from '@papercut/editor-host'
 import { allSlots, archetypes, arrangements, type LoadedSet } from '@papercut/geometry'
-import { Action, AssetPicker, ColorInput, CoverageMark, FaceMarks, Field, FloatStage, Library, LibraryGroup, MaterialRow, Note, NumberInput, Segmented, Select, StageFloat, SubjectRow, TextInput, type IconName } from '@papercut/ui'
+import { Action, AssetPicker, ColorInput, CoverageMark, FaceMarks, Field, FloatStage, StageToolbar, Library, LibraryGroup, MaterialRow, Note, NumberInput, Segmented, Select, StageFloat, SubjectRow, TextInput, type IconName } from '@papercut/ui'
 
 import { run } from './commands'
 import { assembleAcross, coverageOf, cropOf, facesOf, maskAt, pairingFace, subjectTags, type Coverage, type Found, type Subject } from './coverage'
@@ -31,7 +31,7 @@ import { Fixture } from './fixture-view'
 import { useDeleteMaterial } from './materials'
 import { PatchPreview, SheetCrop, TileGrid } from './preview'
 import type { Session } from './session'
-import { useTagger, type ShowFilter, type TagTool } from './tagger'
+import { useTagger, type ShowFilter } from './tagger'
 
 type View = 'preview' | 'tag' | '3d'
 
@@ -81,12 +81,16 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
   const [face, setFace] = useState<ArchetypeId>('floor')
   /** The arrangement the pointer is over, in the patch or in the crop; each lights the other. */
   const [lit, setLit] = useState<number | null>(null)
-  const [tool, setTool] = useState<TagTool>('corners')
+  const [tool, setTool] = useState<'corners' | 'erase'>('corners')
   const [slot, setSlot] = useState<string | null>(null)
   /** The kind of face the art being tagged is for; `null` is any, which is what most art wants. */
   const [tagFace, setTagFace] = useState<ArchetypeId | null>(null)
   const [spell, setSpell] = useState<Spell>(() => ({ under: null, over: materialById(materials, selected)?.id ?? materials[0]?.id ?? null, third: null }))
-  const [armed, setArmed] = useState(false)
+  /**
+   * Placing transitions is a MODE of the Tag stage (decision of 2026-09-19): entered by New transition…, left by Done
+   * or Esc. While it lasts the pointer is armed and its controls are a toolbar on the stage.
+   */
+  const [placing, setPlacing] = useState(false)
   const [show, setShow] = useState<ShowFilter>('all')
   /** A tile to scroll to once the Tag view has the sheet up. */
   const [reveal, setReveal] = useState<Found | null>(null)
@@ -111,7 +115,7 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
     onSelect(id)
     setOther(next)
     setLit(null)
-    setArmed(false)
+    // Placing stays on: picking another subject while placing is how the next transition is spelled.
     setSpell(spellOf(id, next))
     // The view follows the subject (decision of 2026-09-19): a flat patch for floors, the fixture for anything whose
     // art is drawn for walls or ramps. Tagging is left alone: the artist is in the middle of something.
@@ -180,19 +184,19 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
   const brush = material ? tagOf(material.id, slot, tagFace) : null
   /** The sheet that holds the subject's art, when one does: where the Tag view opens. */
   const preferred = useMemo(() => [...(cover?.tiles.values() ?? [])].find((f) => f !== null && tagSets.includes(f.loaded))?.loaded.set.sheet ?? null, [cover, tagSets])
-  const tagger = useTagger({ session, sets: tagSets, active: view === 'tag', tool, brush, values, armed: armed && values.length > 1, onPlaced: () => setArmed(false), show, selected: material ? material.id : null, nameOfTag, colourOf, preferred })
+  const tagger = useTagger({ session, sets: tagSets, active: view === 'tag', tool: placing ? 'block' : tool, brush, values, armed: placing && values.length > 1, onPlaced: () => undefined, show, selected: material ? material.id : null, nameOfTag, colourOf, preferred })
 
-  // Esc leaves a block unplaced.
+  // Esc leaves the placing mode, before anything else hears it: it must not close the settings under the artist.
   useEffect(() => {
-    if (!armed) return
+    if (!placing) return
     const onKey = (event: KeyboardEvent): void => {
       if (event.key !== 'Escape') return
       event.stopPropagation()
-      setArmed(false)
+      setPlacing(false)
     }
     window.addEventListener('keydown', onKey, true)
     return () => window.removeEventListener('keydown', onKey, true)
-  }, [armed])
+  }, [placing])
   // A tile asked for from the Preview is scrolled to once its sheet is the one on the stage.
   useEffect(() => {
     if (view !== 'tag' || !reveal || tagger.loaded !== reveal.loaded) return
@@ -204,7 +208,7 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
   const openInTag = (_mask: number, found: Found | null): void => {
     setView('tag')
     setTool('corners')
-    setArmed(false)
+    setPlacing(false)
     if (found && tagSets.includes(found.loaded)) {
       tagger.setSheet(found.loaded.set.sheet)
       setReveal(found)
@@ -212,8 +216,7 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
   }
   const newTransition = (): void => {
     setView('tag')
-    setTool('block')
-    setArmed(false)
+    setPlacing(true)
   }
 
   // --- the side column: the materials, and only that -----------------------------------
@@ -314,12 +317,18 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
     </div>
   )
 
+  // --- the pickers a spelling and a brush are made of ---------------------------------------
+  const pick = (value: number | null, none: string | null, exclude: ReadonlyArray<number | null>, onChange: (id: number | null) => void) => (
+    <Select value={value === null ? '' : String(value)} options={[...(none === null ? [] : [{ value: '', label: none }]), ...materials.filter((m) => m.id === value || !exclude.includes(m.id)).map((m) => ({ value: String(m.id), label: m.name }))]} onChange={(next) => onChange(next === '' ? null : Number(next))} />
+  )
+  const facePick = <Select value={tagFace ?? ''} options={[{ value: '', label: 'Any face' }, ...archetypes().map((a): { value: string; label: string } => ({ value: a.id, label: `${a.title}s only` }))]} onChange={(next) => setTagFace(next === '' ? null : (next as ArchetypeId))} />
+
   // --- the stage: a view of the subject, its switch floating on it -----------------------
   const litKind = lit === null ? undefined : arrangements().find((a) => a.mask === lit)
   const litCount = lit === null ? 0 : corners.filter((c) => maskAt(c, mine, theirs) === lit).length
   const viewSwitch = (
     <StageFloat corner="right">
-      <Segmented value={view} options={[{ value: 'preview', label: 'Preview' }, { value: 'tag', label: 'Tag' }, { value: '3d', label: '3D', title: "The subject on a fixture, drawn by the map's own renderer" }]} onChange={(next) => { setView(next); setArmed(false) }} />
+      <Segmented value={view} options={[{ value: 'preview', label: 'Preview' }, { value: 'tag', label: 'Tag' }, { value: '3d', label: '3D', title: "The subject on a fixture, drawn by the map's own renderer" }]} onChange={(next) => { setView(next); setPlacing(false) }} />
     </StageFloat>
   )
   const stage =
@@ -385,6 +394,28 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
       <FloatStage
         scrollRef={tagger.scrollRef}
         foot={tagger.foot}
+        toolbar={
+          placing ? (
+            <StageToolbar title="New transition" onDone={() => setPlacing(false)} hint={values.length < 2 ? 'Pick what is drawn over it' : !tagger.shape ? 'No block for that spelling' : `${tagger.shape.columns} × ${tagger.shape.rows} · click its top-left tile`}>
+              <label>
+                <span>under</span>
+                {pick(spell.under, 'Nothing', [spell.over, spell.third], (under) => setSpell({ ...spell, under }))}
+              </label>
+              <label>
+                <span>over it</span>
+                {pick(spell.over, spell.over === null ? 'Pick a material…' : null, [spell.under, spell.third], (over) => setSpell({ ...spell, over }))}
+              </label>
+              <label>
+                <span>third</span>
+                {pick(spell.third, 'none', [spell.under, spell.over], (third) => setSpell({ ...spell, third }))}
+              </label>
+              <label>
+                <span>for</span>
+                {facePick}
+              </label>
+            </StageToolbar>
+          ) : null
+        }
         floats={
           <>
             {viewSwitch}
@@ -399,44 +430,32 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
     )
 
   // --- the form: about the subject, with the Tagging block on top while tagging ------------
-  const pick = (value: number | null, none: string | null, exclude: ReadonlyArray<number | null>, onChange: (id: number | null) => void) => (
-    <Select value={value === null ? '' : String(value)} options={[...(none === null ? [] : [{ value: '', label: none }]), ...materials.filter((m) => m.id === value || !exclude.includes(m.id)).map((m) => ({ value: String(m.id), label: m.name }))]} onChange={(next) => onChange(next === '' ? null : Number(next))} />
-  )
   const tagging = (
     <>
       <div className="ui-k">Tagging</div>
       <Field label="Sheet">
         {tagger.loaded ? <AssetPicker value={tagger.loaded.set.sheet} options={tagger.options} onChange={tagger.setSheet} footer={tagger.pickerFooter} /> : <span className="ui-hint-line">No sheet is loaded.</span>}
       </Field>
-      <Field label="Tool">
-        <Segmented value={tool} options={[{ value: 'corners', label: 'Tag corners' }, { value: 'erase', label: 'Erase' }, { value: 'block', label: 'Place a block' }]} onChange={(next) => { setTool(next); setArmed(false) }} />
-      </Field>
-      {tool === 'corners' ? (
-        <Field label="Slot" hint="Surface is what an artist tags all day. A fringe is a bottom edge hung off cliff tops; a picket a top edge stood at wall feet.">
-          <Select value={slot ?? ''} options={allSlots().map((s) => ({ value: s.ordinary ? '' : s.id, label: s.note ? `${s.name} — ${s.note}` : s.name }))} onChange={(next) => setSlot(next === '' ? null : next)} />
-        </Field>
-      ) : null}
-      {tool === 'block' ? (
+      {placing ? (
+        <span className="ui-hint-line">Placing a transition: its values are in the toolbar on the sheet. Click a block's top-left tile to place it, swap a value for the next one, and Done or Esc to finish.</span>
+      ) : (
         <>
-          <Field label="Spell the transition">
-            <div className="ui-spell">
-              <span className="ui-hint-line">under</span>
-              {pick(spell.under, 'Nothing', [spell.over, spell.third], (under) => setSpell({ ...spell, under }))}
-              <span className="ui-hint-line">over it</span>
-              {pick(spell.over, spell.over === null ? 'Pick a material…' : null, [spell.under, spell.third], (over) => setSpell({ ...spell, over }))}
-              <span className="ui-hint-line">third</span>
-              {pick(spell.third, 'none — a 5 × 3 block', [spell.under, spell.over], (third) => setSpell({ ...spell, third }))}
-            </div>
+          <Field label="Tool">
+            <Segmented value={tool} options={[{ value: 'corners', label: 'Tag corners' }, { value: 'erase', label: 'Erase' }]} onChange={setTool} />
           </Field>
-          <Action title={armed ? 'Placing: point at its top-left tile' : 'Place on the sheet'} tone="accent" disabled={values.length < 2 || !tagger.shape || !tagger.loaded} onClick={() => setArmed(!armed)} />
-          <span className="ui-hint-line">Filled in from the subject: the later material by priority over the earlier. After a block lands, swap a value and place the next. A third value makes it the 6 × 6 block for three materials meeting.</span>
+          {tool === 'corners' ? (
+            <>
+              <Field label="Slot" hint="Surface is what an artist tags all day. A fringe is a bottom edge hung off cliff tops; a picket a top edge stood at wall feet.">
+                <Select value={slot ?? ''} options={allSlots().map((s) => ({ value: s.ordinary ? '' : s.id, label: s.note ? `${s.name} — ${s.note}` : s.name }))} onChange={(next) => setSlot(next === '' ? null : next)} />
+              </Field>
+              <Field label="For" hint="The kind of face this art is for. Any is what most art wants; art for one kind of face is drawn there before art for any.">
+                {facePick}
+              </Field>
+            </>
+          ) : null}
+          <Action title="New transition…" onClick={newTransition} />
         </>
-      ) : null}
-      {tool !== 'erase' ? (
-        <Field label="For" hint="The kind of face this art is for. Any is what most art wants; art for one kind of face is drawn there before art for any.">
-          <Select value={tagFace ?? ''} options={[{ value: '', label: 'Any face' }, ...archetypes().map((a): { value: string; label: string } => ({ value: a.id, label: `${a.title}s only` }))]} onChange={(next) => setTagFace(next === '' ? null : (next as ArchetypeId))} />
-        </Field>
-      ) : null}
+      )}
       <div style={{ borderTop: '1px solid var(--ui-line)', margin: '2px 0' }} />
     </>
   )

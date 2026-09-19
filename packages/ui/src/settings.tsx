@@ -16,6 +16,7 @@
 import { Modal } from '@mantine/core'
 import { useEffect, useRef, useState, type ReactNode, type Ref } from 'react'
 
+import { Kbd } from './frame'
 import { Icon, type IconName } from './icons'
 
 export function SettingsDialog({ opened, onClose, rail, title, aside, wide = false, children }: { opened: boolean; onClose: () => void; rail: ReactNode; title: string; aside?: ReactNode; /** The section is an EDITOR rather than a form: its pane loses the padding and the width cap and fills the window. The modal itself is one size either way. */ wide?: boolean; children: ReactNode }) {
@@ -507,14 +508,17 @@ export function SubjectRow({ label, prefix, note, swatch, active, trailing, onCl
  * A stage with controls floating on it (decision of 2026-09-19): the content scrolls underneath, the floats stay
  * where they are. `foot` is the one line of small print along the bottom.
  */
-export function FloatStage({ children, floats, foot, scrollRef }: { children: ReactNode; floats?: ReactNode; foot?: ReactNode; scrollRef?: Ref<HTMLDivElement> }) {
+export function FloatStage({ children, floats, toolbar, foot, scrollRef }: { children: ReactNode; floats?: ReactNode; /** A mode's controls, attached along the top of the stage while the mode lasts; the floats sit under it. */ toolbar?: ReactNode; foot?: ReactNode; scrollRef?: Ref<HTMLDivElement> }) {
   return (
     <div className="ui-float-stage">
-      <div className="ui-float-stage-scroll" ref={scrollRef}>
-        {children}
+      {toolbar}
+      <div className="ui-float-stage-body">
+        <div className="ui-float-stage-scroll" ref={scrollRef}>
+          {children}
+        </div>
+        {floats}
+        {foot ? <div className="ui-tagger-foot">{foot}</div> : null}
       </div>
-      {floats}
-      {foot ? <div className="ui-tagger-foot">{foot}</div> : null}
     </div>
   )
 }
@@ -522,4 +526,24 @@ export function FloatStage({ children, floats, foot, scrollRef }: { children: Re
 /** A control floating on a stage, in one of its top corners. */
 export function StageFloat({ corner, children }: { corner: 'left' | 'right'; children: ReactNode }) {
   return <div className={`ui-stage-float is-${corner}`}>{children}</div>
+}
+
+/**
+ * A mode's controls, attached to the top of a stage for as long as the mode lasts (decision of 2026-09-19): modal in
+ * behaviour, never a dialog — the stage stays visible and the pointer keeps working on it. `children` are labelled
+ * controls; `hint` says what the pointer does now; Done leaves the mode.
+ */
+export function StageToolbar({ title, hint, onDone, children }: { title: string; hint?: ReactNode; onDone: () => void; children: ReactNode }) {
+  return (
+    <div className="ui-stage-toolbar" role="toolbar" aria-label={title}>
+      <span className="ui-stage-toolbar-title">{title}</span>
+      <div className="ui-stage-toolbar-controls">{children}</div>
+      <span className="ui-stage-toolbar-grow" />
+      {hint ? <span className="ui-stage-toolbar-hint">{hint}</span> : null}
+      <button type="button" className="ui-action is-accent" onClick={onDone}>
+        Done
+        <Kbd>Esc</Kbd>
+      </button>
+    </div>
+  )
 }

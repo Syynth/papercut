@@ -284,6 +284,12 @@ comments on the canvas. The entries are in `decision-log.md` under that date:
 - Coverage reads as a 4 × 4 grid of cells beside the number.
 - The per-corner archetype lands before the Materials section is built.
 
+One refinement followed once it was built (same day, in the log): placing a
+transition is a MODE of the Tag stage, entered by New transition… and left by
+Done or Esc, with its spelling in a toolbar attached to the top of the stage
+and the pointer armed for as long as it lasts — modal in behaviour, never a
+dialog. The boards still show the spelling in the form column.
+
 The questions this document first asked are settled by those: three views,
 the default following the subject; the tagging controls live in the form
 column; Erase is a tool and the list is materials only; coverage is the grid
