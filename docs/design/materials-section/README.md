@@ -211,12 +211,13 @@ over the sheet, and the over material's region is drawn as a shape — its
 convex corners rounded, its concave ones filleted, the way the art rounds —
 rather than as four flat quadrants, so where each material lands is plain
 (the owner's direction of 2026-09-19, on the canvas). The default sheet is
-the one that holds most of the subject's tags. Two more things float on the
-stage beside the view switch, both the owner's directions of the same day:
-a **filter** over which tags are drawn — all of them, or only one slot, so a
-material's fringe or picket tiles can be found on a sheet — and **dimming**
-of every tile that has no corner of the selected material, so its own art
-stands out from everything else on the sheet.
+the one that holds most of the subject's tags. Two more things, both the
+owner's directions of the same day: a **Show** dropdown floating on the
+stage beside the view switch, over which tags are drawn — all, or by slot
+(surface, fringe) or by face (floor, wall, ramp) — so a material's fringe
+tiles or its wall tiles can be found on a sheet; and every tile that has no
+corner of the selected material is **dimmed**, always, so its own art stands
+out from everything else on the sheet.
 
 **3D** is new: the subject on a fixture the real renderer draws.
 
