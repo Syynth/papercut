@@ -18,6 +18,15 @@ const GLYPHS = {
   // tools
   select: <path d="M5 3l14 9-7 1.5L8 21 5 3z" fill="currentColor" stroke="none" />,
   terrain: <path d="M2 18 8 6l4 6 2.5-3L21 18Z" />,
+  // the three kinds of face a material's art can be for
+  faceFloor: <path d="M12 4 21 12 12 20 3 12Z" />,
+  faceWall: (
+    <>
+      <rect x="5" y="3" width="14" height="18" />
+      <path d="M5 9h14M5 15h14M12 3v6M9 9v6M15 9v6M12 15v6" />
+    </>
+  ),
+  faceRamp: <path d="M3 20h18V6Z" />,
   objects: (
     <>
       <path d="M12 3l5 7h-3l4 6H6l4-6H7z" />

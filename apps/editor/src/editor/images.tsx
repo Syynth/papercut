@@ -583,7 +583,7 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
       <div className="ui-k">Tags</div>
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: 12 }}>
         <span style={{ color: 'var(--ui-ink-2)' }}>{tagged === 0 ? 'nothing tagged yet' : `${tagged} ${tagged === 1 ? 'tile' : 'tiles'} tagged`}</span>
-        <Action title="Tag tiles ›" onClick={() => run(host, 'view.set', { settings: 'terrains' })} />
+        <Action title="Tag tiles ›" onClick={() => run(host, 'view.set', { settings: 'materials' })} />
       </div>
       <div className="ui-k">File</div>
       <div className="ui-tagger-hint" style={{ minHeight: 0 }}>
