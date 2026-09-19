@@ -37,6 +37,7 @@ export {
   withinBounds,
   wrapDegrees,
 } from './camera'
+export type { RigState } from './camera'
 
 export { Character } from './character'
 

@@ -19,5 +19,6 @@
  * Written out rather than `export *`, matching the other packages.
  */
 
+export { FixtureView } from './fixture'
 export { Viewport } from './viewport'
 export type { Gesture, PlaySession, PointerModifiers, PointerMotion, PointerPress, EditorPick, SketchHandle, SketchOverlay, ViewportHandlers, ViewportOptions } from './viewport'
