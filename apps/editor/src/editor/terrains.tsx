@@ -25,12 +25,13 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
-import { sheetName, slotOfTag, tagOf, type RgbaImage } from '@papercut/document'
+import { materialOfTag, sheetName, slotOfTag, tagOf, type RgbaImage } from '@papercut/document'
 import { useHost, useProject } from '@papercut/editor-host'
 import { archetypeOf, conventionOf, cornerAt, stampBlock, tagCorner, type LoadedSet, type Tag, type TerrainSet } from '@papercut/geometry'
 import { Action, AssetPicker, Note, Tagger, TaggerItem } from '@papercut/ui'
 
 import { run } from './commands'
+import { useDeleteMaterial } from './materials'
 import { rgbaToCanvas } from './rgba'
 import { setImageTerrain, type Session } from './session'
 import { thumbOf } from './images'
@@ -159,6 +160,8 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
   const [sheet, setSheet] = useState<string | null>(null)
   /** The tag the pointer paints; `null` is Nothing. */
   const [brush, setBrush] = useState<Tag>(null)
+  // A material can be deleted from here as well as from Materials (ruling of 2026-09-19): the list is the project's materials.
+  const deletion = useDeleteMaterial(session, () => setBrush(null))
   /**
    * Corner mode tags one quadrant at a time. BLOCK mode tags a whole block of
    * the convention where the artist drew it, which is what bringing in a sheet
@@ -361,7 +364,9 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
   const hoveredName = nameOfTag(hovered)
   const brushName = brush === null ? 'Nothing' : nameOfTag(brush)
   return (
-    <Tagger
+    <>
+      {deletion.dialog}
+      <Tagger
       stageRef={stageRef}
       tools={
         <>
@@ -434,6 +439,7 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
                     dim={!drawn.has(entry.tag)}
                     meta={drawn.get(entry.tag) ?? 0}
                     onClick={() => setBrush(entry.tag)}
+                    {...(entry.slot.ordinary ? { onRemove: () => deletion.remove(materialOfTag(entry.tag) ?? -1), removeTitle: 'Delete this material from the project' } : {})}
                   />
                 ))}
               </>
@@ -443,7 +449,7 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
             <span className="ui-hint-line">
               {mode === 'block'
                 ? 'Papercut knows a block’s shape and will not guess where an artist put it. Point at its top-left tile.'
-                : 'The project’s materials. Edit them in Materials; what an image draws is whatever is tagged here.'}
+                : 'The project’s materials — not this sheet’s — as the tags a corner can take. Edit them in Materials, or delete one here; what an image draws is whatever is tagged here.'}
             </span>
           </div>
         </>
@@ -481,5 +487,6 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
         </>
       }
     />
+    </>
   )
 }
