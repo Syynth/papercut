@@ -308,7 +308,8 @@ export function useTagger({ session, sets, active, tool, brush, values, armed, o
   /** Bumped when the history changes, so the buttons follow it. */
   const [, setTick] = useState(0)
   const scrollRef = useRef<HTMLDivElement>(null)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  /** The canvas as state rather than a ref: it is only mounted while the tagger is on screen, and a new one is a reason to draw. */
+  const [canvas, setCanvas] = useState<HTMLCanvasElement | null>(null)
   const stroke = useRef<{ tag: Tag; set: TerrainSet; last: Corner | null } | null>(null)
   const histories = useRef(new Map<string, History>())
 
@@ -397,10 +398,8 @@ export function useTagger({ session, sets, active, tool, brush, values, armed, o
   }, [tool, armed, hover, set, shape, values])
 
   useEffect(() => {
-    const canvas = canvasRef.current
     if (canvas && loaded && set) draw(canvas, { image: loaded.image, set, colourOf, scale, hover, pending, show, selected })
-    // `active` because the canvas is only mounted while the tagger is on screen: coming on screen is a reason to draw.
-  }, [loaded, set, colourOf, scale, hover, pending, show, selected, active])
+  }, [canvas, loaded, set, colourOf, scale, hover, pending, show, selected])
 
   const cornerUnder = (event: ReactPointerEvent<HTMLCanvasElement>): Corner | null => {
     if (!set) return null
@@ -470,7 +469,7 @@ export function useTagger({ session, sets, active, tool, brush, values, armed, o
 
   const stage = loaded && set ? (
     <>
-      <canvas ref={canvasRef} style={{ display: 'block', margin: '56px 20px 48px', touchAction: 'none', cursor: tool === 'block' && !armed ? 'default' : 'crosshair' }} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={() => setHover(null)} onContextMenu={(event) => event.preventDefault()} />
+      <canvas ref={setCanvas} style={{ display: 'block', margin: '56px 20px 48px', touchAction: 'none', cursor: tool === 'block' && !armed ? 'default' : 'crosshair' }} onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onPointerLeave={() => setHover(null)} onContextMenu={(event) => event.preventDefault()} />
       {hover && (tool !== 'block' || armed) ? (
         <div className="ui-tagger-tip" style={hover.flip ? { left: hover.x - 14, top: hover.y + 14, transform: 'translateX(-100%)' } : { left: hover.x + 14, top: hover.y + 14 }}>
           {pending ? (
@@ -497,10 +496,10 @@ export function useTagger({ session, sets, active, tool, brush, values, armed, o
     tool === 'block' ? (
       armed ? (
         <>
-          <b>{spelled}</b> · {shape ? `${shape.columns} × ${shape.rows}` : 'no block'} · what it writes is drawn under the pointer · click its top-left tile · Esc cancels
+          <b>{spelled}</b> · {shape ? `${shape.columns} × ${shape.rows}` : 'no block'} · what it writes is drawn under the pointer · click its top-left tile · swap a value for the next · Esc when done
         </>
       ) : (
-        <>Spell the transition and press Place on the sheet · ⌘ wheel to zoom</>
+        <>Pick what is drawn over it in the toolbar · ⌘ wheel to zoom</>
       )
     ) : (
       <>

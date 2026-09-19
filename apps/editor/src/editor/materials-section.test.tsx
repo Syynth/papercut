@@ -177,23 +177,35 @@ describe('the materials section', () => {
     }
   })
 
-  it('spells a transition from the subject: the later material by priority over the earlier', () => {
+  it('enters a placing mode from New transition…, spelled from the subject, and leaves it on Done or Esc', () => {
     mount(section(ground([[0, null]])))
     act(() => subject('meets Stone')?.click())
+    expect(window.document.querySelector('.ui-stage-toolbar')).toBeNull()
     act(() => named('New transition…')?.click())
 
-    // The Tag view, the block tool, and the three values: Grass is first in the library, so Stone is drawn over it.
-    expect(text()).toContain('Tagging')
-    expect(text()).toContain('Spell the transition')
-    const values = [...window.document.querySelectorAll<HTMLSelectElement>('.ui-spell select')].map((s) => s.selectedOptions[0]?.textContent)
-    expect(values).toEqual(['Grass', 'Stone', 'none — a 5 × 3 block'])
-    expect(named('Place on the sheet')?.disabled).toBe(false)
+    // A toolbar on the Tag stage, not a dialog: the values of the transition, Grass first in the library so Stone is over it.
+    const toolbar = window.document.querySelector('.ui-stage-toolbar')
+    expect(toolbar).not.toBeNull()
+    expect(window.document.querySelector('[role="dialog"]')).toBeNull()
+    const values = (): Array<string | null | undefined> => [...window.document.querySelectorAll<HTMLSelectElement>('.ui-stage-toolbar select')].map((s) => s.selectedOptions[0]?.textContent)
+    expect(values()).toEqual(['Grass', 'Stone', 'none', 'Any face'])
+    expect(toolbar?.textContent).toContain('5 × 3')
+    // The form says the mode is on, and offers no tool to switch to while it is.
+    expect(text()).toContain('Placing a transition')
+    expect(text()).not.toContain('Tag corners')
 
-    // Pressing it arms the pointer; pressing it again, or Esc, leaves the block unplaced.
-    act(() => named('Place on the sheet')?.click())
-    expect(named('Placing: point at its top-left tile')).toBeDefined()
+    // Picking another subject while placing spells the next transition without leaving the mode.
+    act(() => subject('meets Dirt')?.click())
+    expect(values().slice(0, 2)).toEqual(['Grass', 'Dirt'])
+    expect(window.document.querySelector('.ui-stage-toolbar')).not.toBeNull()
+
     act(() => window.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'Escape' })))
-    expect(named('Place on the sheet')).toBeDefined()
+    expect(window.document.querySelector('.ui-stage-toolbar')).toBeNull()
+    expect(text()).toContain('Tag corners')
+
+    act(() => named('New transition…')?.click())
+    act(() => [...window.document.querySelectorAll<HTMLButtonElement>('.ui-stage-toolbar button')].find((b) => (b.textContent ?? '').startsWith('Done'))?.click())
+    expect(window.document.querySelector('.ui-stage-toolbar')).toBeNull()
   })
 
   it('keeps the list and New material when the library is empty', () => {
