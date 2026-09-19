@@ -52,7 +52,7 @@ export function Startup({ session }: { session: Session }) {
   return (
     <StartupScreen name="papercut" tagline="Open a project to begin.">
       <Doors>
-        <Door tone="ok" title="New Project…" body="Pick a folder. Creates papercut.json, a first map and the placeholder sheet." onClick={() => run(host, 'view.set', { dialog: 'new-project' })} />
+        <Door tone="ok" title="New Project…" body="Pick a folder — your art can already be in it. Creates papercut.json and the placeholder sheet." onClick={() => run(host, 'view.set', { dialog: 'new-project' })} />
         <Door tone="accent" title="Open…" body="Open a project folder — the one papercut.json sits in." onClick={() => void onOpen()} />
       </Doors>
       {error ? <ErrorLine>{error}</ErrorLine> : null}
@@ -106,6 +106,8 @@ export function NewProjectDialog({ session }: { session: Session }) {
   const [folder, setFolder] = useState('')
   const [texelDensity, setDensity] = useState(16)
   const [custom, setCustom] = useState(false)
+  // Off by default (ruling of 2026-09-19): a project is set up around its art, and its maps come after.
+  const [firstMap, setFirstMap] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   // In a browser the folder follows the name; a shell folder is chosen.
@@ -130,7 +132,7 @@ export function NewProjectDialog({ session }: { session: Session }) {
     setBusy(true)
     setError(null)
     try {
-      await createProjectAt(host, session, { folder: target, name: name.trim(), texelDensity })
+      await createProjectAt(host, session, { folder: target, name: name.trim(), texelDensity, firstMap })
       onClose()
     } catch (caught) {
       setError(messageOf(caught))
@@ -145,7 +147,7 @@ export function NewProjectDialog({ session }: { session: Session }) {
       opened={opened}
       onClose={onClose}
       title="New Project"
-      description="Creates the project file, a first map and the placeholder sheet, so the project opens ready to sculpt."
+      description="Creates the project file and the placeholder sheet in the folder you choose. Anything already there is left alone, and images under sheets/ are offered for listing."
       footer={
         <>
           <Action title="Cancel" onClick={onClose} />
@@ -175,12 +177,15 @@ export function NewProjectDialog({ session }: { session: Session }) {
         />
         {custom ? <NumberInput value={texelDensity} min={1} max={256} onChange={setDensity} /> : null}
       </Field>
+      <Checkbox checked={firstMap} onChange={setFirstMap}>
+        Start with an empty map
+      </Checkbox>
       <DialogManifest
         title="Will create"
         rows={[
           { name: 'papercut.json', note: 'name, resolution profile, the sheet and material lists', tone: 'accent' },
-          { name: `maps/${slug}.map.json`, note: 'an empty 32 × 32 map, opened first' },
-          { name: 'sheets/ground.png', note: `the placeholder tileset at ${texelDensity} px, its terrain set in papercut.json, yours to replace`, tone: 'ok' },
+          ...(firstMap ? [{ name: `maps/${slug}.map.json`, note: 'an empty 32 × 32 map, opened first' }] : []),
+          { name: 'sheets/ground.png', note: `the placeholder tileset at ${texelDensity} px, its terrain set in papercut.json, yours to replace`, tone: 'ok' as const },
         ]}
       />
       {error ? <ErrorLine>{error}</ErrorLine> : null}

@@ -24,7 +24,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { features } from '../features'
 
 import { ImagesSettings } from './images'
-import { LibraryStore, SummaryStore, type Session } from './session'
+import { LibraryStore, StrayStore, SummaryStore, type Session } from './session'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -47,7 +47,7 @@ afterEach(() => {
 })
 
 function session(fs: MemoryFs): Session {
-  return { fs, codec: rawImageCodec, dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore() }
+  return { fs, codec: rawImageCodec, dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
 }
 
 function mount(ui: (host: Host) => ReactNode): { host: Host; container: HTMLElement } {

@@ -19,7 +19,7 @@ import { MAPS_DIR, PROJECT_FILE, createMap, slotMaterial, slotOf, plainGrid, ser
 import type { Host } from '@papercut/editor-host'
 import { createSampleMap, generatePlaceholderTerrainSet } from '@papercut/fixtures'
 import { conventionOf, remapTags, renderTemplate, terrainOf, type LoadedSet, type TerrainSet } from '@papercut/geometry'
-import { MemoryFs, addImage, addMap, createProjectFolder, forget, hashBytes, joinPath, listImage, openProject, parseRecents, readMap, remember, writeMap, writeProject, type ImageCodec, type OpenedProject, type ProjectFs, type RecentProject } from '@papercut/project'
+import { MemoryFs, addImage, addMap, createProjectFolder, forget, hashBytes, joinPath, listImage, openProject, parseRecents, readMap, remember, writeMap, writeProject, type ImageCodec, type OpenedProject, type ProjectFs, type RecentProject, type StrayMap } from '@papercut/project'
 import { exportGltf } from '@papercut/runtime/export'
 import { desktopShell, type MenuCommand, type ShellDialogs, type ShellMenu } from '@papercut/shell-api'
 
@@ -55,20 +55,39 @@ export interface Session {
   readonly summaries: SummaryStore
   /** What the folder holds that the project does not list: image files under sheets/, for the library to offer. */
   readonly library: LibraryStore
+  /** Map files under maps/ the project does not list, each judged by its stamp (ruling of 2026-09-19), for the settings to offer. */
+  readonly strays: StrayStore
 }
 
-/** The image files in the folder that no entry lists, as of the last open or reload; a store so the library follows it. */
-export class LibraryStore {
-  private unlisted: readonly string[] = []
+/** A value React subscribes to, replaced whole: what the folder holds beyond the project's lists, as of the last open or reload. */
+class ValueStore<T> {
+  private value: T
   private readonly listeners = new Set<() => void>()
-  get = (): readonly string[] => this.unlisted
+  constructor(initial: T) {
+    this.value = initial
+  }
+  get = (): T => this.value
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener)
     return () => this.listeners.delete(listener)
   }
-  set(unlisted: readonly string[]): void {
-    this.unlisted = unlisted
+  set(value: T): void {
+    this.value = value
     for (const listener of this.listeners) listener()
+  }
+}
+
+/** The image files in the folder that no entry lists; a store so the library follows it. */
+export class LibraryStore extends ValueStore<readonly string[]> {
+  constructor() {
+    super([])
+  }
+}
+
+/** The map files in the folder the project does not list, with their verdicts. */
+export class StrayStore extends ValueStore<readonly StrayMap[]> {
+  constructor() {
+    super([])
   }
 }
 
@@ -192,8 +211,8 @@ function memoryFs(onFailure: (message: string) => void): MemoryFs {
 /** The session for this build: the shell's filesystem and dialogs when there is a shell, the memory tree otherwise. */
 export async function createSession(): Promise<Session> {
   const shell = desktopShell()
-  if (shell) return { fs: shell.fs, codec: canvasCodec, dialogs: shell.dialogs, menu: shell.menu ?? null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore() }
-  const session: Session = { fs: new MemoryFs(), codec: canvasCodec, dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore() }
+  if (shell) return { fs: shell.fs, codec: canvasCodec, dialogs: shell.dialogs, menu: shell.menu ?? null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
+  const session: Session = { fs: new MemoryFs(), codec: canvasCodec, dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
   const fs = memoryFs((message) => {
     session.persistFailure = message
   })
@@ -251,13 +270,17 @@ function queued<T>(path: string, work: () => Promise<T>): Promise<T> {
 // --- opening ---------------------------------------------------------------
 
 
+/** The document while a project has no map open: nothing reads it, and nothing writes it anywhere. */
+const NO_MAP = { width: 2, height: 2, name: 'No map' } as const
+
 /**
  * Put an opened project and its sheets in front of the editor: the map first — the one open there last, else the
  * first listed map that is in the folder — read and checked BEFORE the project is switched, so a project whose maps
- * cannot be read is refused whole rather than opened onto a placeholder that nothing would ever write.
+ * cannot be read is refused whole rather than opened onto a placeholder that nothing would ever write. A project
+ * with no map to open opens with none (ruling of 2026-09-19): the stage says so, and New Map… is the way on.
  */
 async function install(host: Host, session: Session, folder: string, opened: OpenedProject): Promise<void> {
-  let project = opened.project
+  const { project } = opened
   const candidates = [lastMapIn(folder), ...project.maps].filter((p): p is string => p !== null && project.maps.includes(p))
   let path: string | null = null
   for (const candidate of candidates) {
@@ -266,27 +289,23 @@ async function install(host: Host, session: Session, folder: string, opened: Ope
       break
     }
   }
-  let doc
-  if (path === null) {
-    // A project with no readable map is not one the editor made, but it is not refused: it gets a first map.
-    doc = createMap(32, 32, project.name)
-    const added = await addMap(session.fs, folder, project, doc)
-    path = added.path
-    project = added.project
-  } else {
+  let json: string | null = null
+  if (path !== null) {
     try {
-      doc = await readMap(session.fs, folder, path)
+      json = serialize(await readMap(session.fs, folder, path))
     } catch (error) {
       throw new Error(`${path}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
     }
   }
-  const json = serialize(doc)
   const loaded = refusal(host.dispatch('project.load', { folder, json: serializeProject(project) }))
   if (loaded !== null) throw new Error(loaded)
-  const why = refusal(host.dispatch('document.load', { json }))
-  if (why !== null) {
-    host.dispatch('project.close')
-    throw new Error(`${path}: ${why}`)
+  if (json === null) host.dispatch('document.new', NO_MAP)
+  else {
+    const why = refusal(host.dispatch('document.load', { json }))
+    if (why !== null) {
+      host.dispatch('project.close')
+      throw new Error(`${path}: ${why}`)
+    }
   }
   host.dispatch('project.current', { map: path })
   rememberOpen(folder)
@@ -327,6 +346,8 @@ function isMissing(error: unknown): boolean {
 export async function openProjectAt(host: Host, session: Session, folder: string): Promise<void> {
   let opened
   try {
+    // Opening may write the project file back (a refreshed hash, an id given to an older file): our own write, not a change to chase.
+    session.lastWriteAt = Date.now()
     opened = await openProject(session.fs, folder, session.codec)
   } catch (error) {
     if (isMissing(error)) saveRecents(forget(recents(), folder))
@@ -340,12 +361,14 @@ export interface NewProjectSpec {
   folder: string
   name: string
   texelDensity: number
+  /** Whether to start it with an empty 32 × 32 map named for the project; without one it opens on no map. */
+  firstMap?: boolean
 }
 
 /** Create a project folder and open it. */
 export async function createProjectAt(host: Host, session: Session, spec: NewProjectSpec): Promise<void> {
   const placeholder = generatePlaceholderTerrainSet(spec.texelDensity)
-  const created = await createProjectFolder(session.fs, spec.folder, { name: spec.name, texelDensity: spec.texelDensity, placeholder }, session.codec)
+  const created = await createProjectFolder(session.fs, spec.folder, { name: spec.name, texelDensity: spec.texelDensity, placeholder, ...(spec.firstMap ? { firstMap: createMap(32, 32, spec.name) } : {}) }, session.codec)
   if (host.children.project.getSnapshot().context.folder !== null) await saveNow(host, session)
   await install(host, session, spec.folder, created)
 }
@@ -379,6 +402,45 @@ export async function newMapIn(host: Host, session: Session, name: string, width
   session.summaries.put(summarise(added.path, host.reader.doc))
 }
 
+/**
+ * List a map file that sits in `maps/` unlisted and is this project's — a stray judged `ours` by its stamp — and
+ * open it. A foreign one is refused: it is another project's until imported (ruling of 2026-09-19).
+ */
+export async function adoptMap(host: Host, session: Session, path: string): Promise<void> {
+  const { folder } = location(host)
+  const stray = session.strays.get().find((s) => s.path === path)
+  if (!stray || stray.verdict !== 'ours') throw new Error(`${path} is not a map of this project; it has to be imported.`)
+  const project = host.children.project.getSnapshot().context.project
+  session.lastWriteAt = Date.now()
+  host.dispatch('project.maps.set', { maps: [...project.maps, path] })
+  await writeProject(session.fs, folder, host.children.project.getSnapshot().context.project)
+  session.strays.set(session.strays.get().filter((s) => s.path !== path))
+  await openMapAt(host, session, path)
+  session.summaries.put(summarise(path, host.reader.doc))
+}
+
+/**
+ * Take a map off the project's list. Its file stays in the folder, where it shows as a stray of this project's. The
+ * open map can be unlisted too: it is saved and closed first, and the project is left with no map open.
+ */
+export async function unlistMap(host: Host, session: Session, path: string): Promise<void> {
+  const { folder, map } = location(host)
+  const project = host.children.project.getSnapshot().context.project
+  if (!project.maps.includes(path)) return
+  if (map === path) {
+    await saveNow(host, session)
+    host.dispatch('document.new', NO_MAP)
+    host.dispatch('project.current', { map: null })
+    storage()?.removeItem(LAST_MAP_PREFIX + folder)
+  }
+  session.lastWriteAt = Date.now()
+  host.dispatch('project.maps.set', { maps: project.maps.filter((m) => m !== path) })
+  await writeProject(session.fs, folder, host.children.project.getSnapshot().context.project)
+  session.summaries.set(session.summaries.get().filter((s) => s.path !== path))
+  // Judged the way an open judges it, so the file is reported exactly as it will be next time.
+  session.strays.set((await openProject(session.fs, folder, session.codec)).strays)
+}
+
 /** Write the document to its map file, and the project to its file. What the Save button and the autosave do. */
 export async function saveNow(host: Host, session: Session): Promise<string> {
   const { folder, map } = location(host)
@@ -387,7 +449,7 @@ export async function saveNow(host: Host, session: Session): Promise<string> {
   const project = host.children.project.getSnapshot().context.project
   const doc = host.reader.doc
   await Promise.all([
-    map === null ? Promise.resolve() : queued(joinPath(folder, map), () => writeMap(session.fs, folder, map, doc)),
+    map === null ? Promise.resolve() : queued(joinPath(folder, map), () => writeMap(session.fs, folder, map, doc, project)),
     queued(joinPath(folder, 'papercut.json'), () => writeProject(session.fs, folder, project)),
   ])
   if (map !== null) session.summaries.put(summarise(map, doc))
@@ -398,6 +460,7 @@ export async function saveNow(host: Host, session: Session): Promise<string> {
 function publish(host: Host, session: Session, opened: OpenedProject): void {
   host.children.viewport.send({ type: 'terrain', sets: opened.sets, warning: opened.warnings.length ? opened.warnings.join('\n') : null })
   session.library.set(opened.unlisted)
+  session.strays.set(opened.strays)
 }
 
 /**
@@ -583,10 +646,11 @@ export async function closeProject(host: Host, session: Session): Promise<void> 
   }
   host.dispatch('project.close')
   // The document too: a closed project's map must not linger to be written into the next one.
-  host.dispatch('document.new', { width: 2, height: 2, name: 'No map' })
+  host.dispatch('document.new', NO_MAP)
   rememberOpen(null)
   session.summaries.set([])
   session.library.set([])
+  session.strays.set([])
   host.children.viewport.send({ type: 'terrain', sets: [], warning: null })
 }
 
@@ -647,7 +711,7 @@ export async function repaintAndDeleteMaterial(host: Host, session: Session, fro
     }
     if (touched) {
       session.lastWriteAt = Date.now()
-      await queued(joinPath(folder, path), () => writeMap(session.fs, folder, path, other))
+      await queued(joinPath(folder, path), () => writeMap(session.fs, folder, path, other, project))
       session.summaries.put(summarise(path, other))
     }
   }

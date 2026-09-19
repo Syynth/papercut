@@ -25,7 +25,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { features } from '../features'
 
 import { MaterialsSettings } from './materials'
-import { LibraryStore, SummaryStore, type Session } from './session'
+import { LibraryStore, StrayStore, SummaryStore, type Session } from './session'
 
 ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
 
@@ -60,7 +60,7 @@ afterEach(() => {
 })
 
 function session(): Session {
-  return { fs: new MemoryFs(), codec: rawImageCodec, dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore() }
+  return { fs: new MemoryFs(), codec: rawImageCodec, dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
 }
 
 /**

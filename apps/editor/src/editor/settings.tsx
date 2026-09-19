@@ -10,7 +10,7 @@
  * the same modal the same way.
  */
 
-import { useState } from 'react'
+import { useState, useSyncExternalStore } from 'react'
 
 import { useHost, useProject, useProjectSelector, useViewSelector, useViewportSelector, type SettingsSection } from '@papercut/editor-host'
 import { chordFor, commands, keymap, type Platform } from '@papercut/registry'
@@ -24,7 +24,8 @@ import { MaterialsSettings } from './materials'
 import { TerrainsSettings } from './terrains'
 import { CameraRigProperties } from './panels'
 import { loadPrefs, savePrefs, type EditorPrefs } from './prefs'
-import { newMapIn, openMapAt, revealInFolder, type Session } from './session'
+import { onStray, strayNote } from './nomap'
+import { newMapIn, openMapAt, revealInFolder, unlistMap, type Session } from './session'
 
 type Scope = 'project' | 'app'
 
@@ -115,8 +116,10 @@ function GeneralSettings({ session }: { session: Session }) {
   const project = useProject((p) => p)
   const folder = useProjectSelector((snapshot) => snapshot.context.folder)
   const current = useProjectSelector((snapshot) => snapshot.context.map)
+  const strays = useSyncExternalStore(session.strays.subscribe, session.strays.get)
   const [newName, setNewName] = useState('')
   const notify = (notice: string): void => void run(host, 'view.set', { notice })
+  const attempt = (work: Promise<unknown>): void => void work.catch((error: unknown) => notify(messageOf(error)))
   const setMaps = (maps: readonly string[]): void => void run(host, 'project.maps.set', { maps: [...maps] })
   const move = (path: string, by: number): void => {
     const at = project.maps.indexOf(path)
@@ -143,7 +146,7 @@ function GeneralSettings({ session }: { session: Session }) {
       </SettingsBlock>
       <SettingsBlock
         title="Maps"
-        note="In the order the project shows them. Removing a map from the list leaves its file in the folder."
+        note="In the order the project shows them. Removing a map from the list leaves its file in the folder, where it shows below; removing the open one closes it."
         action={
           <>
             <TextInput value={newName} onChange={setNewName} placeholder="New map name" />
@@ -180,13 +183,41 @@ function GeneralSettings({ session }: { session: Session }) {
                   <Action title="Open" disabled={path === current} onClick={() => void openMapAt(host, session, path).catch((error: unknown) => notify(messageOf(error)))} />
                   <Action title="↑" disabled={index === 0} onClick={() => move(path, -1)} />
                   <Action title="↓" disabled={index === project.maps.length - 1} onClick={() => move(path, 1)} />
-                  <Action title="Remove" tone="danger" disabled={path === current || project.maps.length <= 1} onClick={() => setMaps(project.maps.filter((m) => m !== path))} />
+                  <Action title="Remove" tone="danger" onClick={() => attempt(unlistMap(host, session, path))} />
                 </>,
               ]}
             />
           ))}
         </Table>
       </SettingsBlock>
+      {strays.length > 0 ? (
+        <SettingsBlock title="In maps/, not listed" note="Map files in the folder the project does not list, judged by the project they are stamped with (ruling of 2026-09-19). Only this project's can be added back; another project's is imported, which is coming.">
+          <Table
+            columns={[
+              { title: 'Map', width: '1.4fr' },
+              { title: 'File', width: '1.6fr' },
+              { title: '', width: 'max-content' },
+            ]}
+          >
+            {strays.map((stray) => (
+              <TableRow
+                key={stray.path}
+                cells={[
+                  <>
+                    {stray.name ?? mapLabel(stray.path)}
+                    <Status tone={stray.verdict === 'ours' ? 'ok' : 'warn'}>{stray.verdict === 'ours' ? 'this project' : stray.verdict === 'foreign' ? (stray.project === null ? 'no stamp' : 'another project') : 'unreadable'}</Status>
+                  </>,
+                  <code>{stray.path}</code>,
+                  <>
+                    {stray.verdict === 'ours' ? <Action title="Add" onClick={() => attempt(onStray(host, session, stray))} /> : <Action title="Import…" disabled onClick={() => undefined} />}
+                    {stray.verdict !== 'ours' ? <Note>{strayNote(stray)}</Note> : null}
+                  </>,
+                ]}
+              />
+            ))}
+          </Table>
+        </SettingsBlock>
+      ) : null}
     </>
   )
 }

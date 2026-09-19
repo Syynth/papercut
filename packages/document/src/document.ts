@@ -348,6 +348,12 @@ export type ArchetypeId = 'floor' | 'wall' | 'ramp'
 export interface MapDoc {
   formatVersion: number
   id: string
+  /**
+   * The id of the project this map belongs to, stamped when it is written into a project's folder (ruling of
+   * 2026-09-19); `null` until then. A map in a folder whose stamp is not that project's is another project's,
+   * and is not opened in place.
+   */
+  project: string | null
   name: string
   /** The fill-and-edge materials sketches are dressed in, by name. */
   surfaceMaterials: Record<string, FillEdgeMaterial>
@@ -581,6 +587,7 @@ export function createMap(width = 32, height = 32, name = 'Untitled Map'): MapDo
   return {
     formatVersion: FORMAT_VERSION,
     id: newId('map'),
+    project: null,
     name,
     surfaceMaterials: defaultSurfaceMaterials(),
     structures: { [ground.id]: ground },

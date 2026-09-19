@@ -162,11 +162,11 @@ export function Stage({ platform }: { platform: Platform }) {
       observed.on('sweep', () => viewport.startSweep()),
     ]
 
-    // Scripting hooks: scripts/tour.mjs, probe.mjs and perf.mjs drive the real editor in a headless browser, and they
-    // are handy from the console. Nothing in the app reads them (scripts/global.ts types them).
+    // Scripting hook: scripts/tour.mjs, probe.mjs and perf.mjs drive the real editor in a headless browser, and it is
+    // handy from the console. Nothing in the app reads it (scripts/global.ts types it); `__host` is App's, since a
+    // project can be open with no stage.
     const scripting = window as unknown as Record<string, unknown>
     scripting.__viewport = viewport
-    scripting.__host = host
     viewport.frameMap()
     return () => {
       for (const subscription of subscriptions) subscription.unsubscribe()

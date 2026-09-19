@@ -149,6 +149,8 @@ export function deserialize(text: string): MapDoc {
   return {
     formatVersion: FORMAT_VERSION,
     id: (raw.id as string) ?? base.id,
+    // A map written before stamps carries none: unstamped, so another project's until imported.
+    project: typeof raw.project === 'string' && raw.project ? raw.project : null,
     name: (raw.name as string) ?? 'Untitled Map',
     surfaceMaterials: { ...defaultSurfaceMaterials(), ...((raw.surfaceMaterials as MapDoc['surfaceMaterials']) ?? {}) },
     structures,
