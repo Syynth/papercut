@@ -564,6 +564,34 @@ describe('walls are watertight', () => {
   })
 })
 
+describe('texel scale', () => {
+  it('draws a wall with as many texels per world unit, up it, as a floor has across it', () => {
+    const doc = createMap(8, 8)
+    setHeight(doc, 3, 3, 6)
+    const { solid } = mesh(doc, '0,0')
+    /** Texture change per world unit between two vertices of one triangle, along the axis `axis` (1 = y, 2 = z). */
+    const rates = (kind: number, axis: number): number[] => {
+      const out: number[] = []
+      for (let t = 0; t < solid.triangleCount; t++) {
+        if (solid.faceAddr[t * 4] !== kind) continue
+        const [a, b, c] = [0, 1, 2].map((k) => solid.indices[t * 3 + k])
+        for (const [p, q] of [[a, b], [b, c], [a, c]]) {
+          const d = solid.positions[q * 3 + axis] - solid.positions[p * 3 + axis]
+          if (Math.abs(d) < 0.2) continue
+          out.push(Math.abs((solid.uvs[q * 2 + 1] - solid.uvs[p * 2 + 1]) / d))
+        }
+      }
+      return out
+    }
+    const floor = rates(SURFACE_TOP, 2)
+    const wall = rates(SURFACE_CLIFF, 1)
+    expect(floor.length).toBeGreaterThan(0)
+    expect(wall.length).toBeGreaterThan(0)
+    const mean = (xs: number[]) => xs.reduce((a, b) => a + b, 0) / xs.length
+    expect(mean(wall) / mean(floor)).toBeCloseTo(1, 1)
+  })
+})
+
 describe('walls beside slopes', () => {
   it('textures the wall between a level cell and a ramp of the same top, rather than sampling nothing', () => {
     // (0,0) and (0,1) both top out at 4; (0,1) is a ramp descending east, so its edge toward (0,0) slopes from 4 to 2.
