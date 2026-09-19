@@ -28,7 +28,7 @@
 import { MAPS_DIR, PROJECT_FILE, SHEETS_DIR, createProject, deserialize, nextImageId, parseProject, serialize, serializeProject, sheetName, stemOf, type Grid, type ImageEntry, type ImageKind, type ImageLayout, type ImageTerrain, type MapDoc, type ProjectDoc, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage } from '@papercut/document'
 import { cutGrid, terrainFromLayout, terrainOf, terrainSetFrom, type LoadedSet } from '@papercut/geometry'
 
-import type { ImageCodec } from './codec'
+import { decodeImage, type DecodedImageCache, type ImageCodec } from './codec'
 import { joinPath, parentPath, type ProjectFs } from './fs'
 
 export interface OpenedProject {
@@ -61,7 +61,8 @@ export interface StrayMap {
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
-const IMAGE_FILE = /\.(png|jpe?g|webp|gif|bmp)$/i
+/** What `sheets/` is searched for: the formats a browser decodes, and Aseprite's own (decision-log 2026-09-19). */
+export const IMAGE_FILE = /\.(png|jpe?g|webp|gif|bmp|aseprite|ase)$/i
 
 interface Crypto {
   crypto: { subtle: { digest(algorithm: string, data: Uint8Array): Promise<ArrayBuffer> } }
@@ -100,7 +101,7 @@ interface Loaded {
  * Read one image: its bytes — found by hash if its path is gone — then its pixels, cut along its grid and scaled to
  * the density, with its terrain set over them. Every way it can fail is a warning with the image named.
  */
-async function loadImage(fs: ProjectFs, folder: string, entry: ImageEntry, density: number, codec: ImageCodec, hashesOfUnlisted: () => Promise<Map<string, string>>): Promise<Loaded> {
+async function loadImage(fs: ProjectFs, folder: string, entry: ImageEntry, density: number, codec: ImageCodec, hashesOfUnlisted: () => Promise<Map<string, string>>, cache: DecodedImageCache | undefined): Promise<Loaded> {
   const warnings: string[] = []
   let current = entry
   let bytes: Uint8Array
@@ -119,8 +120,14 @@ async function loadImage(fs: ProjectFs, folder: string, entry: ImageEntry, densi
   const changed = current !== entry || hash !== current.hash
   if (hash !== current.hash) current = { ...current, hash }
   let source: RgbaImage
+  let frames: number
   try {
-    source = await codec.decode(bytes)
+    const cached = cache?.get(hash, current.frame)
+    const decoded = cached ?? (await decodeImage(codec, bytes, current.frame))
+    if (cached === undefined) cache?.set(hash, current.frame, decoded)
+    source = decoded.image
+    frames = decoded.frames
+    warnings.push(...decoded.warnings.map((w) => `${name}: ${w}`))
   } catch (error) {
     return { entry: current, set: null, warnings: [...warnings, `${current.path}: ${messageOf(error)}`], changed }
   }
@@ -136,14 +143,15 @@ async function loadImage(fs: ProjectFs, folder: string, entry: ImageEntry, densi
   const terrain = current.layout === null ? current.terrain : terrainFromLayout(current.layout, current.terrain, cut.columns, cut.rows)
   const { set, dropped } = terrainSetFrom(name, density, cut.columns, cut.rows, terrain)
   if (dropped.length > 0) warnings.push(`${name}: ${dropped.length} tagged ${dropped.length === 1 ? 'tile is' : 'tiles are'} past the edge of its ${cut.columns}×${cut.rows} grid and not drawn.`)
-  return { entry: current, set: { set, image: cut.image, source, imageId: current.id }, warnings, changed }
+  return { entry: current, set: { set, image: cut.image, source, imageId: current.id, frames }, warnings, changed }
 }
 
 /**
  * Open the project in `folder`: its file, then every image it lists. Throws only when the project file itself is
  * missing or unreadable. Writes the project file back when opening refreshed a hash or relinked a moved file.
+ * With a `cache`, an image whose bytes and frame were decoded before is not decoded again.
  */
-export async function openProject(fs: ProjectFs, folder: string, codec: ImageCodec): Promise<OpenedProject> {
+export async function openProject(fs: ProjectFs, folder: string, codec: ImageCodec, cache?: DecodedImageCache): Promise<OpenedProject> {
   const text = await fs.readTextFile(joinPath(folder, PROJECT_FILE))
   const project = parseProject(text)
   // A file from before projects had ids was given one by the parse; it is written back below so the id is fixed from here on.
@@ -161,7 +169,7 @@ export async function openProject(fs: ProjectFs, folder: string, codec: ImageCod
   const warnings: string[] = []
   const images: ImageEntry[] = []
   for (const entry of project.images) {
-    const loaded = await loadImage(fs, folder, entry, project.resolution.texelDensity, codec, hashesOfUnlisted)
+    const loaded = await loadImage(fs, folder, entry, project.resolution.texelDensity, codec, hashesOfUnlisted, cache)
     images.push(loaded.entry)
     if (loaded.set) sets.push(loaded.set)
     warnings.push(...loaded.warnings)
@@ -322,6 +330,8 @@ export async function addImage(fs: ProjectFs, folder: string, project: ReadonlyP
     kind: image.kind ?? previous?.kind ?? 'tileset',
     hash: await hashBytes(image.bytes),
     grid: image.grid,
+    // A replaced file keeps the frame it was drawing; a file with fewer frames draws its last, and says so.
+    frame: previous?.frame ?? 0,
     layout: image.layout === undefined ? (previous?.layout ?? null) : image.layout,
     terrain: image.terrain ?? previous?.terrain ?? { tiles: {} },
   }
@@ -334,7 +344,7 @@ export async function addImage(fs: ProjectFs, folder: string, project: ReadonlyP
 export async function listImage(fs: ProjectFs, folder: string, project: ReadonlyProjectDoc, path: string, grid: Grid, options: { name?: string; kind?: ImageKind } = {}): Promise<ProjectDoc> {
   const file = sheetName(path)
   if (project.images.some((i) => sheetName(i.path) === file)) throw new Error(`An image called ${file} is already listed.`)
-  const entry: ImageEntry = { id: nextImageId(project.images), path, name: options.name ?? stemOf(path), kind: options.kind ?? 'tileset', hash: await hashBytes(await fs.readFile(joinPath(folder, path))), grid, layout: null, terrain: { tiles: {} } }
+  const entry: ImageEntry = { id: nextImageId(project.images), path, name: options.name ?? stemOf(path), kind: options.kind ?? 'tileset', hash: await hashBytes(await fs.readFile(joinPath(folder, path))), grid, frame: 0, layout: null, terrain: { tiles: {} } }
   const next = withEntry(project, entry)
   await writeProject(fs, folder, next)
   return next

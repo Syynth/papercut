@@ -82,6 +82,14 @@ const PLACEMENT: Record<string, Placement> = {
 
   '@papercut/registry': { kind: 'layer', rank: 0 },
   '@papercut/document': { kind: 'layer', rank: 1 },
+  // The Aseprite reader, built as if published (decision-log 2026-09-19): it
+  // knows nothing of papercut, so it sits at the floor with no workspace
+  // dependency at all. Its renderer sits one rung up, over it alone.
+  '@papercut/aseprite': { kind: 'layer', rank: 0 },
+  '@papercut/aseprite-render': { kind: 'layer', rank: 1 },
+  // Where the Aseprite model meets `RgbaImage` and `Grid`: over `document`
+  // and the two libraries, under `project`, which reads sheets through it.
+  '@papercut/aseprite-sheet': { kind: 'layer', rank: 2 },
   // Visible only to apps, features, and the editor host: the
   // chrome vocabulary is the editor's, not the runtime's. Entries are
   // PLACEMENT keys, except the literals 'app' and 'feature', which stand for

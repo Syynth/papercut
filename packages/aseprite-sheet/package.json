@@ -1,0 +1,27 @@
+{
+  "name": "@papercut/aseprite-sheet",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsup --config ../../tsup.config.ts && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.typecheck.json"
+  },
+  "dependencies": {
+    "@papercut/aseprite": "workspace:*",
+    "@papercut/aseprite-render": "workspace:*",
+    "@papercut/document": "workspace:*"
+  },
+  "devDependencies": {
+    "tsup": "8.5.1",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.0"
+  }
+}

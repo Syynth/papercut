@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "composite": true,
+    "declaration": true,
+    "declarationMap": true,
+    "emitDeclarationOnly": true,
+    "outDir": "dist",
+    "rootDir": "src",
+    "tsBuildInfoFile": "dist/tsconfig.tsbuildinfo",
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+
+    // No DOM, no Node: an .aseprite file becomes a sheet the same way in the
+    // editor, the desktop app and the export CLI.
+    "types": []
+  },
+  "exclude": ["src/**/*.test.ts"],
+  "include": ["src"],
+  "references": [{ "path": "../aseprite" }, { "path": "../aseprite-render" }, { "path": "../document" }]
+}

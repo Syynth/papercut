@@ -1,0 +1,31 @@
+{
+  // The CHECKING half of #46's split. `tsconfig.json` is the BUILD config: it
+  // is `composite`, it emits `dist/*.d.ts`, and it therefore cannot include
+  // test files — a test is not part of the published surface, and emitting
+  // declarations for one would put `vitest`'s types in `dist/`.
+  //
+  // This config restores them. It is the program the `typecheck` script runs,
+  // so `pnpm turbo run typecheck` still covers every `.test.ts` exactly as it
+  // did before the split.
+  //
+  // It deliberately carries NO `references`. The build config's references
+  // make `tsc` redirect a dependency's `dist/*.d.ts` back to that package's
+  // source, which is what keeps an editor useful in an unbuilt checkout;
+  // without them this program resolves `@papercut/*` through the `exports`
+  // map's `types` condition and reads the REAL emitted declarations, exactly
+  // as an outside consumer would. That is what makes turbo's
+  // `typecheck -> ^build` edge load-bearing rather than decorative: delete a
+  // dependency's `dist/index.d.ts` and this fails with TS2307.
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "composite": false,
+    "emitDeclarationOnly": false,
+    "declarationMap": false,
+    "noEmit": true
+  },
+
+  // `extends` inherits `exclude`; clear it so the tests the build config
+  // leaves out are checked here.
+  "exclude": [],
+  "include": ["src"]
+}

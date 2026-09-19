@@ -58,6 +58,9 @@
   // `references` (that direction is free and gives an editor source
   // navigation across the boundary); they are just not referenced back.
   "references": [
+    { "path": "packages/aseprite" },
+    { "path": "packages/aseprite-render" },
+    { "path": "packages/aseprite-sheet" },
     { "path": "packages/document" },
     { "path": "packages/editor-host" },
     { "path": "packages/eslint-rules" },

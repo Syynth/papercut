@@ -47,6 +47,8 @@ export interface LoadedSet {
   source?: RgbaImage
   /** The id of the project image it was loaded from, which sprites and pasted tiles name it by. Absent for a generated set. */
   imageId?: number
+  /** How many frames its file has — more than one for an animated `.aseprite`, of which `source` is the entry's chosen frame. Absent for a generated set. */
+  frames?: number
 }
 
 /** A trim tag, read as the plain tag it also is; any other tag as it is. */

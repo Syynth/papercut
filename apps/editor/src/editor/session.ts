@@ -19,7 +19,7 @@ import { MAPS_DIR, PROJECT_FILE, createMap, slotMaterial, slotOf, plainGrid, ser
 import type { Host } from '@papercut/editor-host'
 import { createSampleMap, generatePlaceholderTerrainSet } from '@papercut/fixtures'
 import { conventionOf, remapTags, renderTemplate, terrainFromLayout, terrainOf, terrainSetFrom, type LoadedSet, type TerrainSet } from '@papercut/geometry'
-import { MemoryFs, addImage, addMap, createProjectFolder, forget, hashBytes, joinPath, listImage, openProject, parseRecents, readMap, remember, writeMap, writeProject, type ImageCodec, type OpenedProject, type ProjectFs, type RecentProject, type StrayMap } from '@papercut/project'
+import { DecodedImageCache, MemoryFs, addImage, addMap, createProjectFolder, decodeImage, forget, hashBytes, joinPath, listImage, openProject, parseRecents, readMap, remember, writeMap, writeProject, type DecodedImage, type ImageCodec, type OpenedProject, type ProjectFs, type RecentProject, type StrayMap } from '@papercut/project'
 import { exportGltf } from '@papercut/runtime/export'
 import { desktopShell, type MenuCommand, type ShellDialogs, type ShellMenu } from '@papercut/shell-api'
 
@@ -43,6 +43,8 @@ const SAMPLE_FOLDER = `${MEMORY_PROJECTS_DIR}/sample-valley`
 export interface Session {
   readonly fs: ProjectFs
   readonly codec: ImageCodec
+  /** Decoded images by content hash and frame, for the session: a reload decodes only the files that changed. */
+  readonly images: DecodedImageCache
   /** The shell's native dialogs, or `null` in a browser, where a folder is chosen another way. */
   readonly dialogs: ShellDialogs | null
   /** The shell's native menu, or `null` in a browser. */
@@ -211,8 +213,8 @@ function memoryFs(onFailure: (message: string) => void): MemoryFs {
 /** The session for this build: the shell's filesystem and dialogs when there is a shell, the memory tree otherwise. */
 export async function createSession(): Promise<Session> {
   const shell = desktopShell()
-  if (shell) return { fs: shell.fs, codec: canvasCodec, dialogs: shell.dialogs, menu: shell.menu ?? null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
-  const session: Session = { fs: new MemoryFs(), codec: canvasCodec, dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
+  if (shell) return { fs: shell.fs, codec: canvasCodec, images: new DecodedImageCache(), dialogs: shell.dialogs, menu: shell.menu ?? null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
+  const session: Session = { fs: new MemoryFs(), codec: canvasCodec, images: new DecodedImageCache(), dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
   const fs = memoryFs((message) => {
     session.persistFailure = message
   })
@@ -348,7 +350,7 @@ export async function openProjectAt(host: Host, session: Session, folder: string
   try {
     // Opening may write the project file back (a refreshed hash, an id given to an older file): our own write, not a change to chase.
     session.lastWriteAt = Date.now()
-    opened = await openProject(session.fs, folder, session.codec)
+    opened = await openProject(session.fs, folder, session.codec, session.images)
   } catch (error) {
     if (isMissing(error)) saveRecents(forget(recents(), folder))
     throw new Error(`Could not open ${folder}: ${error instanceof Error ? error.message : String(error)}`, { cause: error })
@@ -449,7 +451,7 @@ export async function unlistMap(host: Host, session: Session, path: string): Pro
   await writeProject(session.fs, folder, host.children.project.getSnapshot().context.project)
   session.summaries.set(session.summaries.get().filter((s) => s.path !== path))
   // Judged the way an open judges it, so the file is reported exactly as it will be next time.
-  session.strays.set((await openProject(session.fs, folder, session.codec)).strays)
+  session.strays.set((await openProject(session.fs, folder, session.codec, session.images)).strays)
 }
 
 /** Write the document to its map file, and the project to its file. What the Save button and the autosave do. */
@@ -480,7 +482,7 @@ function publish(host: Host, session: Session, opened: OpenedProject): void {
  * file on disk and the project in memory say the same thing.
  */
 async function reloadImages(host: Host, session: Session, folder: string): Promise<void> {
-  const reopened = await openProject(session.fs, folder, session.codec)
+  const reopened = await openProject(session.fs, folder, session.codec, session.images)
   const current = host.children.project.getSnapshot().context.project
   if (JSON.stringify(current.images) !== JSON.stringify(reopened.project.images)) host.dispatch('project.images.set', { images: reopened.project.images })
   publish(host, session, reopened)
@@ -501,9 +503,9 @@ async function writeImages(host: Host, session: Session, images: readonly ImageE
 }
 
 /** A picked file's pixels, decoded now so the import dialog can show them and offer the sizes that fit. */
-export async function inspectImageFile(session: Session, file: File): Promise<{ bytes: Uint8Array; image: RgbaImage }> {
+export async function inspectImageFile(session: Session, file: File): Promise<{ bytes: Uint8Array; decoded: DecodedImage }> {
   const bytes = new Uint8Array(await file.arrayBuffer())
-  return { bytes, image: await session.codec.decode(bytes) }
+  return { bytes, decoded: await decodeImage(session.codec, bytes) }
 }
 
 export interface ImportSpec {
@@ -589,7 +591,7 @@ export async function listUnlistedImage(host: Host, session: Session, path: stri
  * dropped, and the count comes back so the caller can say so. The images reload either way, since
  * the tiles are cut by the grid.
  */
-export async function setImageProps(host: Host, session: Session, file: string, changes: Partial<Pick<ImageEntry, 'name' | 'kind' | 'grid'>>): Promise<{ moved: number; dropped: number } | null> {
+export async function setImageProps(host: Host, session: Session, file: string, changes: Partial<Pick<ImageEntry, 'name' | 'kind' | 'grid' | 'frame'>>): Promise<{ moved: number; dropped: number } | null> {
   const { folder } = location(host)
   const entry = entryOf(host, file)
   let moved: { moved: number; dropped: number } | null = null
@@ -605,7 +607,7 @@ export async function setImageProps(host: Host, session: Session, file: string, 
   }
   const images = host.children.project.getSnapshot().context.project.images.map((i) => (sheetName(i.path) === file ? next : i))
   await writeImages(host, session, images)
-  if (changes.grid !== undefined) await reloadImages(host, session, folder)
+  if (changes.grid !== undefined || changes.frame !== undefined) await reloadImages(host, session, folder)
   return moved
 }
 
@@ -653,7 +655,7 @@ export async function unlistImage(host: Host, session: Session, file: string): P
 export async function replaceImageFile(host: Host, session: Session, file: string, picked: File): Promise<void> {
   const entry = entryOf(host, file)
   const bytes = new Uint8Array(await picked.arrayBuffer())
-  await session.codec.decode(bytes)
+  await decodeImage(session.codec, bytes)
   await importImage(host, session, { file, bytes, grid: entry.grid })
 }
 
@@ -846,7 +848,7 @@ const WATCH_SETTLE_MS = 400
  * open map. The document itself is never touched — a map is its own file, edited on its own.
  */
 async function reloadProject(host: Host, session: Session, folder: string): Promise<void> {
-  const opened = await openProject(session.fs, folder, session.codec)
+  const opened = await openProject(session.fs, folder, session.codec, session.images)
   const current = host.children.project.getSnapshot().context.project
   const next = opened.project
   const changed = (a: unknown, b: unknown): boolean => JSON.stringify(a) !== JSON.stringify(b)

@@ -877,3 +877,35 @@ Each entry:
 - **SCOPE:** minor/local
 - **WHAT:** The Terrain sets page lists the project's materials as tag targets, and a material can be deleted right there — the same deletion as in Materials: at once when no map paints with it (its tags on every sheet cleared), through the repaint prompt when one does. The list says plainly that these are the project's materials, not sets of the sheet being tagged.
 - **WHY:** The tagger is where the materials are looked at beside real art, so it is where a stray one is noticed — five defaults with zero tags on a sheet that has its own vocabulary. Sending the artist to another page to remove what this page shows is a round trip for nothing, and the list reading as "terrain sets" misled the owner into thinking the sheet owned them.
+
+## Aseprite support comes in two sequenced phases, both before MVP
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** asset-pipeline
+- **SCOPE:** moderate
+- **WHAT:** Papercut reads `.aseprite` files directly. Phase 1 treats one as an image, usable anywhere a PNG is: its visible layers are flattened for one chosen frame, picked with a frame scrubber and remembered on the image entry. A tileset's grid size comes from the file's own grid setting (and from its tileset tile size, where the file has one) instead of being entered again. Phase 2 maps slices to project sprites and frames and tags to animations. Phase 2 comes after phase 1 but is not deferred: both are in scope before MVP.
+- **WHY:** The artist should author in Aseprite and not re-describe the same art in papercut. Grid size and frame choice are cheap to take from the file and remove the obvious friction from phase 1. How slices and animation should work in the editor can't be designed well in the abstract: the owner needs to use phase 1 first, so phase 2's design follows from it.
+
+## .aseprite files are read by our own TypeScript parser; phase 1 handles the common blend modes; export is unchanged
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** asset-pipeline
+- **SCOPE:** moderate
+- **WHAT:** A new package parses `.aseprite` files and combines their layers itself, using `fflate` (already a dependency) for the compressed pixel data. It runs the same in the editor, the desktop app and the export CLI, and needs no Aseprite install. Phase 1 matches Aseprite exactly for Normal, Multiply, Screen, Overlay, Darken, Lighten and Addition. Any other blend mode is drawn as Normal with a warning naming the layer. Aseprite's own CLI is used only to produce the expected images for tests, never at runtime. Export does not change: textures stay embedded as PNG in the `.glb`, and no separate PNG files are written.
+- **WHY:** Only a parser of our own keeps working in the browser build and the headless exporter, and keeps the "no native binaries or outside programs" rule. Running the Aseprite CLI would tie papercut to a desktop with Aseprite installed, and would run the program again for every frame the scrubber shows. The npm parser is unmaintained and needs Node polyfills in the renderer. The common blend modes cover nearly all real files without porting all of Aseprite's modes. Export already embeds everything the game needs, and no engine currently needs separate PNGs.
+
+## Aseprite support is three packages, the lower two built as if published
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** asset-pipeline
+- **SCOPE:** moderate
+- **WHAT:** `@papercut/aseprite` parses `.aseprite` bytes into a typed file model (header, layers, frames, cels, tags, slices, palette, grid, user data). `@papercut/aseprite-render` combines one frame's layers into RGBA pixels, using only the parser's model. A third, papercut-side package turns that into project images: the chosen frame, grid defaults, frame count and warnings. The parser and renderer know nothing about papercut and are built as if published, as a replacement for `ase-parser`: complete coverage of the format, no Node or DOM dependency, documented public types, and their own tests. They keep the `@papercut` scope until a publish decision is made.
+- **WHY:** The owner's reason: building to a publishable boundary makes the code better. Expanded: a library with no papercut in it has to get the format right on its own terms instead of just enough for today's feature, and phase 2 (slices, tags, animation) then only needs a new consumer, not changes to the parser. Keeping parsing and rendering separate means a tool that only needs metadata doesn't carry the compositor.
+
+## Every Aseprite blend mode renders exactly, not just the common set
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** asset-pipeline
+- **SCOPE:** minor/local (amends ".aseprite files are read by our own TypeScript parser; phase 1 handles the common blend modes")
+- **WHAT:** The renderer ports all 19 of Aseprite's blend modes, plus its grayscale quirks, from Aseprite's MIT-licensed `doc`/`render` libraries. No mode falls back to Normal. The golden fixtures cover every mode in both RGB and grayscale.
+- **WHY:** The earlier limit was about cost: porting modes one by one from written formulas, without knowing whether rounding would match. Aseprite's own blend code is MIT, so a direct port of all modes, rounding quirks included, cost the same as the common set. It is checked bit for bit against Aseprite. A published replacement for `ase-parser` should not render some files wrong when the correct output was free.

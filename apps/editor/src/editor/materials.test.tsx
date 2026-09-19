@@ -16,7 +16,7 @@ import { createDocument, createMap } from '@papercut/document'
 import { HostProvider, createHost, type Host } from '@papercut/editor-host'
 import { tagOf } from '@papercut/document'
 import { templateTags, type CornerTags, type LoadedSet } from '@papercut/geometry'
-import { MemoryFs, rawImageCodec } from '@papercut/project'
+import { DecodedImageCache, MemoryFs, rawImageCodec } from '@papercut/project'
 import { UiProvider } from '@papercut/ui'
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
@@ -60,7 +60,7 @@ afterEach(() => {
 })
 
 function session(): Session {
-  return { fs: new MemoryFs(), codec: rawImageCodec, dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
+  return { fs: new MemoryFs(), codec: rawImageCodec, images: new DecodedImageCache(), dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
 }
 
 /**

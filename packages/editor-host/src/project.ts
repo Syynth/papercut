@@ -90,6 +90,10 @@ const imageEntry = z
     kind: z.enum(['tileset', 'sprites', 'texture']),
     hash: z.string().min(1).nullable(),
     grid,
+    // The frame of an animated file the image draws (decision-log 2026-09-19). Missing means 0, as in the project
+    // file: the only frame a PNG has. It was once left out of this `.strict()` schema, which refused every entry
+    // that carried it — so every import, since the parser gives every entry one.
+    frame: z.int().min(0).default(0),
     layout: imageLayout,
     terrain: imageTerrain,
   })

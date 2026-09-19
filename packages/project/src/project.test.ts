@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest'
 import { PROJECT_FILE, createMap, parseProject, plainGrid, tagOf, type RgbaImage } from '@papercut/document'
 import { CORNER_BLOCKS, createTerrainSet, exactTile, renderTemplate, stampTemplate, terrainOf, type LoadedSet } from '@papercut/geometry'
 
-import { rawImageCodec } from './codec'
+import { DecodedImageCache, rawImageCodec, type ImageCodec } from './codec'
 import { addImage, addMap, createProjectFolder, hashBytes, listImage, listImageFiles, mapPathFor, openProject, readMap, slugOf, writeMap } from './folder'
 import { FsError, MemoryFs, joinPath, parentPath } from './fs'
 import { forget, parseRecents, remember } from './recents'
@@ -141,8 +141,8 @@ describe('a project folder', () => {
     const fs = new MemoryFs()
     await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)
     const project = parseProject(await fs.readTextFile('/p/papercut.json'))
-    project.images.push({ id: 2, path: 'sheets/cliffs.png', name: 'Cliffs', kind: 'tileset', hash: null, grid: plainGrid(4), layout: null, terrain: { tiles: {} } })
-    project.images.push({ id: 3, path: 'sheets/props.png', name: 'Props', kind: 'tileset', hash: null, grid: plainGrid(3), layout: null, terrain: { tiles: {} } })
+    project.images.push({ id: 2, path: 'sheets/cliffs.png', name: 'Cliffs', kind: 'tileset', hash: null, grid: plainGrid(4), frame: 0, layout: null, terrain: { tiles: {} } })
+    project.images.push({ id: 3, path: 'sheets/props.png', name: 'Props', kind: 'tileset', hash: null, grid: plainGrid(3), frame: 0, layout: null, terrain: { tiles: {} } })
     await fs.writeFile('/p/sheets/props.png', await rawImageCodec.encode(placeholder(3).image))
     // The placeholder's tags describe a 4×4 grid; listed at 8 px it is 2×2, so twelve tags fall past the edge.
     project.images[0].grid = plainGrid(8)
@@ -318,5 +318,53 @@ describe('recents', () => {
     expect(parseRecents(null)).toEqual([])
     expect(parseRecents('nope')).toEqual([])
     expect(parseRecents(JSON.stringify([{ name: 'X', folder: '/x' }, { bad: true }, 3]))).toEqual([{ name: 'X', folder: '/x', openedAt: 0 }])
+  })
+})
+
+describe('the decoded image cache', () => {
+  /** The raw codec, counting what it decodes. */
+  function counting(): { codec: ImageCodec; decoded: () => number } {
+    let count = 0
+    return {
+      codec: { encode: rawImageCodec.encode, decode: (bytes) => (count++, rawImageCodec.decode(bytes)) },
+      decoded: () => count,
+    }
+  }
+
+  it('decodes an unchanged file once across opens, and a changed one again', async () => {
+    const fs = new MemoryFs()
+    await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)
+    const { codec, decoded } = counting()
+    const cache = new DecodedImageCache()
+    const first = await openProject(fs, '/p', codec, cache)
+    expect(decoded()).toBe(1)
+    const second = await openProject(fs, '/p', codec, cache)
+    expect(decoded()).toBe(1)
+    // The same pixels, shared: nothing downstream writes to a source.
+    expect(second.sets[0]?.source).toBe(first.sets[0]?.source)
+    const repainted: RgbaImage = { ...placeholder().image, data: new Uint8ClampedArray(placeholder().image.data.length).fill(90) }
+    await fs.writeFile('/p/sheets/ground.png', await rawImageCodec.encode(repainted))
+    const third = await openProject(fs, '/p', codec, cache)
+    expect(decoded()).toBe(2)
+    expect(third.sets[0]?.source?.data[0]).toBe(90)
+    // Without a cache, every open decodes.
+    await openProject(fs, '/p', codec)
+    expect(decoded()).toBe(3)
+  })
+
+  it('keeps within its pixel budget, least recently used out first', () => {
+    const image = (side: number) => ({ image: { width: side, height: side, data: new Uint8ClampedArray(side * side * 4) }, frames: 1, frame: 0, grid: null, warnings: [] })
+    const cache = new DecodedImageCache(200)
+    cache.set('a', 0, image(10))
+    cache.set('b', 0, image(8))
+    expect(cache.get('a', 0)).toBeDefined()
+    cache.set('c', 0, image(6))
+    // 100 + 64 + 36 = 200 fits; one more pushes out b, which was used least recently.
+    cache.set('d', 0, image(2))
+    expect([cache.get('a', 0), cache.get('b', 0), cache.get('c', 0), cache.get('d', 0)].map((d) => d !== undefined)).toEqual([true, false, true, true])
+    // An image bigger than the whole budget is never kept, and frames are cached apart.
+    cache.set('huge', 0, image(20))
+    expect(cache.get('huge', 0)).toBeUndefined()
+    expect(cache.get('a', 1)).toBeUndefined()
   })
 })

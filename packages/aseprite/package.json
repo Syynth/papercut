@@ -1,0 +1,29 @@
+{
+  "name": "@papercut/aseprite",
+  "private": true,
+  "version": "0.0.0",
+  "description": "Read Aseprite (.ase/.aseprite) files into a typed model: layers, frames, cels, tags, slices, palettes, tilesets and user data. No DOM, no Node.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsup --config ../../tsup.config.ts && tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.typecheck.json"
+  },
+  "dependencies": {
+    "fflate": "0.8.3"
+  },
+  "devDependencies": {
+    "tsup": "8.5.1",
+    "typescript": "6.0.3",
+    "vitest": "^5.0.0"
+  }
+}
