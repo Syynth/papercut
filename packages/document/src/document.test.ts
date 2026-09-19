@@ -5,7 +5,7 @@ import { createMap, defaultFacing, layersOf, NO_RAMP, SHAPE_BLOCK, SHAPE_SLAB, t
 import { childrenOf, descendantsOf, outlineOf, type VoxelStructure } from './structure'
 import { deserialize, LoadError, serialize } from './io'
 import { PROJECT_FORMAT_VERSION, createProject, parseProject, serializeProject, sheetName, stemOf, tagOf } from './project'
-import { addObject, addSketchPoint, addStructure, brushCells, clearRampRun, closeSketch, columnPatches, createSketch, deleteSketchPoint, fillCells, flatten, paintFace, placeStructureOnto, raise, rampPlan, rampRun, rampRunBlocked, rampRunLength, removeObject, removeStructure, reparentStructure, setEdges, setMaterial, setSketch, updateObject } from './ops'
+import { addObject, addSketchPoint, addStructure, brushCells, clearRampRun, closeSketch, columnPatches, createSketch, deleteSketchPoint, fillCells, flatten, paintFace, pasteTiles, placeStructureOnto, raise, rampPlan, rampRun, rampRunBlocked, rampRunLength, removeObject, stampFaces, removeStructure, reparentStructure, setEdges, setMaterial, setSketch, updateObject } from './ops'
 import { FACE_TOP, faceKey } from './paint'
 import { EditorStore } from './store'
 import { cornerHeights, frameOf, groundHeight, structureAt } from './terrain'
@@ -894,7 +894,7 @@ describe('a project file is checked before it is believed', () => {
   it('round-trips, and starts with the placeholder image, the default materials and no maps', () => {
     const project = createProject('Harbour Town', 32, { tiles: { 3: ['0', '0', null, null] } })
     expect(project.resolution).toEqual({ texelDensity: 32, filtering: 'nearest' })
-    expect(project.images).toEqual([{ path: 'sheets/ground.png', name: 'Ground', kind: 'tileset', hash: null, grid: { tile: 32, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, layout: null, terrain: { tiles: { 3: ['0', '0', null, null] } } }])
+    expect(project.images).toEqual([{ id: 1, path: 'sheets/ground.png', name: 'Ground', kind: 'tileset', hash: null, grid: { tile: 32, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, layout: null, terrain: { tiles: { 3: ['0', '0', null, null] } } }])
     expect(project.maps).toEqual([])
     expect(parseProject(serializeProject(project))).toEqual(project)
     expect(sheetName('sheets/ground.png')).toBe('ground.png')
@@ -928,7 +928,7 @@ describe('a project file is checked before it is believed', () => {
     expect(sparse.maps).toEqual([])
     expect(() => parseProject(JSON.stringify({ formatVersion: PROJECT_FORMAT_VERSION, images: [{ path: 'sheets/a.png' }] }))).toThrow(/no tile size/)
     const terse = parseProject(JSON.stringify({ formatVersion: PROJECT_FORMAT_VERSION, images: [{ path: 'sheets/mz/Outside_A2.png', grid: { tile: 48, margin: 2, spacing: { x: 1, y: 0 } } }] }))
-    expect(terse.images[0]).toEqual({ path: 'sheets/mz/Outside_A2.png', name: 'Outside_A2', kind: 'tileset', hash: null, grid: { tile: 48, margin: { x: 2, y: 2 }, spacing: { x: 1, y: 0 } }, layout: null, terrain: { tiles: {} } })
+    expect(terse.images[0]).toEqual({ id: 1, path: 'sheets/mz/Outside_A2.png', name: 'Outside_A2', kind: 'tileset', hash: null, grid: { tile: 48, margin: { x: 2, y: 2 }, spacing: { x: 1, y: 0 } }, layout: null, terrain: { tiles: {} } })
   })
 
   it('checks the tags as the image carries them: four a tile, each naming a material, on a real tile index', () => {
@@ -961,11 +961,36 @@ describe('a project file is checked before it is believed', () => {
       return JSON.stringify(raw)
     }
     const listed = (JSON.parse(project([{ id: 0, name: 'Grass' }], {})) as { images: { path: string }[] }).images[0].path
-    expect(parseProject(withSprites([{ name: 'tree', image: listed, rect: { x: 0, y: 1, w: 2, h: 3 } }])).sprites).toEqual([{ name: 'tree', image: listed, rect: { x: 0, y: 1, w: 2, h: 3 } }])
+    // A sprite names its image by id; one written before ids named it by path, and is read as that image's id.
+    expect(parseProject(withSprites([{ name: 'tree', image: 1, rect: { x: 0, y: 1, w: 2, h: 3 } }])).sprites).toEqual([{ name: 'tree', image: 1, rect: { x: 0, y: 1, w: 2, h: 3 } }])
+    expect(parseProject(withSprites([{ name: 'tree', image: listed, rect: { x: 0, y: 1, w: 2, h: 3 } }])).sprites[0].image).toBe(1)
+    expect(() => parseProject(withSprites([{ name: 'tree', image: 2, rect: { x: 0, y: 0, w: 1, h: 1 } }]))).toThrow(/does not list/)
     expect(() => parseProject(withSprites([{ name: 'tree', image: 'sheets/nope.png', rect: { x: 0, y: 0, w: 1, h: 1 } }]))).toThrow(/does not list/)
     expect(() => parseProject(withSprites([{ name: 'tree', image: listed, rect: { x: 0, y: 0, w: 0, h: 1 } }]))).toThrow(/whole tiles/)
     // A material has no `side` any more (ruling of 2026-09-18): one a file still carries is not read.
     const ok = parseProject(project([{ id: 0, name: 'Grass', side: 7 }, { id: 7, name: 'Dirt' }], { terrain: { tiles: { 0: [tagOf(7), null, null, null] } } }))
     expect(ok.materials[0]).not.toHaveProperty('side')
+  })
+})
+
+describe('a stamp of tiles pasted on faces', () => {
+  it('lays a floor stamp north up over each column\'s own top, and a wall stamp left to right and down its courses', () => {
+    const doc = createMap(6, 6)
+    const g = doc.structures.ground as VoxelStructure
+    fillColumn(g, 2, 2, 6)
+    fillColumn(g, 3, 2, 6)
+    // A top: across is +x, down +z, each face at its own column's top.
+    expect(stampFaces(g, { x: 2, z: 1, y: 0, dir: FACE_TOP }, 2, 2)).toEqual([
+      [{ x: 2, z: 1, y: 0, dir: FACE_TOP }, { x: 3, z: 1, y: 0, dir: FACE_TOP }],
+      [{ x: 2, z: 2, y: 2, dir: FACE_TOP }, { x: 3, z: 2, y: 2, dir: FACE_TOP }],
+    ])
+    // The south side (dir 1, facing +z) seen from outside runs +x; a course down is a layer down; past the wall is nothing.
+    expect(stampFaces(g, { x: 2, z: 2, y: 2, dir: 1 }, 3, 1)).toEqual([[{ x: 2, z: 2, y: 2, dir: 1 }, { x: 3, z: 2, y: 2, dir: 1 }, null]])
+    // The west side (dir 2, facing -x) runs +z seen from outside, and the stamp's second row is the course below.
+    expect(stampFaces(g, { x: 2, z: 2, y: 2, dir: 2 }, 1, 2)).toEqual([[{ x: 2, z: 2, y: 2, dir: 2 }], [{ x: 2, z: 2, y: 1, dir: 2 }]])
+    // Pasting writes one slot of each face it lands on, and clears it again with null.
+    const patches = pasteTiles(g, { x: 2, z: 2, y: 2, dir: 1 }, 4, [[10, 11]], 1)
+    expect(patches.map((p) => (p as { key: string; value: unknown[] }).value[1])).toEqual(['t:4:10', 't:4:11'])
+    expect(pasteTiles(g, { x: 2, z: 2, y: 2, dir: 1 }, 4, [[null]], 1)).toEqual([])
   })
 })

@@ -63,6 +63,7 @@ import {
   faceLayers,
   inBounds,
   slotMaterial,
+  slotTile,
   tintPaint,
   topHeight,
   type Tag,
@@ -254,13 +255,19 @@ const CORNER_AT = [
 
 /** A face's tags, one per material layer, and whether it holds nothing at all. */
 interface FaceKeys {
-  /** One tag per material layer, bottom first: `null` where that layer is empty. */
+  /** One tag per material layer, bottom first: `null` where that layer is empty or holds a pasted tile. */
   readonly keys: readonly Tag[]
+  /**
+   * The tile pasted whole on each layer (ruling of 2026-09-18), as an atlas tile, `-1` where the pasted tile cannot
+   * draw — its image did not load, or it is off the image's grid — and `null` where the layer pastes nothing.
+   */
+  readonly tiles: readonly (number | null)[]
   /** No layer holds anything, or nobody painted it: it draws the fallback, and is nothing to its neighbours. */
   readonly empty: boolean
 }
 
-const NOTHING: FaceKeys = { keys: [null, null, null, null], empty: true }
+const NO_TILES: readonly (number | null)[] = [null, null, null, null]
+const NOTHING: FaceKeys = { keys: [null, null, null, null], tiles: NO_TILES, empty: true }
 
 /**
  * What one build of a chunk asks about a cell over and over — its corner
@@ -316,8 +323,11 @@ class Cells {
   private faceKeys(x: number, y: number, layer: number, dir: number): FaceKeys {
     const stack = faceLayers(this.voxel.paint, x, y, layer, dir)
     if (!stack) return NOTHING
+    // A pasted tile is nothing to a material on its layer: its tag there is null, so what auto-tiles around it edges off.
     const keys = stack.map((slot) => this.look.keyOf(slotMaterial(slot)))
-    return keys.every((k) => k === null) ? NOTHING : { keys, empty: false }
+    const pasted = stack.map((slot) => slotTile(slot))
+    const tiles = pasted.some((t) => t !== null) ? pasted.map((t) => (t === null ? null : (this.look.atlas.pastedTile(t.image, t.index) ?? -1))) : NO_TILES
+    return keys.every((k) => k === null) && tiles.every((t) => t === null) ? NOTHING : { keys, tiles, empty: false }
   }
 }
 
@@ -570,16 +580,30 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
    * layer's corner tile, the quadrant of it that falls in this quarter. A
    * face with nothing on it draws the fallback under whatever its
    * neighbours' layers bring onto it. A corner no tile answers is marked.
+   *
+   * A layer holding a pasted tile draws that tile whole over the face
+   * instead: quarter q is the tile's own quadrant q, not the opposite one of
+   * a corner tile, and nothing auto-tiles onto it on that layer.
    */
-  const quarterRects = (empty: boolean, quadrant: number, cornerOf: (layer: number) => CornerKeys, markAt: () => void): Rect[] => {
+  const quarterRects = (face: FaceKeys, quarter: number, cornerOf: (layer: number) => CornerKeys, markAt: () => void): Rect[] => {
     const rects: Rect[] = []
+    const quadrant = QUADRANT_OF_QUARTER[quarter]
     for (let layer = 0; layer < STACK; layer++) {
+      const pasted = face.tiles[layer]
+      if (pasted !== null) {
+        if (pasted === -1) {
+          markAt()
+          missing.add('pasted tile')
+        }
+        rects.push(pasted === -1 ? fallback : atlas.uv(pasted, quarter))
+        continue
+      }
       const answer = atlas.tileFor(cornerOf(layer))
       if (answer.missing) {
         markAt()
         if (answer.combo) missing.add(answer.combo)
       }
-      rects.push(layer === 0 && empty ? fallback : atlas.uv(answer.tile, quadrant))
+      rects.push(layer === 0 && face.empty ? fallback : atlas.uv(answer.tile, quadrant))
     }
     return rects
   }
@@ -610,8 +634,8 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
           const vx = x + (q % 2)
           const vy = y + (q > 1 ? 1 : 0)
           const rects = quarterRects(
-            cells.at(x, y).face.empty,
-            QUADRANT_OF_QUARTER[q],
+            cells.at(x, y).face,
+            q,
             (layer) => topCorner(cells, voxel, x, y, vx, vy, layer),
             () => mark(vx, bilinear(cornerH, q % 2, q > 1 ? 1 : 0) * HALF, vy),
           )
@@ -730,8 +754,8 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
             const piece = clipToRect(region, t0, t0 + 0.5, level, level + 1)
             if (piece.length === 0) continue
             const rects = quarterRects(
-              cells.course(x, y, dir, course).empty,
-              QUADRANT_OF_QUARTER[q],
+              cells.course(x, y, dir, course),
+              q,
               (layer) => courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer),
               () => mark(ox + u[0] * (atEnd ? 1 : 0), (atTop ? course + 1 : course) * 2 * HALF, oz + u[1] * (atEnd ? 1 : 0)),
             )

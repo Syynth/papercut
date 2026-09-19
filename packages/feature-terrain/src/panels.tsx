@@ -153,17 +153,24 @@ export function TerrainBar(props: TerrainPanelProps) {
               { value: 'material', icon: 'material', title: 'Material — paints the active material layer of a top or a cliff band; ⇧ empties it' },
               { value: 'tint', icon: 'tint', title: 'Tint' },
               { value: 'fringe', icon: 'fences', title: 'Fringe — switch off the fringe hanging from a cliff top, or the picket at a wall\u2019s foot; ⇧ switches it back on' },
+              { value: 'tiles', icon: 'tile', title: 'Tiles — paste the tiles picked in the inspector onto a top or a wall, on the active material layer; ⇧ clears them' },
             ]}
           />
           <BarDivider />
-          {params.paintVerb === 'material' ? <BarLabel>{`Material layer ${params.materialLayer + 1}`}</BarLabel> : null}
+          {params.paintVerb === 'material' || params.paintVerb === 'tiles' ? <BarLabel>{`Material layer ${params.materialLayer + 1}`}</BarLabel> : null}
+          {params.paintVerb === 'tiles' ? <BarDivider /> : null}
+          {params.paintVerb === 'tiles' ? <BarLabel>{params.stamp ? `${params.stamp.tiles[0].length}×${params.stamp.tiles.length} tiles` : 'Pick tiles in the inspector'}</BarLabel> : null}
           {params.paintVerb === 'material'
             ? props.materials.map((material) => (
                 <Chip key={material.id} title={`${material.name} · ${material.archetype}`} swatch={cssColor(material.color)} active={material.id === params.material} onClick={() => set({ material: material.id })} />
               ))
             : null}
-          <BarDivider />
-          <StrokeControls {...props} />
+          {params.paintVerb === 'tiles' ? null : (
+            <>
+              <BarDivider />
+              <StrokeControls {...props} />
+            </>
+          )}
         </>
       )}
     </>

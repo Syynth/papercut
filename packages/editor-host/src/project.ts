@@ -83,6 +83,7 @@ const imageLayout = z
   .default(null)
 const imageEntry = z
   .object({
+    id: z.int().min(1),
     path: relativePath,
     name: z.string().min(1),
     kind: z.enum(['tileset', 'sprites', 'texture']),
@@ -96,7 +97,8 @@ const imageEntry = z
 const imagesSet = z
   .object({ images: z.array(imageEntry) })
   .strict()
-  .refine(({ images }) => new Set(images.map((i) => i.path.slice(i.path.lastIndexOf('/') + 1))).size === images.length, { message: 'an image is identified by its file name, so two cannot share one' })
+  .refine(({ images }) => new Set(images.map((i) => i.path.slice(i.path.lastIndexOf('/') + 1))).size === images.length, { message: 'the atlas keys a sheet by its file name, so two images cannot share one' })
+  .refine(({ images }) => new Set(images.map((i) => i.id)).size === images.length, { message: 'an image is identified by its id, so two cannot share one' })
 
 const mapsSet = z.object({ maps: z.array(relativePath) }).strict()
 
@@ -141,7 +143,7 @@ const spritesSet = z
       z
         .object({
           name: z.string().min(1),
-          image: z.string().min(1),
+          image: z.int().min(1),
           rect: z.object({ x: z.int().min(0), y: z.int().min(0), w: z.int().min(1), h: z.int().min(1) }).strict(),
         })
         .strict(),
@@ -205,7 +207,7 @@ export function projectLogicWith(initial: ProjectDoc, folder: string | null = nu
               case 'project.images.set': {
                 const images = (event.args as ImagesSetArgs).images.map((i) => JSON.parse(JSON.stringify(i)) as ImageEntry)
                 // A sprite goes with its image, the way a material's tags go with it: nothing is kept that could not draw.
-                const listed = new Set(images.map((i) => i.path))
+                const listed = new Set(images.map((i) => i.id))
                 return { context: { project: { ...project, images, sprites: project.sprites.filter((s) => listed.has(s.image)) } } }
               }
               case 'project.maps.set':
@@ -213,7 +215,7 @@ export function projectLogicWith(initial: ProjectDoc, folder: string | null = nu
               case 'project.sprites.set': {
                 // A sprite cut from an image the project does not list could never draw: the whole list is refused.
                 const { sprites } = event.args as SpritesSetArgs
-                const listed = new Set(project.images.map((i) => i.path))
+                const listed = new Set(project.images.map((i) => i.id))
                 if (sprites.some((s) => !listed.has(s.image))) return undefined
                 return { context: { project: { ...project, sprites: sprites.map((s) => ({ ...s, rect: { ...s.rect } })) } } }
               }

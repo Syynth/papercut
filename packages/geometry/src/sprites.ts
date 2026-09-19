@@ -9,7 +9,7 @@
  * shares.
  */
 
-import { sheetName, type RgbaImage, type SpriteAsset, type SpriteDef } from '@papercut/document'
+import { type RgbaImage, type SpriteAsset, type SpriteDef } from '@papercut/document'
 
 import type { LoadedSet } from './atlas'
 
@@ -24,15 +24,15 @@ export function projectSprites(defs: readonly SpriteDef[], sets: readonly Loaded
   const sprites: Record<string, SpriteAsset> = {}
   const warnings: string[] = []
   for (const def of defs) {
-    const loaded = sets.find((s) => s.set.sheet === sheetName(def.image))
+    const loaded = sets.find((s) => s.imageId === def.image)
     if (!loaded) {
-      warnings.push(`Sprite ${def.name}: ${sheetName(def.image)} did not load.`)
+      warnings.push(`Sprite ${def.name}: its image did not load.`)
       continue
     }
     const { rect } = def
     const { tile, columns, rows } = loaded.set
     if (rect.x + rect.w > columns || rect.y + rect.h > rows) {
-      warnings.push(`Sprite ${def.name}: its rectangle runs past the edge of ${sheetName(def.image)}'s ${columns}×${rows} tiles.`)
+      warnings.push(`Sprite ${def.name}: its rectangle runs past the edge of ${loaded.set.sheet}'s ${columns}×${rows} tiles.`)
       continue
     }
     sprites[def.name] = { name: def.name, facings: [crop(loaded.image, rect.x * tile, rect.y * tile, rect.w * tile, rect.h * tile)], widthTiles: rect.w, heightTiles: rect.h, emissive: false }

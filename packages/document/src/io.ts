@@ -27,8 +27,8 @@ export class LoadError extends Error {}
 
 /** `x,z,y,dir`: a column, a layer from the bedrock's -1 up, and a side 0–5. */
 const FACE_KEY = /^\d+,\d+,-?\d+,[0-5]$/
-/** A material layer's slot as the format spells it; `t:<gid>` is reserved and not read yet. */
-const SLOT = /^m:\d+$/
+/** A material layer's slot as the format spells it: a material, or a tile pasted from an image by its id. */
+const SLOT = /^(m:\d+|t:[1-9]\d*:\d+)$/
 /** `x,z,dir,top|foot`: a column, one of its four sides, and which end of the wall there. */
 const EDGE_KEY = /^\d+,\d+,[0-3],(top|foot)$/
 

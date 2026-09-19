@@ -61,6 +61,7 @@ const defaults: TerrainParams = {
   heightPinned: false,
   rampRun: null,
   sculptDeadZone: 0.2,
+  stamp: null,
 }
 
 function stub(doc: ReadonlyMapDoc, overrides: Partial<TerrainParams> = {}) {
@@ -294,5 +295,29 @@ describe('the terrain tool contract', () => {
   it('declines a press that missed the terrain', () => {
     const { deps } = stub(createMap(8, 8))
     expect(terrainContract(deps).stroke(sample(null))).toBeUndefined()
+  })
+})
+
+describe('the Tiles verb pastes its stamp where it is pressed', () => {
+  it('lands a stamp once, top-left on the face pressed, on the active layer; shift clears it; alt picks one up', () => {
+    const doc = createMap(8, 8)
+    const { deps, current } = stub(doc, { terrainMode: 'paint', paintVerb: 'tiles', materialLayer: 1, stamp: { image: 3, tiles: [[4, 5]] } })
+    const handler = terrainContract(deps).stroke(sample(top(1, 1)))
+    const patches = handler?.begin(sample(top(1, 1))) ?? []
+    expect(patches.map((p) => (p as { key: string }).key)).toEqual([faceKey(1, 1, 0, FACE_TOP), faceKey(2, 1, 0, FACE_TOP)])
+    expect(patches.map((p) => (p as { value: unknown[] }).value[1])).toEqual(['t:3:4', 't:3:5'])
+    // A stamp wider than a tile lands once: a drag does not lay overlapping copies.
+    expect(handler?.move(sample(top(3, 3)))).toEqual([])
+    expect(handler?.label).toBe('Paste tiles')
+
+    // Shift clears the stamp's footprint; there is nothing on (5,5) to clear.
+    const clear = terrainContract(deps).stroke(sample(top(5, 5), { shift: true }))
+    expect(clear?.label).toBe('Clear tiles')
+    expect(clear?.begin(sample(top(5, 5), { shift: true }))).toEqual([])
+
+    // Alt picks up the pasted tile under the pointer as a one-tile stamp.
+    ground(doc).paint.faces[faceKey(6, 6, 0, FACE_TOP)] = ['m:0', 't:3:9', null, null]
+    terrainContract(deps).stroke(sample(top(6, 6), { alt: true }))?.begin(sample(top(6, 6), { alt: true }))
+    expect(current().stamp).toEqual({ image: 3, tiles: [[9]] })
   })
 })

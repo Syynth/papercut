@@ -22,6 +22,7 @@ import { run, setParams } from './commands'
 import type { LoadedSet } from '@papercut/geometry'
 
 import { MaterialsPicker } from './materials'
+import { TilesPicker } from './tiles'
 
 import { FeaturePanels } from './bars'
 import {
@@ -178,6 +179,7 @@ export function Inspector({
           <FeaturePanels slot="inspector" tool={params.tool} doc={doc} materials={materials} params={params} platform={platform} selection={selection} />
         </Section>
       ) : null}
+      {isTerrain && params.terrainMode === 'paint' && params.paintVerb === 'tiles' ? <TilesPicker stamp={params.stamp} sets={terrain} /> : null}
       {isTerrain ? <MaterialsPicker active={params.material} sets={terrain} /> : null}
 
       {isTerrain ? (

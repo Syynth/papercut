@@ -25,12 +25,14 @@ import {
   smooth,
   paintFace,
   paintTint,
+  pasteTiles,
   raise,
   rectCells,
   setEdges,
   setMaterial,
   setWater,
   slotMaterial,
+  slotTile,
   tintPaint,
   topHeight,
   type Brush,
@@ -46,7 +48,7 @@ import {
 
 export type TerrainMode = 'sculpt' | 'paint'
 export type SculptVerb = 'raise' | 'flatten' | 'smooth' | 'ramp' | 'water'
-export type PaintVerb = 'material' | 'tint' | 'fringe'
+export type PaintVerb = 'material' | 'tint' | 'fringe' | 'tiles'
 export type StrokeShape = 'brush' | 'rect' | 'fill'
 
 /**
@@ -76,6 +78,18 @@ export interface TerrainParams {
   readonly rampRun: RampDrag | null
   /** Cells past a boundary before a sculpt stroke moves to the next cell; the prototype's dial. */
   readonly sculptDeadZone: number
+  /** What the Tiles verb pastes; `null` until tiles are picked. */
+  readonly stamp: TileStamp | null
+}
+
+/**
+ * What the Tiles verb pastes (ruling of 2026-09-18): a rectangle of one image's tiles, rows top to bottom, each a
+ * row-major index on the image's grid. Its top-left lands on the face pressed.
+ */
+export interface TileStamp {
+  /** The image's id. */
+  readonly image: number
+  readonly tiles: readonly (readonly number[])[]
 }
 
 export interface RampDrag {
@@ -102,6 +116,7 @@ export const TERRAIN_DEFAULTS: TerrainParams = {
   heightPinned: false,
   rampRun: null,
   sculptDeadZone: 0.2,
+  stamp: null,
 }
 
 export interface TerrainModifiers {
@@ -157,6 +172,8 @@ export function terrainLabel(params: TerrainParams, modifiers: TerrainModifiers,
       return modifiers.shift ? 'Clear tint' : 'Tint'
     case 'fringe':
       return modifiers.shift ? 'Fringe back on' : 'Fringe off'
+    case 'tiles':
+      return modifiers.shift ? 'Clear tiles' : 'Paste tiles'
   }
 }
 
@@ -197,6 +214,12 @@ export function eyedrop(voxel: ReadonlyVoxel, params: TerrainParams, address: Su
   // Under Sculpt the pointer picks up a height, and pins it: what Flatten wants from another cell.
   if (params.terrainMode === 'sculpt') return { height: topHeight(voxel, address.x, address.y), heightPinned: true }
   if (params.paintVerb === 'fringe') return {}
+  if (params.paintVerb === 'tiles') {
+    // A pasted tile picks up as a one-tile stamp, from the active material layer of the face.
+    const f = surfaceFace(voxel, address)
+    const tile = slotTile(faceLayers(voxel.paint, f.x, f.z, f.y, f.dir)?.[params.materialLayer])
+    return tile === null ? {} : { stamp: { image: tile.image, tiles: [[tile.index]] } }
+  }
   if (params.paintVerb === 'tint') {
     const tint = tintPaint(voxel.paint, address.x, address.y)
     return tint === undefined ? {} : { tint }
@@ -276,6 +299,13 @@ export function paintPatches(voxel: ReadonlyVoxel, params: TerrainParams, addres
       const end = edgeEndOf(voxel, address)
       const along = cells.filter(([x, y]) => (address.dir % 2 === 0 ? x === address.x : y === address.y))
       return setEdges(voxel, along.map(([x, z]) => ({ x, z, dir: address.dir, end })), erase)
+    }
+    case 'tiles': {
+      // The stamp's top-left lands on the face pressed; shift clears the stamp's footprint on the active layer.
+      const stamp = params.stamp
+      if (!stamp || (address.kind !== SURFACE_TOP && address.kind !== SURFACE_CLIFF)) return []
+      const tiles = erase ? stamp.tiles.map((row) => row.map(() => null)) : stamp.tiles
+      return pasteTiles(voxel, surfaceFace(voxel, address), stamp.image, tiles, params.materialLayer)
     }
   }
 }

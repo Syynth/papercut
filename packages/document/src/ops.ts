@@ -8,7 +8,7 @@
  */
 
 import type { Patch } from './edits'
-import { DEFAULT_LAYERS, DIR_VECTORS, MATERIAL_LAYERS, NO_RAMP, NO_WATER, SHAPE_BLOCK, SHAPE_HALF_RAMP, SHAPE_SLAB, cellIndex, inBounds, newId, slotOf, worldHeight, type DeepReadonly, type EdgeEnd, type MapObject, type MaterialLayers, type ReadonlyMapDoc } from './document'
+import { DEFAULT_LAYERS, DIR_VECTORS, MATERIAL_LAYERS, NO_RAMP, NO_WATER, SHAPE_BLOCK, SHAPE_HALF_RAMP, SHAPE_SLAB, cellIndex, inBounds, newId, slotOf, tileSlot, worldHeight, type DeepReadonly, type EdgeEnd, type MapObject, type MaterialLayers, type ReadonlyMapDoc } from './document'
 import { FACE_BOTTOM, FACE_TOP, edgeKey, faceKey, parseFaceKey, tintKey } from './paint'
 import { descendantsOf, type Placement, type ProfilePoint, type QuarterTurn, type ReadonlySketch, type ReadonlyVoxel, type SketchStructure, type Structure } from './structure'
 import { frameOf, groundHeight, toLocal, type Frame } from './terrain'
@@ -404,6 +404,58 @@ export function paintFace(voxel: ReadonlyVoxel, faces: readonly FaceRef[], mater
     stack[layer] = slot
     patches.push({ t: 'voxelPaint', id: voxel.id, layer: 'faces', key, value: stack })
   }
+  return patches
+}
+
+/**
+ * The faces a stamp `across` wide and `down` tall covers from `origin`, its top-left (ruling of 2026-09-18): on a top,
+ * north up — across is +x, down is +z, each column's own top face whatever its height; on a side, upright as the wall
+ * is seen from outside — across runs along the side left to right, down is a course lower. A cell of the stamp that
+ * lands on no face (off the volume, past the wall's end, below the ground) is `null`: a stamp writes no dormant paint.
+ */
+export function stampFaces(voxel: ReadonlyVoxel, origin: FaceRef, across: number, down: number): (FaceRef | null)[][] {
+  const rows: (FaceRef | null)[][] = []
+  for (let r = 0; r < down; r++) {
+    const row: (FaceRef | null)[] = []
+    for (let c = 0; c < across; c++) {
+      let face: FaceRef | null = null
+      if (origin.dir === FACE_TOP) {
+        const x = origin.x + c
+        const z = origin.z + r
+        if (inBounds(voxel.size, x, z)) face = { x, z, y: columnTopAt(voxel, x, z), dir: FACE_TOP }
+      } else if (origin.dir !== FACE_BOTTOM) {
+        const [nx, nz] = DIR_VECTORS[origin.dir]
+        // Along the side left to right, seen from outside: the normal turned a quarter clockwise, looking down.
+        face = { x: origin.x + nz * c, z: origin.z - nx * c, y: origin.y - r, dir: origin.dir }
+      }
+      row.push(face && inBounds(voxel.size, face.x, face.z) && exposedFacesOf(voxel, face.x, face.z).includes(faceKey(face.x, face.z, face.y, face.dir)) ? face : null)
+    }
+    rows.push(row)
+  }
+  return rows
+}
+
+/**
+ * Paste an image's tiles whole across faces into material layer `layer`: `tiles` is the stamp, rows top to bottom, each
+ * a tile's row-major index on the image's grid or `null` to clear that face's slot. It lands from `origin` as
+ * `stampFaces` lays it out; what lands on no face is dropped.
+ */
+export function pasteTiles(voxel: ReadonlyVoxel, origin: FaceRef, image: number, tiles: readonly (readonly (number | null)[])[], layer = 0): Patch[] {
+  const across = Math.max(0, ...tiles.map((row) => row.length))
+  const faces = stampFaces(voxel, origin, across, tiles.length)
+  const patches: Patch[] = []
+  tiles.forEach((row, r) => {
+    row.forEach((index, c) => {
+      const face = faces[r][c]
+      if (!face) return
+      const slot = index === null ? null : tileSlot(image, index)
+      const key = faceKey(face.x, face.z, face.y, face.dir)
+      const stack = [...(voxel.paint.faces[key] ?? new Array(MATERIAL_LAYERS).fill(null))] as MaterialLayers
+      if (stack[layer] === slot) return
+      stack[layer] = slot
+      patches.push({ t: 'voxelPaint', id: voxel.id, layer: 'faces', key, value: stack })
+    })
+  })
   return patches
 }
 

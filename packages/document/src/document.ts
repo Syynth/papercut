@@ -81,8 +81,10 @@ export interface VoxelData {
 /**
  * One slot of a face's material layers (ruling of 2026-09-18): a string that
  * says what KIND of thing it holds, `"m:<id>"` for a material, auto-tiled on
- * the dual grid, or `null` for empty. `"t:<gid>"`, a single tile laid whole on
- * the face, is reserved in the spelling and not built yet.
+ * the dual grid, `"t:<image>:<index>"` for a single tile pasted whole on the
+ * face — a door, a window — by the image's id and the tile's row-major index
+ * on its grid, or `null` for empty. To a material auto-tiling on the same
+ * layer, a pasted tile is nothing.
  */
 export type Slot = string | null
 
@@ -102,6 +104,27 @@ export function slotMaterial(slot: Slot | undefined): number | null {
   if (!slot || !slot.startsWith('m:')) return null
   const id = Number(slot.slice(2))
   return Number.isInteger(id) && id >= 0 ? id : null
+}
+
+/** A tile pasted whole on a face: the image's id and the tile's row-major index on its grid. */
+export interface PastedTile {
+  image: number
+  index: number
+}
+
+/** The slot for a pasted tile. */
+export function tileSlot(image: number, index: number): Slot {
+  return `t:${image}:${index}`
+}
+
+/** The tile a slot pastes, or `null` for an empty slot or one that holds something else. */
+export function slotTile(slot: Slot | undefined): PastedTile | null {
+  if (!slot || !slot.startsWith('t:')) return null
+  const colon = slot.indexOf(':', 2)
+  if (colon === -1) return null
+  const image = Number(slot.slice(2, colon))
+  const index = Number(slot.slice(colon + 1))
+  return Number.isInteger(image) && image >= 1 && Number.isInteger(index) && index >= 0 ? { image, index } : null
 }
 
 /** A stack with `material` in the bottom layer and the rest empty: what one coat of paint is. */
