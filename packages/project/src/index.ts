@@ -10,7 +10,7 @@
 
 export { FsError, MemoryFs, joinPath, parentPath } from './fs'
 export type { DirEntry, EntryKind, ProjectFs, WatchEvent } from './fs'
-export { decodeImage, rawImageCodec } from './codec'
+export { DecodedImageCache, decodeImage, rawImageCodec } from './codec'
 export type { DecodedImage, ImageCodec } from './codec'
 export { IMAGE_FILE, addImage, addMap, createProjectFolder, hashBytes, listImage, listImageFiles, mapPathFor, openProject, readMap, slugOf, writeMap, writeProject } from './folder'
 export type { NewImage, NewProjectOptions, OpenedProject, StrayMap } from './folder'

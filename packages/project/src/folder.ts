@@ -28,7 +28,7 @@
 import { MAPS_DIR, PROJECT_FILE, SHEETS_DIR, createProject, deserialize, nextImageId, parseProject, serialize, serializeProject, sheetName, stemOf, type Grid, type ImageEntry, type ImageKind, type ImageLayout, type ImageTerrain, type MapDoc, type ProjectDoc, type ReadonlyMapDoc, type ReadonlyProjectDoc, type RgbaImage } from '@papercut/document'
 import { cutGrid, terrainFromLayout, terrainOf, terrainSetFrom, type LoadedSet } from '@papercut/geometry'
 
-import { decodeImage, type ImageCodec } from './codec'
+import { decodeImage, type DecodedImageCache, type ImageCodec } from './codec'
 import { joinPath, parentPath, type ProjectFs } from './fs'
 
 export interface OpenedProject {
@@ -101,7 +101,7 @@ interface Loaded {
  * Read one image: its bytes — found by hash if its path is gone — then its pixels, cut along its grid and scaled to
  * the density, with its terrain set over them. Every way it can fail is a warning with the image named.
  */
-async function loadImage(fs: ProjectFs, folder: string, entry: ImageEntry, density: number, codec: ImageCodec, hashesOfUnlisted: () => Promise<Map<string, string>>): Promise<Loaded> {
+async function loadImage(fs: ProjectFs, folder: string, entry: ImageEntry, density: number, codec: ImageCodec, hashesOfUnlisted: () => Promise<Map<string, string>>, cache: DecodedImageCache | undefined): Promise<Loaded> {
   const warnings: string[] = []
   let current = entry
   let bytes: Uint8Array
@@ -122,7 +122,9 @@ async function loadImage(fs: ProjectFs, folder: string, entry: ImageEntry, densi
   let source: RgbaImage
   let frames: number
   try {
-    const decoded = await decodeImage(codec, bytes, current.frame)
+    const cached = cache?.get(hash, current.frame)
+    const decoded = cached ?? (await decodeImage(codec, bytes, current.frame))
+    if (cached === undefined) cache?.set(hash, current.frame, decoded)
     source = decoded.image
     frames = decoded.frames
     warnings.push(...decoded.warnings.map((w) => `${name}: ${w}`))
@@ -147,8 +149,9 @@ async function loadImage(fs: ProjectFs, folder: string, entry: ImageEntry, densi
 /**
  * Open the project in `folder`: its file, then every image it lists. Throws only when the project file itself is
  * missing or unreadable. Writes the project file back when opening refreshed a hash or relinked a moved file.
+ * With a `cache`, an image whose bytes and frame were decoded before is not decoded again.
  */
-export async function openProject(fs: ProjectFs, folder: string, codec: ImageCodec): Promise<OpenedProject> {
+export async function openProject(fs: ProjectFs, folder: string, codec: ImageCodec, cache?: DecodedImageCache): Promise<OpenedProject> {
   const text = await fs.readTextFile(joinPath(folder, PROJECT_FILE))
   const project = parseProject(text)
   // A file from before projects had ids was given one by the parse; it is written back below so the id is fixed from here on.
@@ -166,7 +169,7 @@ export async function openProject(fs: ProjectFs, folder: string, codec: ImageCod
   const warnings: string[] = []
   const images: ImageEntry[] = []
   for (const entry of project.images) {
-    const loaded = await loadImage(fs, folder, entry, project.resolution.texelDensity, codec, hashesOfUnlisted)
+    const loaded = await loadImage(fs, folder, entry, project.resolution.texelDensity, codec, hashesOfUnlisted, cache)
     images.push(loaded.entry)
     if (loaded.set) sets.push(loaded.set)
     warnings.push(...loaded.warnings)

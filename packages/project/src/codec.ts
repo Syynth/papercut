@@ -59,3 +59,51 @@ export async function decodeImage(codec: ImageCodec, bytes: Uint8Array, frame = 
   }
   return { image: await codec.decode(bytes), frames: 1, frame: 0, grid: null, warnings: [] }
 }
+
+/**
+ * Decoded images kept in memory by the file's content hash and the frame drawn, so reopening a project decodes
+ * only the files that changed. A reload re-reads every image the project lists whenever one of them changes — a
+ * grid edit, a frame, a save from Aseprite — and without this each one is decoded again from scratch.
+ *
+ * Bounded by pixels, least recently used out first. What it hands back is shared, so it is never written to.
+ */
+export class DecodedImageCache {
+  private readonly entries = new Map<string, DecodedImage>()
+  private pixels = 0
+
+  /** `budget` is in pixels; the default holds about 256 MB of RGBA. */
+  constructor(private readonly budget = 64 * 1024 * 1024) {}
+
+  get(hash: string, frame: number): DecodedImage | undefined {
+    const key = `${hash}#${frame}`
+    const hit = this.entries.get(key)
+    if (hit === undefined) return undefined
+    // Re-inserted, so the Map's order is least recently used first.
+    this.entries.delete(key)
+    this.entries.set(key, hit)
+    return hit
+  }
+
+  set(hash: string, frame: number, decoded: DecodedImage): void {
+    const key = `${hash}#${frame}`
+    const size = decoded.image.width * decoded.image.height
+    if (size > this.budget) return
+    const old = this.entries.get(key)
+    if (old !== undefined) {
+      this.entries.delete(key)
+      this.pixels -= old.image.width * old.image.height
+    }
+    this.entries.set(key, decoded)
+    this.pixels += size
+    for (const [k, v] of this.entries) {
+      if (this.pixels <= this.budget) break
+      this.entries.delete(k)
+      this.pixels -= v.image.width * v.image.height
+    }
+  }
+
+  /** How many decoded images it holds. */
+  get size(): number {
+    return this.entries.size
+  }
+}

@@ -361,8 +361,8 @@ function readCel(r: Reader, state: State, frame: number, warn: (message: string)
     case 2: {
       const width = r.word()
       const height = r.word()
-      const pixels = inflateExactly(state, r, width * height * state.bytesPerPixel, `Frame ${frame}, layer ${layer}: cel`)
-      return { ...base, kind: 'image', width, height, pixels }
+      const cel = { ...base, kind: 'image' as const, width, height }
+      return inflateLater(cel, 'pixels', state, r, width * height * state.bytesPerPixel, `Frame ${frame}, layer ${layer}: cel`)
     }
     case 3: {
       const width = r.word()
@@ -386,6 +386,27 @@ function readCel(r: Reader, state: State, frame: number, warn: (message: string)
       warn(`a cel has unknown type ${type}; it is dropped.`)
       return null
   }
+}
+
+/**
+ * Give `target` a `key` that inflates the rest of the chunk the first time it
+ * is read, and keeps the result. A file's cels are mostly frames nobody asks
+ * for — drawing one frame of a 200-frame sheet should not unzip the other 199
+ * — so the compressed bytes are copied now and inflated on demand. Corrupt
+ * data therefore throws its `AsepriteError` on first read, not at parse time.
+ */
+function inflateLater<T extends object, K extends string>(target: T, key: K, state: State, r: Reader, expected: number, what: string): T & Record<K, Uint8Array> {
+  const compressed = new Reader(r.bytesOf(r.remaining))
+  let value: Uint8Array | null = null
+  Object.defineProperty(target, key, {
+    enumerable: true,
+    configurable: true,
+    get(): Uint8Array {
+      value ??= inflateExactly(state, compressed, expected, what)
+      return value
+    },
+  })
+  return target as T & Record<K, Uint8Array>
 }
 
 /** Inflate the rest of the chunk, and insist it holds exactly as many bytes as the image needs. */
@@ -485,14 +506,14 @@ function readTileset(r: Reader, state: State): Tileset {
   r.skip(14)
   const name = r.string()
   const external = flags & 1 ? { fileId: r.dword(), tilesetId: r.dword() } : null
-  let pixels: Uint8Array | null = null
+  let embedded: Reader | null = null
   if (flags & 2) {
     const length = r.dword()
-    const compressed = new Reader(r.bytes, r.offset, r.offset + length)
-    pixels = inflateExactly(state, compressed, tileWidth * tileHeight * tileCount * state.bytesPerPixel, `Tileset "${name}"`)
-    r.skip(length)
+    const start = r.offset
+    r.skip(length) // bounds-checks the length against the chunk
+    embedded = new Reader(r.bytes, start, start + length)
   }
-  return {
+  const tileset: Tileset = {
     id,
     name,
     tileWidth,
@@ -502,8 +523,10 @@ function readTileset(r: Reader, state: State): Tileset {
     zeroIsEmpty: (flags & 4) !== 0,
     matchFlips: { x: (flags & 8) !== 0, y: (flags & 16) !== 0, diagonal: (flags & 32) !== 0 },
     external,
-    pixels,
+    pixels: null,
     userData: null,
     tileUserData: [],
   }
+  if (embedded !== null) inflateLater(tileset, 'pixels', state, embedded, tileWidth * tileHeight * tileCount * state.bytesPerPixel, `Tileset "${name}"`)
+  return tileset
 }

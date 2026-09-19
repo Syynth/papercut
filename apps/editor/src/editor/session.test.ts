@@ -9,12 +9,12 @@ import { beforeEach, describe, expect, it } from 'vitest'
 import { createDocument, createMap, deserialize, layersOf, raise, type VoxelStructure } from '@papercut/document'
 import { createHost, type Host } from '@papercut/editor-host'
 import { generatePlaceholderTerrainSet } from '@papercut/fixtures'
-import { MemoryFs, createProjectFolder, rawImageCodec } from '@papercut/project'
+import { DecodedImageCache, MemoryFs, createProjectFolder, rawImageCodec } from '@papercut/project'
 
 import { LibraryStore, StrayStore, SummaryStore, adoptMap, closeProject, createProjectAt, newMapIn, openMapAt, openProjectAt, recents, repaintAndDeleteMaterial, unlistMap, type Session } from './session'
 
 function makeSession(): Session & { fs: MemoryFs } {
-  return { fs: new MemoryFs(), codec: rawImageCodec, dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
+  return { fs: new MemoryFs(), codec: rawImageCodec, images: new DecodedImageCache(), dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
 }
 
 function makeHost(): Host {

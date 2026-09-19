@@ -1,3 +1,4 @@
+import { unzlibSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
 import { AsepriteError, childrenOf, decodeTile, isAseprite, isVisibleInTree, paletteAt, parseAseprite, resolveCel } from './index'
 import {
@@ -218,9 +219,23 @@ describe('parseAseprite: cels', () => {
     expect(odd.warnings[0]).toMatch(/layer 3, which does not exist/)
   })
 
-  it('refuses a compressed cel with too few pixels', () => {
+  it('refuses a compressed cel with too few pixels when its pixels are read', () => {
     const bytes = writeAseprite({ width: 4, height: 4, frames: [{ chunks: [layer({ name: 'a' }), imageCel({ layer: 0, width: 2, height: 2, pixels: red })] }] })
-    expect(() => parseAseprite(bytes)).toThrow(/expected 16 bytes of pixels, found 4/)
+    const cel = parseAseprite(bytes).frames[0]?.cels[0]
+    expect(() => cel?.kind === 'image' && cel.pixels).toThrow(/expected 16 bytes of pixels, found 4/)
+  })
+
+  it('inflates a cel once, on first read, and never touches the caller’s buffer again', () => {
+    const bytes = writeAseprite({ width: 1, height: 1, frames: [{ chunks: [layer({ name: 'a' }), imageCel({ layer: 0, width: 1, height: 1, pixels: red })] }] })
+    let inflated = 0
+    const file = parseAseprite(bytes, { inflate: (data) => (inflated++, unzlibSync(data)) })
+    expect(inflated).toBe(0)
+    bytes.fill(0)
+    const cel = file.frames[0]?.cels[0]
+    if (cel?.kind !== 'image') throw new Error('not an image cel')
+    expect([...cel.pixels]).toEqual(red)
+    expect(cel.pixels).toBe(cel.pixels)
+    expect(inflated).toBe(1)
   })
 
   it('reads grayscale and indexed pixels at their own widths', () => {
