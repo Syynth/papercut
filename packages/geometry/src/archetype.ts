@@ -141,6 +141,17 @@ export function archetypeOf(id: ArchetypeId): Archetype {
   return found
 }
 
+/**
+ * Every slot any archetype has, once each, the ordinary one first: what a tag can name for a material now that a
+ * material is not tied to one archetype (ruling of 2026-09-18). Which of them mean anything on a given face is the
+ * face's archetype's business.
+ */
+export function allSlots(): readonly Slot[] {
+  const seen = new Map<string, Slot>()
+  for (const archetype of ARCHETYPES) for (const slot of archetype.slots) if (!seen.has(slot.id)) seen.set(slot.id, slot)
+  return [...seen.values()].sort((a, b) => Number(b.ordinary ?? false) - Number(a.ordinary ?? false))
+}
+
 /** A slot's tile size at a density, rounded to whole pixels — a ramp's is not square. */
 export function slotSize(archetype: Archetype, density: number): { width: number; height: number } {
   return { width: Math.round(density * archetype.aspect.width), height: Math.round(density * archetype.aspect.height) }

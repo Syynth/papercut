@@ -4,7 +4,7 @@ import { applyPatches, History, inversePatch, patchAddress, type Patch, type Str
 import { createMap, defaultFacing, layersOf, NO_RAMP, SHAPE_BLOCK, SHAPE_SLAB, type MapDoc, type MapObject, type ReadonlyMapDoc } from './document'
 import { childrenOf, descendantsOf, outlineOf, type VoxelStructure } from './structure'
 import { deserialize, LoadError, serialize } from './io'
-import { PROJECT_FORMAT_VERSION, createProject, parseProject, serializeProject, sheetName, stemOf, tagOf } from './project'
+import { PROJECT_FORMAT_VERSION, archetypeOfTag, createProject, materialOfTag, parseProject, serializeProject, sheetName, slotOfTag, stemOf, tagOf, withArchetype } from './project'
 import { addObject, addSketchPoint, addStructure, brushCells, clearRampRun, closeSketch, columnPatches, createSketch, deleteSketchPoint, fillCells, flatten, paintFace, pasteTiles, placeStructureOnto, raise, rampPlan, rampRun, rampRunBlocked, rampRunLength, removeObject, stampFaces, removeStructure, reparentStructure, setEdges, setMaterial, setSketch, updateObject } from './ops'
 import { FACE_TOP, faceKey } from './paint'
 import { EditorStore } from './store'
@@ -1000,5 +1000,39 @@ describe('a stamp of tiles pasted on faces', () => {
     const patches = pasteTiles(g, { x: 2, z: 2, y: 2, dir: 1 }, 4, [[10, 11]], 1)
     expect(patches.map((p) => (p as { key: string; value: unknown[] }).value[1])).toEqual(['t:4:10', 't:4:11'])
     expect(pasteTiles(g, { x: 2, z: 2, y: 2, dir: 1 }, 4, [[null]], 1)).toEqual([])
+  })
+})
+
+describe('a corner tag names a material, and optionally an archetype and a slot', () => {
+  it('spells and reads every combination', () => {
+    expect(tagOf(3)).toBe('3')
+    expect(tagOf(3, 'convex')).toBe('3:convex')
+    expect(tagOf(3, null, 'wall')).toBe('3@wall')
+    expect(tagOf(3, 'convex', 'wall')).toBe('3@wall:convex')
+    for (const tag of ['3', '3:convex', '3@wall', '3@wall:convex']) expect(materialOfTag(tag)).toBe(3)
+    expect(slotOfTag('3@wall:convex')).toBe('convex')
+    expect(slotOfTag('3@wall')).toBeNull()
+    expect(archetypeOfTag('3@wall:convex')).toBe('wall')
+    expect(archetypeOfTag('3:convex')).toBeNull()
+    expect(archetypeOfTag(null)).toBeNull()
+  })
+
+  it('moves a tag to an archetype and back without losing its slot, and leaves nothing as nothing', () => {
+    expect(withArchetype('3:fringe', 'floor')).toBe('3@floor:fringe')
+    expect(withArchetype('3@wall:fringe', null)).toBe('3:fringe')
+    expect(withArchetype(null, 'wall')).toBeNull()
+  })
+
+  it('refuses a project whose tag names a kind of face papercut does not have', () => {
+    const project = createProject('Faces')
+    project.images[0] = { ...project.images[0], terrain: { tiles: { '0': ['0@ceiling', null, null, null] } } }
+    expect(() => parseProject(serializeProject(project))).toThrow(/kind of face/)
+  })
+
+  it('reads a material that still says what archetype it is, and forgets that it did', () => {
+    const raw = JSON.parse(serializeProject(createProject('Old'))) as { materials: Array<Record<string, unknown>> }
+    raw.materials[0].archetype = 'wall'
+    const project = parseProject(JSON.stringify(raw))
+    expect('archetype' in project.materials[0]).toBe(false)
   })
 })

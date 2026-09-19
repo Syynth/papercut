@@ -37,7 +37,6 @@ const materialDef = z
     id: z.int().min(0),
     name: z.string().min(1),
     color: z.int().min(0).max(0xffffff),
-    archetype: z.enum(['floor', 'wall', 'ramp']),
     /** Degrees below horizontal its fringe flap hangs at. */
     fringeAngle: z.number().min(0).max(90).exactOptional(),
     /** Pixels of art its picket stands out from the wall. */
@@ -53,7 +52,7 @@ const materialsSet = z
 
 const axes = z.object({ x: z.int().min(0), y: z.int().min(0) }).strict()
 const grid = z.object({ tile: z.int().min(1), margin: axes, spacing: axes }).strict()
-/** A material id, optionally with a slot of its archetype: `"3"` or `"3:convex"`. */
+/** A material id, optionally the archetype its art is for and a slot: `"3"`, `"3@wall"`, `"3:convex"`, `"3@wall:convex"`. */
 const cornerTag = z.string().min(1).nullable()
 /** An image's tags, checked the way the project file's parser checks them. Whether the materials exist is the host's business, not the schema's. */
 const imageTerrain = z

@@ -20,7 +20,7 @@
  * 2026-09-17).
  */
 
-import { DEFAULT_MATERIALS, MAX_PICKET_DISTANCE, PLACEHOLDER_SHEET, defaultCameraRig, type CameraRig, type DeepReadonly, type MaterialDef } from './document'
+import { DEFAULT_MATERIALS, MAX_PICKET_DISTANCE, PLACEHOLDER_SHEET, defaultCameraRig, type ArchetypeId, type CameraRig, type DeepReadonly, type MaterialDef } from './document'
 import { LoadError } from './io'
 
 export const PROJECT_FORMAT_VERSION = 3
@@ -39,16 +39,25 @@ export interface ResolutionProfile {
 // --- tags, as an image carries them --------------------------------------------
 
 /**
- * What a corner of a tile shows (ruling of 2026-09-17): a MATERIAL, and
- * optionally a SLOT of that material's archetype. `null` is nothing — the
- * edge of the ground, the air beside a cliff.
+ * What a corner of a tile shows (rulings of 2026-09-17 and 2026-09-18): a
+ * MATERIAL, optionally the ARCHETYPE of the face the art is for, and
+ * optionally a SLOT. `null` is nothing — the edge of the ground, the air
+ * beside a cliff.
  *
- * Spelled as a string, `"3"` or `"3:convex"`, for two reasons. A tag is
- * compared far more often than it is read apart: the atlas interns it, the
- * mesher packs four of them into one number, and the tagger asks whether two
- * corners are the same thing. A primitive makes every one of those an `===`.
- * And the tiles record is the bulkiest thing in a project file, four tags per
- * tile over hundreds of tiles, so the compact spelling is what gets written.
+ * Spelled as a string, `"3"`, `"3@wall"`, `"3:convex"` or `"3@wall:convex"`,
+ * for two reasons. A tag is compared far more often than it is read apart:
+ * the atlas interns it, the mesher packs four of them into one number, and the
+ * tagger asks whether two corners are the same thing. A primitive makes every
+ * one of those an `===`. And the tiles record is the bulkiest thing in a
+ * project file, four tags per tile over hundreds of tiles, so the compact
+ * spelling is what gets written.
+ *
+ * The ARCHETYPE is named per corner because a material is not tied to one
+ * (ruling of 2026-09-18): a face's archetype comes from its geometry — a top
+ * is floor, a cliff is wall, a slope is ramp — and a material has art for as
+ * many of them as someone has drawn. A corner that names none means ANY: the
+ * art draws on whatever face asks for it. The atlas answers a face with the
+ * art named for it before the art named for any.
  *
  * The slot is ALLOWED on every tag and expected on almost none. Absent, a tag
  * means the material's ordinary surface, which is what an artist tags all day;
@@ -61,16 +70,18 @@ export type Tag = string | null
 /** The four corners of a tile, in the order NW, NE, SW, SE. */
 export type CornerTags = readonly [Tag, Tag, Tag, Tag]
 
-/** The tag for a material, and a slot of its archetype when the ordinary surface is not what is meant. */
-export function tagOf(material: number, slot?: string | null): Tag {
-  return slot ? `${material}:${slot}` : String(material)
+const ARCHETYPE_IDS: readonly ArchetypeId[] = ['floor', 'wall', 'ramp']
+
+/** The tag for a material; a slot when the ordinary surface is not what is meant; an archetype when the art is for one kind of face only. */
+export function tagOf(material: number, slot?: string | null, archetype?: ArchetypeId | null): Tag {
+  return `${material}${archetype ? `@${archetype}` : ''}${slot ? `:${slot}` : ''}`
 }
 
 /** The material a tag names, or `null` for nothing. */
 export function materialOfTag(tag: Tag): number | null {
   if (tag === null) return null
-  const colon = tag.indexOf(':')
-  const id = Number(colon === -1 ? tag : tag.slice(0, colon))
+  const end = tag.search(/[@:]/)
+  const id = Number(end === -1 ? tag : tag.slice(0, end))
   return Number.isInteger(id) && id >= 0 ? id : null
 }
 
@@ -79,6 +90,22 @@ export function slotOfTag(tag: Tag): string | null {
   if (tag === null) return null
   const colon = tag.indexOf(':')
   return colon === -1 ? null : tag.slice(colon + 1)
+}
+
+/** The archetype a tag names its art for, or `null` for any. A name that is no archetype is `undefined`: the tag is malformed. */
+export function archetypeOfTag(tag: Tag): ArchetypeId | null | undefined {
+  if (tag === null) return null
+  const at = tag.indexOf('@')
+  if (at === -1) return null
+  const colon = tag.indexOf(':')
+  const name = tag.slice(at + 1, colon === -1 ? undefined : colon)
+  return ARCHETYPE_IDS.find((id) => id === name)
+}
+
+/** The same tag, for `archetype`'s faces only, or for any when `null`. Nothing stays nothing. */
+export function withArchetype(tag: Tag, archetype: ArchetypeId | null): Tag {
+  const material = materialOfTag(tag)
+  return material === null ? tag : tagOf(material, slotOfTag(tag), archetype)
 }
 
 /** What an image's tiles are, tagged by corner, as the project file holds it. Tile indexes are row-major on the image's grid. */
@@ -231,7 +258,6 @@ export function normaliseMaterials(raw: unknown): MaterialDef[] {
       id,
       name: typeof m.name === 'string' ? m.name : `Material ${index + 1}`,
       color: typeof m.color === 'number' ? m.color : 0x808080,
-      archetype: m.archetype === 'wall' || m.archetype === 'ramp' ? m.archetype : 'floor',
       ...(typeof m.fringeAngle === 'number' && m.fringeAngle >= 0 && m.fringeAngle <= 90 ? { fringeAngle: m.fringeAngle } : {}),
       ...(typeof m.picketDistance === 'number' && m.picketDistance >= 0 && m.picketDistance <= MAX_PICKET_DISTANCE ? { picketDistance: m.picketDistance } : {}),
     }
@@ -286,6 +312,7 @@ export function normaliseTerrain(raw: unknown, where: string): ImageTerrain {
       for (const tag of tags as unknown[]) {
         if (tag === null) continue
         if (typeof tag !== 'string' || materialOfTag(tag) === null) throw new LoadError(`Image ${where}, tile ${key} has a corner tag that names no material.`)
+        if (archetypeOfTag(tag) === undefined) throw new LoadError(`Image ${where}, tile ${key} has a corner tag, ${tag}, for a kind of face papercut does not have.`)
       }
       // A tile tagged nothing everywhere is held: the template tags one so on purpose (the all-under tile).
       tiles[String(index)] = [...(tags as [Tag, Tag, Tag, Tag])]

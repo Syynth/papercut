@@ -25,9 +25,9 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 
-import { materialOfTag, sheetName, slotOfTag, tagOf, type RgbaImage } from '@papercut/document'
+import { archetypeOfTag, materialOfTag, sheetName, slotOfTag, tagOf, withArchetype, type ArchetypeId, type RgbaImage } from '@papercut/document'
 import { useHost, useProject } from '@papercut/editor-host'
-import { archetypeOf, conventionOf, cornerAt, stampBlock, tagCorner, type LoadedSet, type Tag, type TerrainSet } from '@papercut/geometry'
+import { allSlots, archetypes, conventionOf, cornerAt, stampBlock, tagCorner, type LoadedSet, type Tag, type TerrainSet } from '@papercut/geometry'
 import { Action, AssetPicker, Note, Tagger, TaggerItem } from '@papercut/ui'
 
 import { run } from './commands'
@@ -68,7 +68,7 @@ interface History {
  * corner under the pointer outlined. Drawn whole on every change; a sheet is
  * a few hundred tiles, which is nothing to a canvas.
  */
-function draw(canvas: HTMLCanvasElement, image: RgbaImage, set: TerrainSet, colours: ReadonlyMap<Tag, string>, scale: number, hover: Corner | null, pending: Pending | null): void {
+function draw(canvas: HTMLCanvasElement, image: RgbaImage, set: TerrainSet, colourOf: (tag: Tag) => string, scale: number, hover: Corner | null, pending: Pending | null): void {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   const width = Math.round(image.width * scale)
@@ -88,7 +88,7 @@ function draw(canvas: HTMLCanvasElement, image: RgbaImage, set: TerrainSet, colo
     const y = Math.floor(index / set.columns) * t
     tags.forEach((tag, corner) => {
       if (tag === null) return
-      const colour = colours.get(tag) ?? '#ff00ff'
+      const colour = colourOf(tag)
       const qx = x + (corner & 1) * half
       const qy = y + (corner >> 1) * half
       ctx.globalAlpha = 0.55
@@ -176,6 +176,11 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
   const [mode, setMode] = useState<'corner' | 'block'>('corner')
   /** The block's values, under first: `[null, over]` for a block drawn against nothing. */
   const [values, setValues] = useState<Tag[]>([null, null])
+  /**
+   * The kind of face the art being tagged is for (ruling of 2026-09-18): every tag written, by the brush or by a
+   * block, names it. `null` is any, which is what a tag has always meant and what most art wants.
+   */
+  const [face, setFace] = useState<ArchetypeId | null>(null)
   const [zoom, setZoom] = useState<number | null>(null)
   /** The corner under the pointer, with where the pointer is in the stage's scroll box; `flip` when a tooltip to its right would leave the box. */
   const [hover, setHover] = useState<(Corner & { x: number; y: number; flip: boolean }) | null>(null)
@@ -265,7 +270,7 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
   const palette = useMemo(
     () =>
       materials.flatMap((m) =>
-        archetypeOf(m.archetype).slots.map((slot) => ({
+        allSlots().map((slot) => ({
           tag: tagOf(m.id, slot.ordinary ? null : slot.id),
           name: slot.ordinary ? m.name : `${m.name} · ${slot.name}`,
           colour: `#${m.color.toString(16).padStart(6, '0')}`,
@@ -274,12 +279,17 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
       ),
     [materials],
   )
-  const colours = useMemo(() => new Map(palette.map((p) => [p.tag, p.colour] as const)), [palette])
+  /** A tag's colour is its material's, whatever slot or archetype it names. */
+  const colourOf = useMemo(() => {
+    const byMaterial = new Map(materials.map((m) => [m.id, `#${m.color.toString(16).padStart(6, '0')}`] as const))
+    return (tag: Tag): string => byMaterial.get(materialOfTag(tag) ?? -1) ?? '#ff00ff'
+  }, [materials])
   /** How many corners of THIS sheet each tag is on: what says which of the project's materials this image draws. */
   const drawn = useMemo(() => {
     const counts = new Map<Tag, number>()
     if (!set) return counts
-    for (const tags of set.tiles.values()) for (const tag of tags) if (tag !== null) counts.set(tag, (counts.get(tag) ?? 0) + 1)
+    // Counted by material and slot, whatever archetype a corner names: the palette lists those, and the face is a filter over them.
+    for (const tags of set.tiles.values()) for (const tag of tags) if (tag !== null) counts.set(withArchetype(tag, null), (counts.get(withArchetype(tag, null)) ?? 0) + 1)
     return counts
   }, [set])
 
@@ -297,8 +307,8 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
   }, [mode, hover, set, shape, values])
   useEffect(() => {
     const canvas = canvasRef.current
-    if (canvas && loaded && set) draw(canvas, loaded.image, set, colours, scale, hover, pending)
-  }, [loaded, set, colours, scale, hover, pending])
+    if (canvas && loaded && set) draw(canvas, loaded.image, set, colourOf, scale, hover, pending)
+  }, [loaded, set, colourOf, scale, hover, pending])
 
   /** Listed tilesets the viewport could not draw: named in the picker's footer with the fix in Images. */
   const notDrawn = images.filter((i) => i.kind === 'tileset' && !sets.some((s) => s.set.sheet === sheetName(i.path))).map((i) => i.name)
@@ -316,7 +326,7 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
       return
     }
     try {
-      commit(stampBlock(set, shape, values, pending.column, pending.row))
+      commit(stampBlock(set, shape, values.map((v) => withArchetype(v, face)), pending.column, pending.row))
       notify(`${shape.columns} × ${shape.rows} block placed at ${pending.column}, ${pending.row}`)
     } catch (error) {
       notify(messageOf(error))
@@ -342,7 +352,7 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
       return
     }
     event.currentTarget.setPointerCapture(event.pointerId)
-    stroke.current = { tag: event.button === 2 ? null : brush, set, last: null }
+    stroke.current = { tag: event.button === 2 ? null : withArchetype(brush, face), set, last: null }
     apply(corner)
   }
   const move = (event: ReactPointerEvent<HTMLCanvasElement>): void => {
@@ -364,10 +374,15 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
 
   if (!loaded || !set) return <Note>No sheet is loaded. Add one in Sheets to tag it.</Note>
 
-  const nameOfTag = (tag: Tag): string => (tag === null ? 'nothing' : (palette.find((p) => p.tag === tag)?.name ?? tag))
+  const nameOfTag = (tag: Tag): string => {
+    if (tag === null) return 'nothing'
+    const name = palette.find((p) => p.tag === withArchetype(tag, null))?.name ?? tag
+    const archetype = archetypeOfTag(tag)
+    return archetype ? `${name} @ ${archetype}` : name
+  }
   const hovered = hover ? (set.tiles.get(hover.index)?.[hover.corner] ?? null) : null
   const hoveredName = nameOfTag(hovered)
-  const brushName = brush === null ? 'Nothing' : nameOfTag(brush)
+  const brushName = brush === null ? 'Nothing' : nameOfTag(withArchetype(brush, face))
   return (
     <>
       {deletion.dialog}
@@ -390,6 +405,16 @@ export function TerrainsSettings({ session, sets }: { session: Session; sets: re
           <span className="ui-tagger-divider" />
           <Action title="Corners" tone={mode === 'corner' ? 'accent' : 'default'} onClick={() => setMode('corner')} />
           <Action title="Block" tone={mode === 'block' ? 'accent' : 'default'} onClick={() => setMode('block')} />
+          <span className="ui-tagger-divider" />
+          <span title="The kind of face the art being tagged is for. Any is what most art wants; pick one for art drawn for that face only, and the map draws it there before anything tagged for any.">For</span>
+          <select className="ui-tagger-rename" style={{ width: 84 }} value={face ?? ''} onChange={(event) => setFace((event.currentTarget.value || null) as ArchetypeId | null)}>
+            <option value="">any face</option>
+            {archetypes().map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.title.toLowerCase()}s
+              </option>
+            ))}
+          </select>
           <span className="ui-tagger-grow" />
           <Action title="Undo" kbd="⌘Z" disabled={history.past.length === 0} onClick={undo} />
           <Action title="Redo" kbd="⌘⇧Z" disabled={history.future.length === 0} onClick={redo} />
