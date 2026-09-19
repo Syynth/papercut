@@ -234,6 +234,25 @@ describe('the runtime atlas', () => {
     })
   }
 
+  it("answers a face with the art named for its archetype before the art named for any (ruling of 2026-09-18)", () => {
+    // Two tiles say the same corner: one for any face, one for walls only. Index 1 sits after index 0, so without the
+    // archetype it would never win; a wall asking must get it, and a floor must not.
+    const set = { ...createTerrainSet('faces.png', T, 8, 1), tiles: new Map<number, [Tag, Tag, Tag, Tag]>([[0, [GRASS, GRASS, null, null]], [1, [tagOf(0, null, 'wall'), tagOf(0, null, 'wall'), null, null]]]) }
+    const atlas = new TerrainAtlas([{ set, image: sheetImage(8, 1) }])
+    const corner: CornerKeys = [GRASS, GRASS, null, null]
+    const any = atlas.tileFor(corner)
+    const floor = atlas.tileFor(corner, 'floor')
+    const wall = atlas.tileFor(corner, 'wall')
+    expect(any.missing || floor.missing || wall.missing).toBe(false)
+    expect(floor.tile).toBe(any.tile)
+    expect(wall.tile).not.toBe(any.tile)
+    // Art named for walls is no answer for a floor: a material with wall art only draws the fallback on top.
+    const wallOnly = { ...createTerrainSet('walls.png', T, 8, 1), tiles: new Map<number, [Tag, Tag, Tag, Tag]>([[0, [tagOf(1, null, 'wall'), tagOf(1, null, 'wall'), null, null]]]) }
+    const second = new TerrainAtlas([{ set: wallOnly, image: sheetImage(8, 1) }])
+    expect(second.tileFor([PATH, PATH, null, null], 'wall').missing).toBe(false)
+    expect(second.tileFor([PATH, PATH, null, null], 'floor').missing).toBe(true)
+  })
+
   it('holds every tagged tile from the start and answers an authored corner without growing', () => {
     const atlas = new TerrainAtlas([{ set: groundSet(), image: image() }])
     const before = atlas.version

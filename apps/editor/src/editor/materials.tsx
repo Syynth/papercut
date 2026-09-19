@@ -180,7 +180,7 @@ export function MaterialsPicker({ active, sets }: { active: number; sets: readon
     <Section title="Materials" summary={material ? `${materials.length} · ${material.name}` : materials.length}>
       <List>
         {[...materials].reverse().map((m) => (
-          <Item key={m.id} name={m.name} meta={`${m.archetype} · ${counts[m.id] ?? 0}`} swatch={swatchFor(sets, m.id) ?? cssColor(m.color)} active={m.id === active} onClick={() => select(m.id)} />
+          <Item key={m.id} name={m.name} meta={counts[m.id] ?? 0} swatch={swatchFor(sets, m.id) ?? cssColor(m.color)} active={m.id === active} onClick={() => select(m.id)} />
         ))}
       </List>
       <Note>The project's library, shared by every map in it. Which material draws over which is the material layer each is painted on.</Note>
@@ -470,7 +470,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
     const id = nextMaterialId(materials)
     const fresh: MaterialDef = from
       ? { ...from, id, name: `${from.name} copy` }
-      : { id, name: `Material ${materials.length + 1}`, color: 0x808080, archetype: 'floor' }
+      : { id, name: `Material ${materials.length + 1}`, color: 0x808080 }
     commit([...materials, fresh])
     onSelect(id)
     setMeeting(null)
@@ -482,11 +482,11 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
     return materials
       .filter((m) => m.id !== material.id)
       .map((other) => {
-        // A pairing is drawn on the face it appears on: two floors meet on a floor, and a floor
-        // meeting a wall is drawn in the wall's, because that is the face the boundary is on.
-        const id = material.archetype === 'floor' && other.archetype === 'floor' ? 'floor' : other.archetype === 'floor' ? material.archetype : other.archetype
+        // A material is not one archetype any more (ruling of 2026-09-18), so a pairing is not drawn "in" one of
+        // its materials' archetypes. Until the section is rebuilt around faces, a pairing is counted as the art
+        // drawn for any face, which is what every project has today.
         const cover = coverageOf(sets, tagOf(material.id), tagOf(other.id))
-        return { other, archetype: archetypeOf(id), drawn: cover.drawn, owed: cover.masks.length }
+        return { other, archetype: archetypeOf('floor'), drawn: cover.drawn, owed: cover.masks.length }
       })
   }, [material, materials, sets])
 
@@ -498,7 +498,7 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
   }, [meetings])
 
   const other = meeting === null ? null : (materialById(materials, meeting) ?? null)
-  const archetype = archetypeOf(material?.archetype ?? 'floor')
+  const archetype = archetypeOf('floor')
   const previewArchetype = other ? (meetings.find((m) => m.other.id === other.id)?.archetype ?? archetype) : archetype
   const mine = material ? tagOf(material.id) : null
   const theirs = other ? tagOf(other.id) : null
@@ -516,24 +516,16 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
   const side = (
     <>
       <div className="ui-library-list">
-        {archetypes().map((a) => {
-          const mine = materials.filter((m) => m.archetype === a.id)
-          return (
-            <div key={a.id}>
-              <LibraryGroup>{a.title}</LibraryGroup>
-              {mine.length === 0 ? <div className="ui-hint-line" style={{ padding: '2px 8px 6px' }}>none</div> : null}
-              {mine.map((m) => (
-                <div key={m.id} className={`ui-tagger-item ${m.id === active ? 'is-active' : ''}`}>
-                  <span className="ui-tagger-swatch" style={{ background: cssColor(m.color), cursor: 'default' }} />
-                  <button type="button" className="ui-tagger-name" onClick={() => { onSelect(m.id); setMeeting(null); setLit(null) }}>
-                    {m.name}
-                  </button>
-                  <span className="ui-library-dot is-muted" title={`used in ${mapsUsing(m.id)} maps`} />
-                </div>
-              ))}
-            </div>
-          )
-        })}
+        <LibraryGroup>By priority</LibraryGroup>
+        {materials.map((m) => (
+          <div key={m.id} className={`ui-tagger-item ${m.id === active ? 'is-active' : ''}`}>
+            <span className="ui-tagger-swatch" style={{ background: cssColor(m.color), cursor: 'default' }} />
+            <button type="button" className="ui-tagger-name" onClick={() => { onSelect(m.id); setMeeting(null); setLit(null) }}>
+              {m.name}
+            </button>
+            <span className="ui-library-dot is-muted" title={`used in ${mapsUsing(m.id)} maps`} />
+          </div>
+        ))}
       </div>
       <div className="ui-library-foot" style={{ display: 'grid', gap: 6 }}>
         <Action title="New material" tone="accent" onClick={() => add(undefined)} />
@@ -613,18 +605,17 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
               )}
             </span>
           </div>
-          {previewArchetype.slots.some((slot) => !slot.ordinary && slot.id !== FRINGE && slot.id !== PICKET) ? (
-            <div style={{ display: 'grid', gap: 6, justifyItems: 'start' }}>
-              <div className="ui-k">{previewArchetype.title} slots</div>
-              <span className="ui-hint-line">
-                {previewArchetype.slots
-                  .filter((slot) => !slot.ordinary && slot.id !== FRINGE && slot.id !== PICKET)
-                  .map((slot) => `${slot.name}${slot.note ? ` — ${slot.note}` : ''}`)
-                  .join('. ')}
-                . Nothing authors these yet; a tag can name one, and the mesher mitres what is undrawn.
-              </span>
-            </div>
-          ) : null}
+          {/* Any material may have wall art now (ruling of 2026-09-18), so what a wall adds is said for every one. */}
+          <div style={{ display: 'grid', gap: 6, justifyItems: 'start' }}>
+            <div className="ui-k">{archetypeOf('wall').title} slots</div>
+            <span className="ui-hint-line">
+              {archetypeOf('wall')
+                .slots.filter((slot) => !slot.ordinary && slot.id !== FRINGE && slot.id !== PICKET)
+                .map((slot) => `${slot.name}${slot.note ? ` — ${slot.note}` : ''}`)
+                .join('. ')}
+              . Nothing authors these yet; a tag can name one, and the mesher mitres what is undrawn.
+            </span>
+          </div>
         </>
       )}
     </div>
@@ -635,14 +626,9 @@ export function MaterialsSettings({ session, selected, onSelect, sets }: { sessi
       <Field label="Name">
         <TextInput value={material.name} onChange={(name) => (name.trim() ? change({ name }) : undefined)} />
       </Field>
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-        <Field label="Swatch" hint="Its colour in lists and chips">
-          <ColorInput value={material.color} onChange={(color) => change({ color })} />
-        </Field>
-        <Field label="Archetype" hint={archetype.note}>
-          <Select value={material.archetype} options={archetypes().map((a) => ({ value: a.id, label: a.title }))} onChange={(id) => change({ archetype: id })} />
-        </Field>
-      </div>
+      <Field label="Swatch" hint="Its colour in lists and chips">
+        <ColorInput value={material.color} onChange={(color) => change({ color })} />
+      </Field>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
         <Field label="Fringe angle" hint="Degrees below level: 0 juts out, 90 hangs flat on the wall">
           <NumberInput value={material.fringeAngle ?? DEFAULT_FRINGE_ANGLE} min={0} max={90} step={5} onChange={(fringeAngle) => change({ fringeAngle })} />

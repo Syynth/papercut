@@ -47,6 +47,7 @@
  */
 
 import {
+  type ArchetypeId,
   type ReadonlyVoxel,
   CORNER_OFFSETS,
   DIR_VECTORS,
@@ -585,7 +586,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
    * instead: quarter q is the tile's own quadrant q, not the opposite one of
    * a corner tile, and nothing auto-tiles onto it on that layer.
    */
-  const quarterRects = (face: FaceKeys, quarter: number, cornerOf: (layer: number) => CornerKeys, markAt: () => void): Rect[] => {
+  const quarterRects = (face: FaceKeys, archetype: ArchetypeId, quarter: number, cornerOf: (layer: number) => CornerKeys, markAt: () => void): Rect[] => {
     const rects: Rect[] = []
     const quadrant = QUADRANT_OF_QUARTER[quarter]
     for (let layer = 0; layer < STACK; layer++) {
@@ -598,7 +599,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
         rects.push(pasted === -1 ? fallback : atlas.uv(pasted, quarter))
         continue
       }
-      const answer = atlas.tileFor(cornerOf(layer))
+      const answer = atlas.tileFor(cornerOf(layer), archetype)
       if (answer.missing) {
         markAt()
         if (answer.combo) missing.add(answer.combo)
@@ -627,6 +628,8 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
       // --- top face, in quarters ---------------------------------------------
       {
         const shadeAt = CORNER_OFFSETS.map((offset, i) => cornerShade(cells, x, y, x + offset[0], y + offset[1], cornerH[i]))
+        // A face's archetype comes from its geometry (ruling of 2026-09-18): a level top is a floor, a sloped one a ramp.
+        const topArchetype: ArchetypeId = cornerH.every((h) => h === cornerH[0]) ? 'floor' : 'ramp'
         const at = (fx: number, fy: number): [number, number, number] => [x + fx, bilinear(cornerH, fx, fy) * HALF, y + fy]
         for (let q = 0; q < 4; q++) {
           const fx0 = (q % 2) * 0.5
@@ -635,6 +638,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
           const vy = y + (q > 1 ? 1 : 0)
           const rects = quarterRects(
             cells.at(x, y).face,
+            topArchetype,
             q,
             (layer) => topCorner(cells, voxel, x, y, vx, vy, layer),
             () => mark(vx, bilinear(cornerH, q % 2, q > 1 ? 1 : 0) * HALF, vy),
@@ -755,6 +759,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
             if (piece.length === 0) continue
             const rects = quarterRects(
               cells.course(x, y, dir, course),
+              'wall',
               q,
               (layer) => courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer),
               () => mark(ox + u[0] * (atEnd ? 1 : 0), (atTop ? course + 1 : course) * 2 * HALF, oz + u[1] * (atEnd ? 1 : 0)),

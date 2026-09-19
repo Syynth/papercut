@@ -32,7 +32,7 @@
  * headless export can build one.
  */
 
-import { materialOfTag, slotOfTag, tagOf, type RgbaImage } from '@papercut/document'
+import { archetypeOfTag, materialOfTag, slotOfTag, tagOf, withArchetype, type ArchetypeId, type RgbaImage } from '@papercut/document'
 
 import { FRINGE, PICKET } from './archetype'
 
@@ -51,11 +51,14 @@ export interface LoadedSet {
   frames?: number
 }
 
-/** A trim tag, read as the plain tag it also is; any other tag as it is. */
+/** A trim tag, read as the plain tag it also is — same material, same archetype, no slot; any other tag as it is. */
 const plainTrim = (tag: Tag): Tag => {
   const slot = slotOfTag(tag)
-  return slot === FRINGE || slot === PICKET ? tagOf(materialOfTag(tag) as number) : tag
+  return slot === FRINGE || slot === PICKET ? tagOf(materialOfTag(tag) as number, null, archetypeOfTag(tag) ?? null) : tag
 }
+
+/** An archetype as a small number for the corner cache's key: none is 0. */
+const ARCHETYPE_INDEX: Record<ArchetypeId, number> = { floor: 1, wall: 2, ramp: 3 }
 
 /** What the fallback is until the settings say otherwise. */
 export const DEFAULT_FALLBACK = 0xff00ff
@@ -168,13 +171,19 @@ export class TerrainAtlas {
     return this.next
   }
 
-  /** The tile for a corner: the authored one wherever a set has it, else the fallback. */
-  tileFor(keys: CornerKeys): AtlasTile {
-    // Four ids of at most 2^12 each pack into 48 bits: one number, no string per corner on the meshing path.
-    const packed = ((this.id(keys[0]) * 4096 + this.id(keys[1])) * 4096 + this.id(keys[2])) * 4096 + this.id(keys[3])
+  /**
+   * The tile for a corner of a face of `archetype`: the authored one wherever a set has it, else the fallback.
+   *
+   * Specific before general (ruling of 2026-09-18): the tile whose corners name this archetype, then the tile whose
+   * corners name none and so mean any. A join drawn across a fold, where the corners name two archetypes, waits on
+   * the mesher reading across the fold; until it does, the far side of a fold is nothing, as it has been.
+   */
+  tileFor(keys: CornerKeys, archetype: ArchetypeId | null = null): AtlasTile {
+    // Four ids of at most 2^12 each pack into 48 bits, and the archetype into two more: one number, no string per corner on the meshing path.
+    const packed = (((this.id(keys[0]) * 4096 + this.id(keys[1])) * 4096 + this.id(keys[2])) * 4096 + this.id(keys[3])) * 4 + (archetype === null ? 0 : ARCHETYPE_INDEX[archetype])
     const cached = this.byCorner.get(packed)
     if (cached) return cached
-    const answer = this.resolve(keys)
+    const answer = this.resolve(keys, archetype)
     this.byCorner.set(packed, answer)
     return answer
   }
@@ -220,10 +229,14 @@ export class TerrainAtlas {
   trimTile(tag: Tag, slot: typeof FRINGE | typeof PICKET, part: TrimPart = 'edge'): number | null {
     const material = materialOfTag(tag)
     if (material === null) return null
-    const t = tagOf(material, slot)
-    const corners: CornerTags = slot === PICKET ? [null, null, t, t] : part === 'from-left' ? [t, null, null, null] : part === 'from-right' ? [null, t, null, null] : [t, t, null, null]
-    const found = this.authored.get(cornerKey(corners))
-    return found ? this.sheetTile(found.loaded, found.index) : null
+    // A trim is the material's FLOOR art hung or stood somewhere else, so the tile named for floors first, then for any.
+    for (const archetype of ['floor', null] as const) {
+      const t = tagOf(material, slot, archetype)
+      const corners: CornerTags = slot === PICKET ? [null, null, t, t] : part === 'from-left' ? [t, null, null, null] : part === 'from-right' ? [null, t, null, null] : [t, t, null, null]
+      const found = this.authored.get(cornerKey(corners))
+      if (found) return this.sheetTile(found.loaded, found.index)
+    }
+    return null
   }
 
   /**
@@ -247,11 +260,13 @@ export class TerrainAtlas {
     return [...this.missingCombos].map((combo) => ({ combo }))
   }
 
-  private resolve(keys: CornerKeys): AtlasTile {
+  private resolve(keys: CornerKeys, archetype: ArchetypeId | null): AtlasTile {
     const tags = [...new Set(keys.filter((k): k is string => k !== null))]
     if (tags.length === 0) return { tile: this.blankTile(), missing: false }
     // Wherever it was drawn. A tag names a material, so nothing about a corner is local to a sheet.
-    const found = this.authored.get(cornerKey(keys))
+    // Art drawn for this kind of face first, then art drawn for any.
+    const specific = archetype === null ? undefined : this.authored.get(cornerKey(keys.map((k) => withArchetype(k, archetype)) as unknown as CornerKeys))
+    const found = specific ?? this.authored.get(cornerKey(keys))
     if (found) return { tile: this.sheetTile(found.loaded, found.index), missing: false }
     // By name, so one transition is one entry however its corners are arranged.
     const names = tags.map((k) => this.nameOf(k)).sort()

@@ -202,9 +202,8 @@ describe('the materials screen', () => {
     const sets = ground([[0, null]])
     mount(() => <MaterialsSettings session={session()} selected={0} onSelect={() => undefined} sets={sets} />)
 
-    // Stone is the one wall in the default library. Its extra parts are the two seams, which are
+    // Any material may have wall art (ruling of 2026-09-18). A wall's extra parts are the two seams, which are
     // the cases no arrangement of four coplanar corners can express.
-    act(() => inMeets('Stone')?.click())
     expect(text()).toContain('Convex seam')
     expect(text()).toContain('Concave seam')
     expect(text()).toContain('Nothing authors these yet')

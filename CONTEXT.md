@@ -187,6 +187,13 @@ terrain's colour. The section takes the window while it is open, and tagging
 there is undoable in the editor's own history (decision of 2026-09-17),
 unlike the other Project settings.
 
+A corner's tag names a **material**, and optionally the **archetype** of the
+face the art is for — `3@wall` — and a slot, `3@wall:convex` (rulings of
+2026-09-17 and 2026-09-18). A material is not tied to one archetype: a face's
+archetype comes from its geometry (a top is floor, a cliff is wall, a slope is
+ramp), a tag that names none means any face, and the atlas answers a face
+with the art named for it before the art named for any.
+
 Terrain sets live in the project file, never in sidecars beside the images
 (decision of 2026-09-17).
 

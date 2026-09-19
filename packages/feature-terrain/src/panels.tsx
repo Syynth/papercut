@@ -162,7 +162,7 @@ export function TerrainBar(props: TerrainPanelProps) {
           {params.paintVerb === 'tiles' ? <BarLabel>{params.stamp ? `${params.stamp.tiles[0].length}×${params.stamp.tiles.length} tiles` : 'Pick tiles in the inspector'}</BarLabel> : null}
           {params.paintVerb === 'material'
             ? props.materials.map((material) => (
-                <Chip key={material.id} title={`${material.name} · ${material.archetype}`} swatch={cssColor(material.color)} active={material.id === params.material} onClick={() => set({ material: material.id })} />
+                <Chip key={material.id} title={material.name} swatch={cssColor(material.color)} active={material.id === params.material} onClick={() => set({ material: material.id })} />
               ))
             : null}
           {params.paintVerb === 'tiles' ? null : (

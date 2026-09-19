@@ -313,13 +313,6 @@ export interface MaterialDef {
   /** Fallback colour when no sheet is loaded, and the swatch. */
   color: number
   /**
-   * The surface vocabulary its art fills (design of 2026-09-17): a floor
-   * material owes the corner set, a wall owes its named parts, a ramp owes
-   * its own at a different aspect. Replaces the old `role`, which said where
-   * a material belonged without saying what it owed.
-   */
-  archetype: ArchetypeId
-  /**
    * The angle its fringe flap hangs at, in degrees below horizontal: 0 juts
    * straight out, 90 hangs flat against the wall. Absent is
    * `DEFAULT_FRINGE_ANGLE`. The flap's length never changes with it; only how
@@ -337,7 +330,11 @@ export const DEFAULT_PICKET_DISTANCE = 0
 /** The most a picket can stand off its wall, in pixels: half a tile at the densest profile papercut ships. */
 export const MAX_PICKET_DISTANCE = 32
 
-/** The surface vocabularies papercut ships. `@papercut/geometry` says what each owes. */
+/**
+ * The surface vocabularies papercut ships, one per kind of face: a top is floor, a cliff is wall, a slope is ramp.
+ * `@papercut/geometry` says what each owes. A material is not one of these (ruling of 2026-09-18); a corner tag
+ * may name one, for art drawn for that kind of face only.
+ */
 export type ArchetypeId = 'floor' | 'wall' | 'ramp'
 
 /**
@@ -420,11 +417,11 @@ export function worldHeight(halfTiles: number): number {
 export const PLACEHOLDER_SHEET = 'ground.png'
 
 export const DEFAULT_MATERIALS: MaterialDef[] = [
-  { id: 0, name: 'Grass', color: 0x6aa84f, archetype: 'floor' },
-  { id: 1, name: 'Dirt', color: 0x8b6b45, archetype: 'floor' },
-  { id: 2, name: 'Stone', color: 0x8e8e8e, archetype: 'wall' },
-  { id: 3, name: 'Sand', color: 0xd9c27e, archetype: 'floor' },
-  { id: 4, name: 'Path', color: 0xb08f5e, archetype: 'floor' },
+  { id: 0, name: 'Grass', color: 0x6aa84f },
+  { id: 1, name: 'Dirt', color: 0x8b6b45 },
+  { id: 2, name: 'Stone', color: 0x8e8e8e },
+  { id: 3, name: 'Sand', color: 0xd9c27e },
+  { id: 4, name: 'Path', color: 0xb08f5e },
 ]
 
 /** The material a voxel names, by id; `undefined` for an id the project no longer has. */
