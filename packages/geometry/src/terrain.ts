@@ -517,13 +517,13 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
   const water = new BufferBuilder(false)
   const trim = new BufferBuilder(false)
   /** The trim tile a face's material has, and that material's settings, from its topmost layer that has one; `null` when none does. */
-  const trimOf = (face: FaceKeys, slot: typeof FRINGE | typeof PICKET): { tile: number; settings: TrimSettings } | null => {
+  const trimOf = (face: FaceKeys, slot: typeof FRINGE | typeof PICKET): { tile: number; tag: Tag; settings: TrimSettings } | null => {
     if (face.empty) return null
     for (let layer = face.keys.length - 1; layer >= 0; layer--) {
       const tag = face.keys[layer]
       if (tag === null) continue
       const tile = atlas.trimTile(tag, slot)
-      if (tile !== null) return { tile, settings: look.trimOf(tag) }
+      if (tile !== null) return { tile, tag, settings: look.trimOf(tag) }
     }
     return null
   }
@@ -534,7 +534,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
    * corner of the grid, like the floor beside it; `local` places a point in
    * that tile's rect.
    */
-  const strip = (outline: WallPoint[], rect: readonly [number, number, number, number], place: (t: number, s: number) => [number, number, number], local: (s: number) => number, reverse: boolean, tint: readonly [number, number, number], address: readonly [number, number, number, number]): void => {
+  const strip = (outline: WallPoint[], rectFor: (k: number) => readonly [number, number, number, number], place: (t: number, s: number) => [number, number, number], local: (s: number) => number, reverse: boolean, tint: readonly [number, number, number], address: readonly [number, number, number, number]): void => {
     const lo = Math.floor(Math.min(...outline.map((p) => p[0])) + 0.5)
     const hi = Math.ceil(Math.max(...outline.map((p) => p[0])) + 0.5)
     for (let k = lo; k < hi; k++) {
@@ -544,7 +544,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
       trim.polygon(
         ordered.map(([t, sv]) => place(t, sv)),
         ordered.map(([t, sv]) => [t - (k - 0.5), local(sv)] as const),
-        [rect],
+        [rectFor(k)],
         ordered.map(() => 1),
         tint,
         address,
@@ -652,7 +652,12 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
           const lerp = (a: number, b: number, t: number): number => (t <= 0 ? a : t >= 1 ? b : a + (b - a) * t)
           const fringe = edgeOff(voxel.paint, x, y, dir, 'top') ? null : trimOf(cells.at(x, y).face, FRINGE)
           if (fringe !== null) {
-            const [u0, v0, u1, v1] = atlas.uv(fringe.tile, -1)
+            // The tile's lower half, the edge that hangs: the hinge at its middle, the tip at its bottom.
+            const hanging = (tile: number): [number, number, number, number] => {
+              const [u0, v0, u1, v1] = atlas.uv(tile, -1)
+              return [u0, v0, u1, (v0 + v1) / 2]
+            }
+            const edge = hanging(fringe.tile)
             // The material's angle below horizontal: it sets how far the flap juts and drops, never how long it is.
             const angle = (fringe.settings.fringeAngle * Math.PI) / 180
             const out = Math.cos(angle)
@@ -662,10 +667,16 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
             const reach = TRIM_LENGTH * out
             const e0 = walls(-u[0], -u[1]) ? reach : 0
             const e1 = walls(u[0], u[1]) ? reach : 0
+            // At an outside corner the piece centred on it draws the material's corner fringe, when it has one: the rim
+            // runs in from the right at the side's start (t = 0) and from the left at its end (t = 1).
+            const tag = fringe.tag
+            const fromRight = e0 > 0 ? atlas.trimTile(tag, FRINGE, 'from-right') : null
+            const fromLeft = e1 > 0 ? atlas.trimTile(tag, FRINGE, 'from-left') : null
+            const startRect = fromRight === null ? edge : hanging(fromRight)
+            const endRect = fromLeft === null ? edge : hanging(fromLeft)
             strip(
               [[0, 0], [1, 0], [1 + e1, TRIM_LENGTH], [-e0, TRIM_LENGTH]],
-              // The tile's lower half, the edge that hangs: the hinge at its middle, the tip at its bottom.
-              [u0, v0, u1, (v0 + v1) / 2],
+              (k) => (k === 0 ? startRect : k === 1 ? endRect : edge),
               (t, sv) => [ox + u[0] * t + nx * sv * out, lerp(topStart, topEnd, t) * HALF - sv * down, oz + u[1] * t + nz * sv * out],
               (sv) => 1 - sv / TRIM_LENGTH,
               true,
@@ -678,12 +689,13 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
           const picket = inBounds(voxel.size, bx, bz) && !edgeOff(voxel.paint, x, y, dir, 'foot') ? trimOf(cells.at(bx, bz).face, PICKET) : null
           if (picket !== null) {
             const [u0, v0, u1, v1] = atlas.uv(picket.tile, -1)
+            const upright: [number, number, number, number] = [u0, (v0 + v1) / 2, u1, v1]
             // The material's distance, in pixels of art, is world units at one tile to the unit; the gap keeps it off the wall's own pixels.
             const off = PICKET_GAP + picket.settings.picketDistance / atlas.tile
             strip(
               [[0, 0], [1, 0], [1, TRIM_LENGTH], [0, TRIM_LENGTH]],
               // The tile's upper half, the edge that pokes up: its middle on the ground, its top edge in the air.
-              [u0, (v0 + v1) / 2, u1, v1],
+              () => upright,
               (t, sv) => [ox + u[0] * t + nx * off, lerp(lowStart, lowEnd, t) * HALF + sv, oz + u[1] * t + nz * off],
               (sv) => sv / TRIM_LENGTH,
               false,

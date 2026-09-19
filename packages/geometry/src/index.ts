@@ -43,7 +43,7 @@ export type { GridCells, Remapped } from './grid'
 export { DEFAULT_FALLBACK, TerrainAtlas } from './atlas'
 export { createTerrainLook } from './look'
 export type { TerrainLook, TrimSettings } from './look'
-export type { AtlasOptions, AtlasTile, CornerKeys, LoadedSet, MissingReport } from './atlas'
+export type { AtlasOptions, AtlasTile, CornerKeys, LoadedSet, MissingReport, TrimPart } from './atlas'
 
 export { meshTerrainChunk } from './terrain'
 export type { MeshBuffers, TerrainChunkMesh } from './terrain'
