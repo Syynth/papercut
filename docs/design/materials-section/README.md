@@ -139,8 +139,9 @@ grouped under Floor / Wall / Ramp: a material is not one of those any more
 wall, ramp — lit for the faces it has art for and dim for the rest (the
 owner's direction of 2026-09-19, on the canvas). Two more changes:
 
-- The count beside each is **project-wide coverage** — "14/15", from
-  `coverageOf` — in place of the tagger's per-sheet corner count. A material
+- Beside each is **project-wide coverage** — a 4 × 4 grid of cells, one per
+  arrangement, with the number "14/15" beside it, from `coverageOf` — in
+  place of the tagger's per-sheet corner count. A material
   with no art anywhere is dim, as an untagged palette entry is today.
 - The **slots** stop being separate rows. A material's parts — *Surface ·
   Fringe · Picket*, and a wall's *Convex seam · Concave seam* — are a chip
@@ -267,26 +268,24 @@ way the strip and the patch do; not in the first cut.
 | Images' New from template… | Stays in Images; also reachable from Meets as Draw a template…. |
 | Inspector picker | Unchanged. |
 
-## 4. Open questions for the owner
+## 4. Decided
 
-1. **The archetype field.** The code still gives a material one archetype and
-   groups the list by it. The ruling of 2026-09-18 says a material spans
-   archetypes and the archetype is named per corner. This design is drawn to
-   the ruling — the Preview's Floor / Wall / Ramp switch and the 3D fixtures
-   assume a material can have wall art and floor art both. Should the
-   section wait for the model, or ship with the select as the interim and
-   the switch appearing when the model lands?
-2. **Three views or two.** 3D as a third view with a subject-dependent
-   default, or 3D replacing Preview whenever a wall or ramp is involved? The
-   draft keeps three: the flat strip is still where a hole is named.
-3. **Tagging controls in the form column** rather than in the tools row or
-   the side. It keeps the sheet, the tool and the block sentence beside the
-   Meets list that fills them; it also means the right column reads
-   differently in Tag view than in Preview.
-4. **Nothing as a tool, not a list row.** Right-click stays; an Erase button
-   joins it; the list is materials only.
-5. **Coverage per material in the list** — a number, or a tiny fifteen-cell
-   bar. The number is drawn in the mockup.
+The design was decided on 2026-09-19, in conversation and through the owner's
+comments on the canvas. The entries are in `decision-log.md` under that date:
 
-Decisions taken on these go in `decision-log.md`; this document is then
-corrected to match.
+- Materials and Terrain sets are one section, with the material as the
+  subject and three views of it.
+- A transition is spelled as its values and placed with one button, and the
+  ghost shows what it writes (resolves #209).
+- The arrangements strip is a crop of the sheet, and the Tag stage filters
+  and dims.
+- The 3D view is the runtime's own renderer on a fixture built for the
+  subject.
+- Coverage reads as a 4 × 4 grid of cells beside the number.
+- The per-corner archetype lands before the Materials section is built.
+
+The questions this document first asked are settled by those: three views,
+the default following the subject; the tagging controls live in the form
+column; Erase is a tool and the list is materials only; coverage is the grid
+and the number; and the model comes first, with no interim Archetype select.
+Where this document and the log disagree, the log wins.

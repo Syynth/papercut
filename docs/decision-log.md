@@ -909,3 +909,51 @@ Each entry:
 - **SCOPE:** minor/local (amends ".aseprite files are read by our own TypeScript parser; phase 1 handles the common blend modes")
 - **WHAT:** The renderer ports all 19 of Aseprite's blend modes, plus its grayscale quirks, from Aseprite's MIT-licensed `doc`/`render` libraries. No mode falls back to Normal. The golden fixtures cover every mode in both RGB and grayscale.
 - **WHY:** The earlier limit was about cost: porting modes one by one from written formulas, without knowing whether rounding would match. Aseprite's own blend code is MIT, so a direct port of all modes, rounding quirks included, cost the same as the common set. It is checked bit for bit against Aseprite. A published replacement for `ase-parser` should not render some files wrong when the correct output was free.
+
+## Materials and Terrain sets are one section, with the material as the subject and three views of it
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui / settings
+- **SCOPE:** architectural (design of the Materials section; supersedes the Terrain sets section of 2026-09-14 and the Materials screen of 2026-09-17)
+- **WHAT:** Project settings has one Materials section; Terrain sets leaves the rail. The section keeps the library frame. The side column is one flat list of the project's materials in priority order, each row carrying face icons (floor, wall, ramp) lit for the faces it has art for; there are no Floor / Wall / Ramp groups. The selected material expands into a vertical list of its subjects — on its own, then meets X for every other material, with coverage and the face the pairing is drawn in — and a New transition… button below them. The lit row is the subject of every view: what Preview assembles, what a block places, what the 3D fixture is built for. The stage switches between Preview, Tag and 3D through a control that floats on the stage itself, not the tools row. The Meets list leaves the form; a Meeting block there describes the lit pairing and carries its actions. Slots (Fringe, Picket, seams) are chips in the Tagging block, not rows of the list.
+- **WHY:** The two sections were two dressings of one list — the tagger's palette was the project's materials, and everything the Materials screen showed was a query over the tags the tagger writes — so the artist saw a hole on one page and filled it on the other. A material is no longer one archetype (ruling of 2026-09-18), so grouping by one was wrong; icons say which faces it has art for. The pairings read as part of the material and stack without competing for width when they hang under it in the list, and putting the view switch on the stage keeps the tools row for the view's own tools.
+
+## A transition is spelled as its values and placed with one button, and the ghost shows what it writes
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui / terrain-tools
+- **SCOPE:** moderate (resolves #209; follows "A transition is a query over the tags; Create is what writes them", 2026-09-17)
+- **WHAT:** In Tag view a Tagging block at the top of the form holds the sheet picker, the tool (Tag corners / Erase / Place a block) and the transition spelled as three value pickers — under, over it, third — with one Place on the sheet button that arms the pointer. The values fill in from the pairing picked in the side list, the later material by priority over the earlier, and can be changed. After a block lands the spelling stays, so a value is swapped and the next block placed with the same button; filling the third slot makes the block the 6 × 6 for three materials meeting. Under the pointer the block shows the tags it would write, opaque enough to read over the sheet, with each over material's region drawn as a shape — convex corners rounded, concave ones filleted — rather than four flat quadrants; red when it would not fit.
+- **WHY:** Drawn over / Drawn in was learned by trial, and "and a third" meant nothing on its own. Spelling the values and pressing one button is the flow the artist actually has — one transition after another with a value changed — and the spelling staying is what makes the second one cheap. The ghost has to say where each material lands before the click, which flat quadrants at 30 % did not.
+
+## The arrangements strip is a crop of the sheet, and the Tag stage filters and dims
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui / terrain-tools
+- **SCOPE:** moderate
+- **WHAT:** Wherever the section shows a subject's tiles beside its preview, it shows them as a crop of the sheet where they sit, the missing arrangements hatched in place, with the rest of the sheet inside the crop dimmed; only when the tiles are scattered does it fall back to a grid of them, wrapping to the stage's width. Hover links the crop and the preview both ways, and clicking a tile opens the sheet there. On the Tag stage a Show dropdown floats beside the view switch and filters which tags are drawn: all, by slot (surface, fringe, picket), or by face (floor, wall, ramp). Every tile with no corner of the selected material is always dimmed.
+- **WHY:** A row of loose tiles said nothing about where they are; the crop shows where the tiles sit and where the holes go, which is what the artist has to know to fill them. The filter is how a material's fringes or wall tiles are found on a full sheet, and dimming everything that is not the selected material's makes its own art stand out.
+
+## The 3D view is the runtime's own renderer on a fixture built for the subject
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui / runtime
+- **SCOPE:** moderate
+- **WHAT:** The Materials section's third view draws the subject with the runtime's own scene on a small synthetic map it generates for the subject — a plateau for a material alone, a plateau of one material topped with the other for a floor meeting a wall, a banded cliff for two walls, a ramp descending to the other's ground where a ramp is involved — with the project's real loaded sets and materials, so the atlas, flaps, pickets, seams and fallback are the map's own, and Show missing on so an unanswered corner carries the same mark it would on the map. The same crop-of-the-sheet strip sits with it, and a mark on the fixture and a tile in the strip light each other. The default view follows the subject: Preview for floors, 3D for anything with a wall or a ramp in it. The scene is built lazily the first time 3D is opened.
+- **WHY:** A flat patch cannot show the fold between a floor and its wall, a fringe flap, a picket, a seam or a slope, and a stand-in renderer could disagree with the real one. Rendering with the runtime makes the preview exactly what the map will do, and the missing marks make it an honest coverage readout.
+
+## Coverage reads as a 4 × 4 grid of cells beside the number
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui
+- **SCOPE:** minor/local (refines "Materials and Terrain sets are one section", same day)
+- **WHAT:** Wherever the Materials section shows how much of a subject is drawn — a material's row, a pairing's row, the subject bar — it shows a 4 × 4 grid of small cells with the number beside it. Cell k is arrangement mask k, laid out as the classic mask block (column k mod 4, row k div 4): lit where a tile answers it, red where it is owed and missing, blank where it is not owed (mask 0 always; mask 15 for a pairing, whose all-over tile is the material's own).
+- **WHY:** The number says how much is left; the grid says which ones, at a glance and in a shape an artist who has drawn a mask block already reads. Sixteen cells is small enough to sit in a list row, and the number stays because a count is what lines up down the list.
+
+## The per-corner archetype lands before the Materials section is built
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model / editor-ui
+- **SCOPE:** moderate (sequencing; carries out "A material spans archetypes; the archetype is named per corner", 2026-09-18)
+- **WHAT:** The Materials section overhaul begins with the model it is drawn to: a tag names its face per corner, a material stops having one archetype of its own (the field leaves MaterialDef and the form), and what faces a material has art for is derived from the tags. The section is built on that, with no interim Archetype select.
+- **WHY:** The face icons, the Face switch, the by-face filter and the 3D fixtures all assume a material can have floor art and wall art both. Building them on the one-archetype field would mean building them twice, and an interim select would put a control on the screen that the ruling has already removed.
