@@ -214,7 +214,7 @@ rather than as four flat quadrants, so where each material lands is plain
 the one that holds most of the subject's tags. Two more things, both the
 owner's directions of the same day: a **Show** dropdown floating on the
 stage beside the view switch, over which tags are drawn — all, or by slot
-(surface, fringe) or by face (floor, wall, ramp) — so a material's fringe
+(surface, fringe, picket) or by face (floor, wall, ramp) — so a material's fringe
 tiles or its wall tiles can be found on a sheet; and every tile that has no
 corner of the selected material is **dimmed**, always, so its own art stands
 out from everything else on the sheet.
