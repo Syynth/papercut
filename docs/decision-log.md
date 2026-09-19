@@ -877,3 +877,19 @@ Each entry:
 - **SCOPE:** minor/local
 - **WHAT:** The Terrain sets page lists the project's materials as tag targets, and a material can be deleted right there — the same deletion as in Materials: at once when no map paints with it (its tags on every sheet cleared), through the repaint prompt when one does. The list says plainly that these are the project's materials, not sets of the sheet being tagged.
 - **WHY:** The tagger is where the materials are looked at beside real art, so it is where a stray one is noticed — five defaults with zero tags on a sheet that has its own vocabulary. Sending the artist to another page to remove what this page shows is a round trip for nothing, and the list reading as "terrain sets" misled the owner into thinking the sheet owned them.
+
+## Aseprite support comes in two sequenced phases, both before MVP
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** asset-pipeline
+- **SCOPE:** moderate
+- **WHAT:** Papercut reads `.aseprite` files directly. Phase 1 treats one as an image, usable anywhere a PNG is: its visible layers are flattened for one chosen frame, picked with a frame scrubber and remembered on the image entry. A tileset's grid size comes from the file's own grid setting (and from its tileset tile size, where the file has one) instead of being entered again. Phase 2 maps slices to project sprites and frames and tags to animations. Phase 2 comes after phase 1 but is not deferred: both are in scope before MVP.
+- **WHY:** The artist should author in Aseprite and not re-describe the same art in papercut. Grid size and frame choice are cheap to take from the file and remove the obvious friction from phase 1. How slices and animation should work in the editor can't be designed well in the abstract: the owner needs to use phase 1 first, so phase 2's design follows from it.
+
+## .aseprite files are read by our own TypeScript parser; phase 1 handles the common blend modes; export is unchanged
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** asset-pipeline
+- **SCOPE:** moderate
+- **WHAT:** A new package parses `.aseprite` files and combines their layers itself, using `fflate` (already a dependency) for the compressed pixel data. It runs the same in the editor, the desktop app and the export CLI, and needs no Aseprite install. Phase 1 matches Aseprite exactly for Normal, Multiply, Screen, Overlay, Darken, Lighten and Addition. Any other blend mode is drawn as Normal with a warning naming the layer. Aseprite's own CLI is used only to produce the expected images for tests, never at runtime. Export does not change: textures stay embedded as PNG in the `.glb`, and no separate PNG files are written.
+- **WHY:** Only a parser of our own keeps working in the browser build and the headless exporter, and keeps the "no native binaries or outside programs" rule. Running the Aseprite CLI would tie papercut to a desktop with Aseprite installed, and would run the program again for every frame the scrubber shows. The npm parser is unmaintained and needs Node polyfills in the renderer. The common blend modes cover nearly all real files without porting all of Aseprite's modes. Export already embeds everything the game needs, and no engine currently needs separate PNGs.
