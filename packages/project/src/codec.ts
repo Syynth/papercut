@@ -5,9 +5,14 @@
  * canvas, the export CLI has `fast-png`, a test wants neither. So the codec
  * is handed in, and this package never names a PNG library. `rawImageCodec`
  * is the test's: eight bytes of size, then the pixels, nothing compressed.
+ *
+ * An `.aseprite` file needs no host at all — its reader is pure — so it is
+ * read here, before the codec is asked (decision-log 2026-09-19).
+ * `decodeImage` is the one door every image comes in by.
  */
 
-import type { RgbaImage } from '@papercut/document'
+import { isAsepriteSheet, readAsepriteSheet } from '@papercut/aseprite-sheet'
+import type { Grid, RgbaImage } from '@papercut/document'
 
 export interface ImageCodec {
   encode(image: RgbaImage): Promise<Uint8Array>
@@ -32,4 +37,25 @@ export const rawImageCodec: ImageCodec = {
     data.set(bytes.subarray(8))
     return Promise.resolve({ width, height, data })
   },
+}
+
+export interface DecodedImage {
+  image: RgbaImage
+  /** How many frames the file has: 1 for anything but an animated `.aseprite`. */
+  frames: number
+  /** The frame drawn: `frame` as asked, or the file's last when it has fewer. */
+  frame: number
+  /** The tile grid the file itself describes, when it does (an `.aseprite`'s grid or tileset); what an import starts from. */
+  grid: Grid | null
+  /** What did not come through, one line each. */
+  warnings: string[]
+}
+
+/** Any image file's pixels: an `.aseprite` by its own reader, at `frame`; anything else by the codec. */
+export async function decodeImage(codec: ImageCodec, bytes: Uint8Array, frame = 0): Promise<DecodedImage> {
+  if (isAsepriteSheet(bytes)) {
+    const sheet = readAsepriteSheet(bytes, frame)
+    return { image: sheet.image, frames: sheet.frames, frame: sheet.frame, grid: sheet.grid?.grid ?? null, warnings: sheet.warnings }
+  }
+  return { image: await codec.decode(bytes), frames: 1, frame: 0, grid: null, warnings: [] }
 }

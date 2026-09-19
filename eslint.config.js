@@ -21,8 +21,12 @@ import { plugin as houseRules } from '@papercut/eslint-rules'
  * This is the whole exemption mechanism. There is no inline escape hatch — see
  * `linterOptions` below — so an exemption is always a glob in this file, which
  * a reviewer opens, rather than a comment scattered through source.
+ *
+ * `src/testing/` is test support that is not itself a test file — the
+ * Aseprite byte writer the parser's tests build their input with. A package's
+ * build config leaves it out, so it is not part of what the package publishes.
  */
-const OUTSIDE_THE_SYSTEM = ['**/*.test.ts', '**/*.test.tsx', '**/*.bench.ts', 'scripts/**']
+const OUTSIDE_THE_SYSTEM = ['**/*.test.ts', '**/*.test.tsx', '**/*.bench.ts', '**/src/testing/**', 'scripts/**']
 
 export default tseslint.config(
   {

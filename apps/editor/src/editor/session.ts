@@ -19,7 +19,7 @@ import { MAPS_DIR, PROJECT_FILE, createMap, slotMaterial, slotOf, plainGrid, ser
 import type { Host } from '@papercut/editor-host'
 import { createSampleMap, generatePlaceholderTerrainSet } from '@papercut/fixtures'
 import { conventionOf, remapTags, renderTemplate, terrainFromLayout, terrainOf, terrainSetFrom, type LoadedSet, type TerrainSet } from '@papercut/geometry'
-import { MemoryFs, addImage, addMap, createProjectFolder, forget, hashBytes, joinPath, listImage, openProject, parseRecents, readMap, remember, writeMap, writeProject, type ImageCodec, type OpenedProject, type ProjectFs, type RecentProject, type StrayMap } from '@papercut/project'
+import { MemoryFs, addImage, addMap, createProjectFolder, decodeImage, forget, hashBytes, joinPath, listImage, openProject, parseRecents, readMap, remember, writeMap, writeProject, type DecodedImage, type ImageCodec, type OpenedProject, type ProjectFs, type RecentProject, type StrayMap } from '@papercut/project'
 import { exportGltf } from '@papercut/runtime/export'
 import { desktopShell, type MenuCommand, type ShellDialogs, type ShellMenu } from '@papercut/shell-api'
 
@@ -501,9 +501,9 @@ async function writeImages(host: Host, session: Session, images: readonly ImageE
 }
 
 /** A picked file's pixels, decoded now so the import dialog can show them and offer the sizes that fit. */
-export async function inspectImageFile(session: Session, file: File): Promise<{ bytes: Uint8Array; image: RgbaImage }> {
+export async function inspectImageFile(session: Session, file: File): Promise<{ bytes: Uint8Array; decoded: DecodedImage }> {
   const bytes = new Uint8Array(await file.arrayBuffer())
-  return { bytes, image: await session.codec.decode(bytes) }
+  return { bytes, decoded: await decodeImage(session.codec, bytes) }
 }
 
 export interface ImportSpec {
@@ -589,7 +589,7 @@ export async function listUnlistedImage(host: Host, session: Session, path: stri
  * dropped, and the count comes back so the caller can say so. The images reload either way, since
  * the tiles are cut by the grid.
  */
-export async function setImageProps(host: Host, session: Session, file: string, changes: Partial<Pick<ImageEntry, 'name' | 'kind' | 'grid'>>): Promise<{ moved: number; dropped: number } | null> {
+export async function setImageProps(host: Host, session: Session, file: string, changes: Partial<Pick<ImageEntry, 'name' | 'kind' | 'grid' | 'frame'>>): Promise<{ moved: number; dropped: number } | null> {
   const { folder } = location(host)
   const entry = entryOf(host, file)
   let moved: { moved: number; dropped: number } | null = null
@@ -605,7 +605,7 @@ export async function setImageProps(host: Host, session: Session, file: string, 
   }
   const images = host.children.project.getSnapshot().context.project.images.map((i) => (sheetName(i.path) === file ? next : i))
   await writeImages(host, session, images)
-  if (changes.grid !== undefined) await reloadImages(host, session, folder)
+  if (changes.grid !== undefined || changes.frame !== undefined) await reloadImages(host, session, folder)
   return moved
 }
 
@@ -653,7 +653,7 @@ export async function unlistImage(host: Host, session: Session, file: string): P
 export async function replaceImageFile(host: Host, session: Session, file: string, picked: File): Promise<void> {
   const entry = entryOf(host, file)
   const bytes = new Uint8Array(await picked.arrayBuffer())
-  await session.codec.decode(bytes)
+  await decodeImage(session.codec, bytes)
   await importImage(host, session, { file, bytes, grid: entry.grid })
 }
 

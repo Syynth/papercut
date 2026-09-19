@@ -80,6 +80,7 @@ export function Slider({
   max,
   step = 1,
   onChange,
+  onChangeEnd,
   format,
 }: {
   value: number
@@ -87,11 +88,13 @@ export function Slider({
   max: number
   step?: number
   onChange: (value: number) => void
+  /** When the drag or key press is over: for a value too costly to commit on every step. */
+  onChangeEnd?: (value: number) => void
   format?: (value: number) => string
 }) {
   return (
     <span className="ui-slider">
-      <MantineSlider size="xs" min={min} max={max} step={step} value={value} onChange={onChange} label={null} />
+      <MantineSlider size="xs" min={min} max={max} step={step} value={value} onChange={onChange} onChangeEnd={onChangeEnd} label={null} />
       <output>{format ? format(value) : value}</output>
     </span>
   )

@@ -13,6 +13,11 @@
  * recovered through a picker of the folder's unlisted files, ranked by
  * likeness of name, with Browse… to any file.
  *
+ * An `.aseprite` file is an image like any other (decision-log 2026-09-19):
+ * its visible layers flattened, at the frame the entry names. Its own grid
+ * is what an import starts from, and a file with frames gets a Frame slider
+ * that previews as it moves and commits when it is let go.
+ *
  * Tilesets are worked through; Sprites, Textures and Animations are tabs
  * that say what they will hold. The section is the app's rather than a
  * package's for the reason the tagger is: the pixels live on the viewport.
@@ -23,7 +28,8 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactN
 import { sheetName, stemOf, type DeepReadonly, type Grid, type ImageEntry, type ImageKind, type RgbaImage } from '@papercut/document'
 import { useHost, useProject } from '@papercut/editor-host'
 import { conventionOf, conventions, fitsOf, gridCells, type LoadedSet } from '@papercut/geometry'
-import { Action, Derived, Dialog, Field, FileButton, Library, LibraryGroup, LibraryItem, LibraryTab, Note, PairInput, Select, TextInput } from '@papercut/ui'
+import { IMAGE_FILE, decodeImage } from '@papercut/project'
+import { Action, Derived, Dialog, Field, FileButton, Library, LibraryGroup, LibraryItem, LibraryTab, Note, PairInput, Select, Slider, TextInput } from '@papercut/ui'
 
 import { run } from './commands'
 import { rgbaToCanvas, rgbaToDataUrl } from './rgba'
@@ -36,6 +42,9 @@ const ZOOMS = [0.25, 0.5, 1, 2, 3, 4] as const
 type Entry = DeepReadonly<ImageEntry>
 
 const KIND_TITLES: Record<ImageKind, string> = { tileset: 'Tileset', sprites: 'Sprite sheet', texture: 'Texture' }
+
+/** What the file pickers offer: anything the browser calls an image, and Aseprite's files, which it does not. */
+const ACCEPT = 'image/png,image/*,.aseprite,.ase'
 
 /** A loaded image's pixels as a data URL, once per image: the list's thumbnail and the picker's. */
 const thumbs = new WeakMap<RgbaImage, string>()
@@ -183,13 +192,18 @@ interface Pending {
   path: string
   bytes: Uint8Array
   image: RgbaImage
+  /** The grid the file itself describes (an `.aseprite`'s), which the dialog starts from when it fits the project. */
+  fileGrid: Grid | null
+  frames: number
 }
 
 /** One dialog for a picked file and for a file found in the folder: the grid over the pixels, then Add. */
 function ImportDialog({ session, pending, density, taken, onClose }: { session: Session; pending: Pending; density: number; taken: readonly string[]; onClose: () => void }) {
   const host = useHost()
   const fits = fitsOf(pending.image.width, pending.image.height, { margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, density)
-  const [grid, setGrid] = useState<Grid>({ tile: fits.includes(density) ? density : (fits[0] ?? density), margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } })
+  // The file's own grid when it has one that works here, so it is not entered twice (decision-log 2026-09-19).
+  const fileGrid = pending.fileGrid !== null && tileProblem(pending.fileGrid.tile, density) === null && gridCells(pending.image.width, pending.image.height, pending.fileGrid).columns > 0 ? pending.fileGrid : null
+  const [grid, setGrid] = useState<Grid>(fileGrid ?? { tile: fits.includes(density) ? density : (fits[0] ?? density), margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } })
   const [name, setName] = useState(stemOf(pending.file))
   const [scale, setScale] = useState(pending.image.width > 600 ? 0.5 : 1)
   const [busy, setBusy] = useState(false)
@@ -210,7 +224,7 @@ function ImportDialog({ session, pending, density, taken, onClose }: { session: 
       })
   }
   return (
-    <Dialog opened onClose={onClose} title="Import image" description={`${pending.path} · ${pending.image.width} × ${pending.image.height}`} width={760} footer={
+    <Dialog opened onClose={onClose} title="Import image" description={[pending.path, `${pending.image.width} × ${pending.image.height}`, pending.frames > 1 ? `frame 1 of ${pending.frames}` : null].filter(Boolean).join(' · ')} width={760} footer={
       <>
         <Action title="Cancel" onClick={onClose} />
         <Action title="Add tileset" tone="accent" disabled={busy || problem !== null || cells.columns === 0 || cells.rows === 0} onClick={add} />
@@ -222,6 +236,11 @@ function ImportDialog({ session, pending, density, taken, onClose }: { session: 
         </div>
         <div style={{ display: 'grid', gap: 12 }}>
           <GridFields grid={grid} image={pending.image} density={density} onChange={setGrid} />
+          {fileGrid ? (
+            <div className="ui-tagger-hint" style={{ minHeight: 0 }}>
+              {grid === fileGrid ? 'The grid is the Aseprite file’s own.' : <button type="button" className="ui-action" onClick={() => setGrid(fileGrid)}>Use the file’s {fileGrid.tile} px grid</button>}
+            </div>
+          ) : null}
           {fits.length ? (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
               {fits.map((fit) => (
@@ -264,7 +283,7 @@ function RelinkDialog({ session, entry, unlisted, onClose }: { session: Session;
     <Dialog opened onClose={onClose} title={`Relink ${entry.name}`} description={`${entry.path} is not in the folder and nothing in sheets/ has its contents. Pick the file it is now, or browse for one; its name, grid and tags are kept.`} width={520} footer={
       <>
         <Action title="Cancel" onClick={onClose} />
-        <FileButton icon="replace" title="Browse…" accept="image/png,image/*" onFile={(file) => finish(replaceImageFile(host, session, sheetName(entry.path), file))} />
+        <FileButton icon="replace" title="Browse…" accept={ACCEPT} onFile={(file) => finish(replaceImageFile(host, session, sheetName(entry.path), file))} />
       </>
     }>
       {candidates.length === 0 ? <Note>No unlisted image files in sheets/.</Note> : (
@@ -368,6 +387,9 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
   const [pending, setPending] = useState<Pending | null>(null)
   const [relinking, setRelinking] = useState<string | null>(null)
   const [templating, setTemplating] = useState(false)
+  /** The frame the slider is on while it moves, and that frame's pixels once decoded; null when nothing is being scrubbed. */
+  const [scrub, setScrub] = useState<{ file: string; frame: number; image: RgbaImage | null } | null>(null)
+  const scrubBytes = useRef<{ path: string; bytes: Uint8Array } | null>(null)
   const queue = useRef<File[]>([])
   const density = project.resolution.texelDensity
   const warnings = useMemo(() => warning?.split('\n') ?? [], [warning])
@@ -385,7 +407,13 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
   const shown = project.images.filter((i) => tab === 'all' || i.kind === tab)
   const chosen = project.images.find((i) => sheetName(i.path) === selected) ?? shown[0] ?? project.images[0]
   const loaded = chosen ? loadedFor(chosen) : undefined
-  const source = loaded?.source ?? loaded?.image ?? null
+  const scrubbing = scrub !== null && chosen !== undefined && scrub.file === sheetName(chosen.path) ? scrub : null
+  const source = scrubbing?.image ?? loaded?.source ?? loaded?.image ?? null
+  const frames = loaded?.frames ?? 1
+  // The file may have changed on disk since it was read for scrubbing; a reload brings new pixels, so read again.
+  useEffect(() => {
+    scrubBytes.current = null
+  }, [loaded])
   const scale = zoom ?? (source && source.width > 700 ? 1 : 2)
   const taken = project.images.map((i) => sheetName(i.path))
 
@@ -394,20 +422,23 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
     const file = queue.current.shift()
     if (!file) return
     inspectImageFile(session, file)
-      .then(({ bytes, image }) => setPending({ mode: 'copy', file: file.name, path: file.name, bytes, image }))
+      .then(({ bytes, decoded }) => setPending({ mode: 'copy', file: file.name, path: file.name, bytes, image: decoded.image, fileGrid: decoded.grid, frames: decoded.frames }))
       .catch((error: unknown) => {
         notify(`${file.name}: ${messageOf(error)}`)
         nextPending()
       })
   }
   const importFiles = (files: File[]): void => {
-    queue.current.push(...files.filter((f) => /^image\//.test(f.type) || /\.(png|jpe?g|webp|gif|bmp)$/i.test(f.name)))
+    queue.current.push(...files.filter((f) => /^image\//.test(f.type) || IMAGE_FILE.test(f.name)))
     if (!pending) nextPending()
   }
   const addUnlisted = (path: string): void => {
     session.fs
       .readFile(`${host.children.project.getSnapshot().context.folder ?? ''}/${path}`)
-      .then(async (bytes) => setPending({ mode: 'list', file: sheetName(path), path, bytes, image: await session.codec.decode(bytes) }))
+      .then(async (bytes) => {
+        const decoded = await decodeImage(session.codec, bytes)
+        setPending({ mode: 'list', file: sheetName(path), path, bytes, image: decoded.image, fileGrid: decoded.grid, frames: decoded.frames })
+      })
       .catch((error: unknown) => notify(`${path}: ${messageOf(error)}`))
   }
   const closePending = (): void => {
@@ -425,6 +456,30 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
   }
   const tagged = chosen ? Object.keys(chosen.terrain.tiles).length : 0
 
+  /** Show frame `frame` of the entry's file on the stage without committing it: the file is read once, each frame decoded as the slider reaches it. */
+  const scrubTo = (entry: Entry, frame: number): void => {
+    const file = sheetName(entry.path)
+    setScrub((was) => ({ file, frame, image: was?.file === file ? was.image : null }))
+    const cached = scrubBytes.current
+    const read = cached?.path === entry.path ? Promise.resolve(cached.bytes) : session.fs.readFile(`${host.children.project.getSnapshot().context.folder ?? ''}/${entry.path}`)
+    read
+      .then(async (bytes) => {
+        scrubBytes.current = { path: entry.path, bytes }
+        const decoded = await decodeImage(session.codec, bytes, frame)
+        setScrub((now) => (now?.file === file && now.frame === frame ? { ...now, image: decoded.image } : now))
+      })
+      .catch((error: unknown) => notify(messageOf(error)))
+  }
+  const commitFrame = (entry: Entry, frame: number): void => {
+    if (frame === entry.frame) {
+      setScrub(null)
+      return
+    }
+    setImageProps(host, session, sheetName(entry.path), { frame })
+      .then(() => setScrub(null))
+      .catch((error: unknown) => notify(messageOf(error)))
+  }
+
   const tabs = (
     <>
       <LibraryTab title="All" active={tab === 'all'} onClick={() => setTab('all')} />
@@ -441,6 +496,7 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
           const set = loadedFor(entry)
           const problem = problemOf(entry)
           const size = set?.source ? `${set.source.width} × ${set.source.height}` : null
+          const frameCount = set?.frames !== undefined && set.frames > 1 ? `${set.frames} frames` : null
           const scaleOf = density / entry.grid.tile
           return (
             <LibraryItem
@@ -448,7 +504,7 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
               thumb={set ? thumbOf(set) : undefined}
               name={entry.name}
               badge={tab === 'all' ? entry.kind : undefined}
-              meta={problem ?? [sheetName(entry.path), size, `${entry.grid.tile} px`, Number.isInteger(scaleOf) && scaleOf !== 1 ? `${scaleOf}×` : null].filter(Boolean).join(' · ')}
+              meta={problem ?? [sheetName(entry.path), size, frameCount, `${entry.grid.tile} px`, Number.isInteger(scaleOf) && scaleOf !== 1 ? `${scaleOf}×` : null].filter(Boolean).join(' · ')}
               tone={problem ? 'warn' : 'ok'}
               dim={problem !== null}
               active={chosen === entry}
@@ -469,7 +525,7 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
       </div>
       <div className="ui-library-foot" style={{ display: 'grid', gap: 6 }}>
         <Action title="New from template…" tone="accent" onClick={() => setTemplating(true)} />
-        <FileButton icon="plus" title="Import image…" accept="image/png,image/*" multiple onFiles={importFiles} />
+        <FileButton icon="plus" title="Import image…" accept={ACCEPT} multiple onFiles={importFiles} />
       </div>
     </>
   )
@@ -481,7 +537,7 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
         <Note tone="warn">{problemOf(chosen) ?? 'Not loaded'}</Note>
         <div style={{ display: 'flex', gap: 6 }}>
           {missing(chosen) ? <Action title="Relink…" tone="accent" onClick={() => setRelinking(sheetName(chosen.path))} /> : null}
-          <FileButton icon="replace" title="Replace image…" accept="image/png,image/*" onFile={(file) => void replaceImageFile(host, session, sheetName(chosen.path), file).then(() => notify(`${chosen.name} replaced`)).catch((error: unknown) => notify(messageOf(error)))} />
+          <FileButton icon="replace" title="Replace image…" accept={ACCEPT} onFile={(file) => void replaceImageFile(host, session, sheetName(chosen.path), file).then(() => notify(`${chosen.name} replaced`)).catch((error: unknown) => notify(messageOf(error)))} />
         </div>
       </div>
     )
@@ -494,6 +550,18 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
       <Field label="Kind">
         <Select value={chosen.kind} options={(['tileset', 'sprites', 'texture'] as const).map((k) => ({ value: k, label: KIND_TITLES[k] }))} onChange={(kind) => change(chosen, { kind })} />
       </Field>
+      {frames > 1 ? (
+        <Field label="Frame" hint="The frame of the Aseprite file the project draws.">
+          <Slider
+            value={(scrubbing?.frame ?? Math.min(chosen.frame, frames - 1)) + 1}
+            min={1}
+            max={frames}
+            onChange={(shown) => scrubTo(chosen, shown - 1)}
+            onChangeEnd={(shown) => commitFrame(chosen, shown - 1)}
+            format={(shown) => `${shown} of ${frames}`}
+          />
+        </Field>
+      ) : null}
       <div className="ui-k">Grid</div>
       <GridFields grid={chosen.grid} image={source} density={density} onChange={(grid) => change(chosen, { grid })} />
       <div style={{ display: 'grid', gap: 6, marginTop: 2 }}>
@@ -522,7 +590,7 @@ export function ImagesSettings({ session, sets, warning, selected, onSelect }: {
         <code>{chosen.path}</code>
       </div>
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-        <FileButton icon="replace" title="Replace…" accept="image/png,image/*" onFile={(file) => void replaceImageFile(host, session, sheetName(chosen.path), file).then(() => notify(`${chosen.name} replaced`)).catch((error: unknown) => notify(messageOf(error)))} />
+        <FileButton icon="replace" title="Replace…" accept={ACCEPT} onFile={(file) => void replaceImageFile(host, session, sheetName(chosen.path), file).then(() => notify(`${chosen.name} replaced`)).catch((error: unknown) => notify(messageOf(error)))} />
         {session.dialogs ? <Action title="Reveal in Finder" onClick={() => void revealInFolder(host, chosen.path).catch((error: unknown) => notify(messageOf(error)))} /> : null}
         <Action title="Remove" tone="danger" onClick={() => void unlistImage(host, session, sheetName(chosen.path)).then(() => onSelect(null)).catch((error: unknown) => notify(messageOf(error)))} />
       </div>

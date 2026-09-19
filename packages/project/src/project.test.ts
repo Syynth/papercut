@@ -141,8 +141,8 @@ describe('a project folder', () => {
     const fs = new MemoryFs()
     await createProjectFolder(fs, '/p', { name: 'P', texelDensity: 4, placeholder: placeholder() }, rawImageCodec)
     const project = parseProject(await fs.readTextFile('/p/papercut.json'))
-    project.images.push({ id: 2, path: 'sheets/cliffs.png', name: 'Cliffs', kind: 'tileset', hash: null, grid: plainGrid(4), layout: null, terrain: { tiles: {} } })
-    project.images.push({ id: 3, path: 'sheets/props.png', name: 'Props', kind: 'tileset', hash: null, grid: plainGrid(3), layout: null, terrain: { tiles: {} } })
+    project.images.push({ id: 2, path: 'sheets/cliffs.png', name: 'Cliffs', kind: 'tileset', hash: null, grid: plainGrid(4), frame: 0, layout: null, terrain: { tiles: {} } })
+    project.images.push({ id: 3, path: 'sheets/props.png', name: 'Props', kind: 'tileset', hash: null, grid: plainGrid(3), frame: 0, layout: null, terrain: { tiles: {} } })
     await fs.writeFile('/p/sheets/props.png', await rawImageCodec.encode(placeholder(3).image))
     // The placeholder's tags describe a 4×4 grid; listed at 8 px it is 2×2, so twelve tags fall past the edge.
     project.images[0].grid = plainGrid(8)

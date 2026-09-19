@@ -35,9 +35,13 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@papercut/aseprite": "workspace:*",
+    "@papercut/aseprite-render": "workspace:*",
+    "@papercut/aseprite-sheet": "workspace:*",
     "@papercut/document": "workspace:*",
     "@papercut/editor-host": "workspace:*",
     "@papercut/eslint-rules": "workspace:*",
+    "@papercut/project": "workspace:*",
     "@papercut/viewport": "workspace:*",
     "@types/node": "^22.20.2",
     "eslint": "^10.10.0",

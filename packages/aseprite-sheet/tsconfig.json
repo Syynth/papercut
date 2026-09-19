@@ -20,16 +20,11 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
-    // No `DOM`, no Node: the project on disk is pure over the `ProjectFs`
-    // seam and an image codec, so the editor, the export CLI and a test each
-    // supply their own halves and this package proves it needs neither.
+    // No DOM, no Node: an .aseprite file becomes a sheet the same way in the
+    // editor, the desktop app and the export CLI.
     "types": []
   },
   "exclude": ["src/**/*.test.ts"],
   "include": ["src"],
-  "references": [
-    { "path": "../aseprite-sheet" },
-    { "path": "../document" },
-    { "path": "../geometry" }
-  ]
+  "references": [{ "path": "../aseprite" }, { "path": "../aseprite-render" }, { "path": "../document" }]
 }

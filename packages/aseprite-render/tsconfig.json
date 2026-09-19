@@ -20,16 +20,12 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
-    // No `DOM`, no Node: the project on disk is pure over the `ProjectFs`
-    // seam and an image codec, so the editor, the export CLI and a test each
-    // supply their own halves and this package proves it needs neither.
+    // Built as if published (decision-log 2026-09-19): no DOM and no Node, so
+    // the renderer runs in a browser, in Node and in a worker, over the
+    // parser's model alone.
     "types": []
   },
   "exclude": ["src/**/*.test.ts"],
   "include": ["src"],
-  "references": [
-    { "path": "../aseprite-sheet" },
-    { "path": "../document" },
-    { "path": "../geometry" }
-  ]
+  "references": [{ "path": "../aseprite" }]
 }

@@ -20,16 +20,13 @@
     "noUnusedParameters": true,
     "noFallthroughCasesInSwitch": true,
 
-    // No `DOM`, no Node: the project on disk is pure over the `ProjectFs`
-    // seam and an image codec, so the editor, the export CLI and a test each
-    // supply their own halves and this package proves it needs neither.
+    // Built as if published (decision-log 2026-09-19): no DOM and no Node, so
+    // the same parser runs in a browser, in Node and in a worker. The one
+    // dependency is fflate, for the zlib streams inside cels and tilesets.
     "types": []
   },
-  "exclude": ["src/**/*.test.ts"],
-  "include": ["src"],
-  "references": [
-    { "path": "../aseprite-sheet" },
-    { "path": "../document" },
-    { "path": "../geometry" }
-  ]
+  // `src/testing/` holds the byte writer the tests build files with; it is not
+  // part of the published surface.
+  "exclude": ["src/**/*.test.ts", "src/testing/**"],
+  "include": ["src"]
 }

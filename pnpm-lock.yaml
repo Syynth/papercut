@@ -112,6 +112,15 @@ importers:
       '@eslint/js':
         specifier: ^10.0.1
         version: 10.0.1(eslint@10.10.0(jiti@2.7.0)(supports-color@7.2.0))
+      '@papercut/aseprite':
+        specifier: workspace:*
+        version: link:packages/aseprite
+      '@papercut/aseprite-render':
+        specifier: workspace:*
+        version: link:packages/aseprite-render
+      '@papercut/aseprite-sheet':
+        specifier: workspace:*
+        version: link:packages/aseprite-sheet
       '@papercut/document':
         specifier: workspace:*
         version: link:packages/document
@@ -121,6 +130,9 @@ importers:
       '@papercut/eslint-rules':
         specifier: workspace:*
         version: link:packages/eslint-rules
+      '@papercut/project':
+        specifier: workspace:*
+        version: link:packages/project
       '@papercut/viewport':
         specifier: workspace:*
         version: link:packages/viewport
@@ -270,6 +282,60 @@ importers:
       vite:
         specifier: ^8.3.0
         version: 8.3.0(@types/node@22.20.2)(esbuild@0.27.7)(jiti@2.7.0)
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@types/node@22.20.2)(jsdom@26.1.0(supports-color@7.2.0))(vite@8.3.0(@types/node@22.20.2)(esbuild@0.27.7)(jiti@2.7.0))
+
+  packages/aseprite:
+    dependencies:
+      fflate:
+        specifier: 0.8.3
+        version: 0.8.3
+    devDependencies:
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(supports-color@7.2.0)(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@types/node@22.20.2)(jsdom@26.1.0(supports-color@7.2.0))(vite@8.3.0(@types/node@22.20.2)(esbuild@0.27.7)(jiti@2.7.0))
+
+  packages/aseprite-render:
+    dependencies:
+      '@papercut/aseprite':
+        specifier: workspace:*
+        version: link:../aseprite
+    devDependencies:
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(supports-color@7.2.0)(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
+      vitest:
+        specifier: ^5.0.0
+        version: 5.0.0(@types/node@22.20.2)(jsdom@26.1.0(supports-color@7.2.0))(vite@8.3.0(@types/node@22.20.2)(esbuild@0.27.7)(jiti@2.7.0))
+
+  packages/aseprite-sheet:
+    dependencies:
+      '@papercut/aseprite':
+        specifier: workspace:*
+        version: link:../aseprite
+      '@papercut/aseprite-render':
+        specifier: workspace:*
+        version: link:../aseprite-render
+      '@papercut/document':
+        specifier: workspace:*
+        version: link:../document
+    devDependencies:
+      tsup:
+        specifier: 8.5.1
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.28)(supports-color@7.2.0)(typescript@6.0.3)
+      typescript:
+        specifier: 6.0.3
+        version: 6.0.3
       vitest:
         specifier: ^5.0.0
         version: 5.0.0(@types/node@22.20.2)(jsdom@26.1.0(supports-color@7.2.0))(vite@8.3.0(@types/node@22.20.2)(esbuild@0.27.7)(jiti@2.7.0))
@@ -450,6 +516,9 @@ importers:
 
   packages/project:
     dependencies:
+      '@papercut/aseprite-sheet':
+        specifier: workspace:*
+        version: link:../aseprite-sheet
       '@papercut/document':
         specifier: workspace:*
         version: link:../document

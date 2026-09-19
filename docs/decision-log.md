@@ -901,3 +901,11 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** `@papercut/aseprite` parses `.aseprite` bytes into a typed file model (header, layers, frames, cels, tags, slices, palette, grid, user data). `@papercut/aseprite-render` combines one frame's layers into RGBA pixels, using only the parser's model. A third, papercut-side package turns that into project images: the chosen frame, grid defaults, frame count and warnings. The parser and renderer know nothing about papercut and are built as if published, as a replacement for `ase-parser`: complete coverage of the format, no Node or DOM dependency, documented public types, and their own tests. They keep the `@papercut` scope until a publish decision is made.
 - **WHY:** The owner's reason: building to a publishable boundary makes the code better. Expanded: a library with no papercut in it has to get the format right on its own terms instead of just enough for today's feature, and phase 2 (slices, tags, animation) then only needs a new consumer, not changes to the parser. Keeping parsing and rendering separate means a tool that only needs metadata doesn't carry the compositor.
+
+## Every Aseprite blend mode renders exactly, not just the common set
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** asset-pipeline
+- **SCOPE:** minor/local (amends ".aseprite files are read by our own TypeScript parser; phase 1 handles the common blend modes")
+- **WHAT:** The renderer ports all 19 of Aseprite's blend modes, plus its grayscale quirks, from Aseprite's MIT-licensed `doc`/`render` libraries. No mode falls back to Normal. The golden fixtures cover every mode in both RGB and grayscale.
+- **WHY:** The earlier limit was about cost: porting modes one by one from written formulas, without knowing whether rounding would match. Aseprite's own blend code is MIT, so a direct port of all modes, rounding quirks included, cost the same as the common set. It is checked bit for bit against Aseprite. A published replacement for `ase-parser` should not render some files wrong when the correct output was free.

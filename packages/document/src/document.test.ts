@@ -894,7 +894,7 @@ describe('a project file is checked before it is believed', () => {
   it('round-trips, and starts with the placeholder image, the default materials and no maps', () => {
     const project = createProject('Harbour Town', 32, { tiles: { 3: ['0', '0', null, null] } })
     expect(project.resolution).toEqual({ texelDensity: 32, filtering: 'nearest' })
-    expect(project.images).toEqual([{ id: 1, path: 'sheets/ground.png', name: 'Ground', kind: 'tileset', hash: null, grid: { tile: 32, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, layout: null, terrain: { tiles: { 3: ['0', '0', null, null] } } }])
+    expect(project.images).toEqual([{ id: 1, path: 'sheets/ground.png', name: 'Ground', kind: 'tileset', hash: null, grid: { tile: 32, margin: { x: 0, y: 0 }, spacing: { x: 0, y: 0 } }, frame: 0, layout: null, terrain: { tiles: { 3: ['0', '0', null, null] } } }])
     expect(project.maps).toEqual([])
     expect(parseProject(serializeProject(project))).toEqual(project)
     expect(sheetName('sheets/ground.png')).toBe('ground.png')
@@ -929,7 +929,14 @@ describe('a project file is checked before it is believed', () => {
     expect(sparse.maps).toEqual([])
     expect(() => parseProject(JSON.stringify({ formatVersion: PROJECT_FORMAT_VERSION, images: [{ path: 'sheets/a.png' }] }))).toThrow(/no tile size/)
     const terse = parseProject(JSON.stringify({ formatVersion: PROJECT_FORMAT_VERSION, images: [{ path: 'sheets/mz/Outside_A2.png', grid: { tile: 48, margin: 2, spacing: { x: 1, y: 0 } } }] }))
-    expect(terse.images[0]).toEqual({ id: 1, path: 'sheets/mz/Outside_A2.png', name: 'Outside_A2', kind: 'tileset', hash: null, grid: { tile: 48, margin: { x: 2, y: 2 }, spacing: { x: 1, y: 0 } }, layout: null, terrain: { tiles: {} } })
+    expect(terse.images[0]).toEqual({ id: 1, path: 'sheets/mz/Outside_A2.png', name: 'Outside_A2', kind: 'tileset', hash: null, grid: { tile: 48, margin: { x: 2, y: 2 }, spacing: { x: 1, y: 0 } }, frame: 0, layout: null, terrain: { tiles: {} } })
+  })
+
+  it('reads the frame an image draws, and refuses one that is not a whole number from 0', () => {
+    const withFrame = (frame: unknown) => JSON.stringify({ formatVersion: PROJECT_FORMAT_VERSION, images: [{ path: 'sheets/walk.aseprite', grid: { tile: 16 }, frame }] })
+    expect(parseProject(withFrame(3)).images[0]?.frame).toBe(3)
+    expect(() => parseProject(withFrame(-1))).toThrow(/frame that is not a whole number/)
+    expect(() => parseProject(withFrame(1.5))).toThrow(/frame that is not a whole number/)
   })
 
   it('checks the tags as the image carries them: four a tile, each naming a material, on a real tile index', () => {

@@ -1,8 +1,11 @@
 {
-  "name": "@papercut/project",
+  "name": "@papercut/aseprite-render",
   "private": true,
   "version": "0.0.0",
+  "description": "Render a frame of a parsed Aseprite file to RGBA pixels, with Aseprite's own blend modes, opacity, groups, z-indexes and tilemaps.",
+  "license": "MIT",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "development": "./src/index.ts",
@@ -10,14 +13,13 @@
       "default": "./dist/index.js"
     }
   },
+  "files": ["dist", "README.md", "LICENSE"],
   "scripts": {
     "build": "tsup --config ../../tsup.config.ts && tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.typecheck.json"
   },
   "dependencies": {
-    "@papercut/aseprite-sheet": "workspace:*",
-    "@papercut/document": "workspace:*",
-    "@papercut/geometry": "workspace:*"
+    "@papercut/aseprite": "workspace:*"
   },
   "devDependencies": {
     "tsup": "8.5.1",

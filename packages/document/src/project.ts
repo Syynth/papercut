@@ -132,6 +132,11 @@ export interface ImageEntry {
   /** The file's content hash as last seen — `sha256:<hex>` — or `null` before it has been read; how a moved file is found again. */
   hash: string | null
   grid: Grid
+  /**
+   * Which frame of the file is the image, 0-based (decision-log 2026-09-19): an `.aseprite` file has frames, and the
+   * project draws one. 0 for a file with only one, which is every PNG.
+   */
+  frame: number
   /** The convention it was laid out to, or `null` for an image tagged by hand. */
   layout: ImageLayout | null
   terrain: ImageTerrain
@@ -192,7 +197,7 @@ export function emptyTerrain(): ImageTerrain {
 
 /** The placeholder image's entry: the image the default materials point into, tagged as `terrain` says. */
 export function placeholderImage(tile: number, terrain: ImageTerrain = emptyTerrain(), id = 1): ImageEntry {
-  return { id, path: `${SHEETS_DIR}/${PLACEHOLDER_SHEET}`, name: 'Ground', kind: 'tileset', hash: null, grid: plainGrid(tile), layout: null, terrain }
+  return { id, path: `${SHEETS_DIR}/${PLACEHOLDER_SHEET}`, name: 'Ground', kind: 'tileset', hash: null, grid: plainGrid(tile), frame: 0, layout: null, terrain }
 }
 
 /** A fresh project id: a uuid, which is what a map's stamp has to be matched against. WebCrypto, which every runtime this package runs in has; this package declares no DOM. */
@@ -302,6 +307,8 @@ export function normaliseImage(raw: unknown, index: number, id = index + 1): Ima
   if (!isRelativePath(i.path)) throw new LoadError(`Image ${index} has no path inside the project.`)
   const where = sheetName(i.path)
   if (i.id !== undefined && !(typeof i.id === 'number' && Number.isInteger(i.id) && i.id >= 1)) throw new LoadError(`Image ${where} has an id that is not a whole number from 1.`)
+  // Absent in every file from before frames, which drew the only frame there was.
+  if (i.frame !== undefined && !isCount(i.frame)) throw new LoadError(`Image ${where} has a frame that is not a whole number from 0.`)
   return {
     id: i.id ?? id,
     path: i.path,
@@ -309,6 +316,7 @@ export function normaliseImage(raw: unknown, index: number, id = index + 1): Ima
     kind: KINDS.includes(i.kind as ImageKind) ? (i.kind as ImageKind) : 'tileset',
     hash: typeof i.hash === 'string' && i.hash.length > 0 ? i.hash : null,
     grid: normaliseGrid(i.grid, where),
+    frame: i.frame ?? 0,
     layout: normaliseLayout(i.layout, where),
     terrain: normaliseTerrain(i.terrain, where),
   }
