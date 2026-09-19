@@ -853,3 +853,11 @@ Each entry:
 - **SCOPE:** architectural
 - **WHAT:** `papercut.json` carries a stable uuid, assigned when the project is created (or on first open of an older file). Every map records the uuid of the project it belongs to, written whenever the map is saved. A map file whose stamp is not this project's — or that has none — is another project's until imported: it is not opened in place. Import Map… is the way in: a flow that walks every reference the map makes (materials by id, images by id for pasted tiles, sprites by name) and lets the artist resolve each to something in this project, with a live preview of the map that updates as references are resolved, and writes the result as a new map of this project, stamped.
 - **WHY:** Ids only mean something inside one project; a match by reference alone cannot tell a map of this project from another's whose ids happen to line up. A stamp makes provenance definitive, and puts the real work — mapping one project's vocabulary onto another's — in a flow built for it, where the artist sees the effect of each choice instead of discovering wrong ids in the level afterwards.
+
+## New Project lets the placeholder sheet be left out
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** project format / editor-ui
+- **SCOPE:** minor/local
+- **WHAT:** New Project… offers the generated placeholder tileset (`sheets/ground.png`, with its image entry and terrain set in `papercut.json`) as an option rather than always writing it, off by default. Left out, the project starts with no images at all; its default materials draw as their swatch colours until an image is listed and tagged, exactly as a project that unlists the placeholder does today. The "Will create" list shows only what will actually be written.
+- **WHY:** A project set up around existing art has no use for the placeholder — it is a file to delete and an entry to unlist, and it stands in for materials the project will define from its own sheets. The placeholder exists so a first project opens with something to paint; a project that already has something to paint should not be made to carry it.

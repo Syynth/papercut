@@ -363,12 +363,23 @@ export interface NewProjectSpec {
   texelDensity: number
   /** Whether to start it with an empty 32 × 32 map named for the project; without one it opens on no map. */
   firstMap?: boolean
+  /** Whether to write and list the generated placeholder tileset; without it the project starts with no images (ruling of 2026-09-19). */
+  placeholder?: boolean
 }
 
 /** Create a project folder and open it. */
 export async function createProjectAt(host: Host, session: Session, spec: NewProjectSpec): Promise<void> {
-  const placeholder = generatePlaceholderTerrainSet(spec.texelDensity)
-  const created = await createProjectFolder(session.fs, spec.folder, { name: spec.name, texelDensity: spec.texelDensity, placeholder, ...(spec.firstMap ? { firstMap: createMap(32, 32, spec.name) } : {}) }, session.codec)
+  const created = await createProjectFolder(
+    session.fs,
+    spec.folder,
+    {
+      name: spec.name,
+      texelDensity: spec.texelDensity,
+      ...(spec.placeholder ? { placeholder: generatePlaceholderTerrainSet(spec.texelDensity) } : {}),
+      ...(spec.firstMap ? { firstMap: createMap(32, 32, spec.name) } : {}),
+    },
+    session.codec,
+  )
   if (host.children.project.getSnapshot().context.folder !== null) await saveNow(host, session)
   await install(host, session, spec.folder, created)
 }

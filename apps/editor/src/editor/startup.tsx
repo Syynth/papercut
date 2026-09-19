@@ -106,8 +106,9 @@ export function NewProjectDialog({ session }: { session: Session }) {
   const [folder, setFolder] = useState('')
   const [texelDensity, setDensity] = useState(16)
   const [custom, setCustom] = useState(false)
-  // Off by default (ruling of 2026-09-19): a project is set up around its art, and its maps come after.
+  // Both off by default (rulings of 2026-09-19): a project is set up around its own art, and its maps come after.
   const [firstMap, setFirstMap] = useState(false)
+  const [placeholder, setPlaceholder] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   // In a browser the folder follows the name; a shell folder is chosen.
@@ -132,7 +133,7 @@ export function NewProjectDialog({ session }: { session: Session }) {
     setBusy(true)
     setError(null)
     try {
-      await createProjectAt(host, session, { folder: target, name: name.trim(), texelDensity, firstMap })
+      await createProjectAt(host, session, { folder: target, name: name.trim(), texelDensity, firstMap, placeholder })
       onClose()
     } catch (caught) {
       setError(messageOf(caught))
@@ -147,7 +148,7 @@ export function NewProjectDialog({ session }: { session: Session }) {
       opened={opened}
       onClose={onClose}
       title="New Project"
-      description="Creates the project file and the placeholder sheet in the folder you choose. Anything already there is left alone, and images under sheets/ are offered for listing."
+      description="Creates the project file in the folder you choose. Anything already there is left alone, and images under sheets/ are offered for listing."
       footer={
         <>
           <Action title="Cancel" onClick={onClose} />
@@ -180,12 +181,15 @@ export function NewProjectDialog({ session }: { session: Session }) {
       <Checkbox checked={firstMap} onChange={setFirstMap}>
         Start with an empty map
       </Checkbox>
+      <Checkbox checked={placeholder} onChange={setPlaceholder}>
+        Include the placeholder tileset, so the default materials draw with something
+      </Checkbox>
       <DialogManifest
         title="Will create"
         rows={[
           { name: 'papercut.json', note: 'name, resolution profile, the sheet and material lists', tone: 'accent' },
           ...(firstMap ? [{ name: `maps/${slug}.map.json`, note: 'an empty 32 × 32 map, opened first' }] : []),
-          { name: 'sheets/ground.png', note: `the placeholder tileset at ${texelDensity} px, its terrain set in papercut.json, yours to replace`, tone: 'ok' as const },
+          ...(placeholder ? [{ name: 'sheets/ground.png', note: `the placeholder tileset at ${texelDensity} px, its terrain set in papercut.json, yours to replace`, tone: 'ok' as const }] : []),
         ]}
       />
       {error ? <ErrorLine>{error}</ErrorLine> : null}
