@@ -105,28 +105,31 @@ what it is today: a material, or a material meeting another.
 
 ```
 ┌ subject bar ──────────────────────────────────────────────────────────────┐
-│ ■ Grass ◇▯◢  [Alone 14/15] meets [■Path drawn] [■Rock 3/14 wall]  ⌘Z ⌘⇧Z − 200% + │
+│ ■ Grass ◇▯◢  meets  ■ Rock · in the wall · 3 of 14 drawn   ⌘Z ⌘⇧Z − 200% + │
 ├ side ──────────┬ stage ─────────────────────────────────┬ form ────────────┤
 │ By priority    │              [ Preview | Tag | 3D ]    │ Name  Swatch      │
 │ ■ Grass ◇ 14/15│   Preview: the patch + the strip       │ Fringe  Picket    │
-│   Surface Fringe Picket  (slots of the selected)        │ Priority          │
-│ ■ Path  ◇ 15/15│   Tag:  the sheet, tags, hover, block  │                   │
-│ ■ Rock ◇▯  9/15│                                        │ Meeting Rock      │
-│                │   3D:   a fixture the renderer draws   │  in the wall      │
-│                │                                        │  3 of 14 drawn    │
-│                │                                        │  [Place block…]   │
+│    on its own  │                                        │ Priority          │
+│    meets ■Path │   Tag:  the sheet, tags, hover, block  │                   │
+│   ▸meets ■Rock │                                        │ Meeting Rock      │
+│   [New transition…]  3D: a fixture the renderer draws   │  in the wall      │
+│ ■ Path  ◇ 15/15│                                        │  3 of 14 drawn    │
+│ ■ Rock ◇▯  9/15│                                        │  [Place block…]   │
 │ New material   │                                        │ Delete            │
 │ Duplicate      │                                        │ Tagging (Tag view)│
 └────────────────┴────────────────────────────────────────┴───────────────────┘
 ```
 
-The bar across the top is the **subject bar**: the selected material, then
-its pairings as chips — *Alone*, then one per other material with its
-coverage and the face it is drawn in. The chips are the filter for every
-view: the one that is lit is what Preview assembles, what Place a block
-writes, and what the 3D fixture is built for. They are prominent on
-purpose; a list of pairings buried in the form was too easy to miss (the
-owner's direction of 2026-09-19, on the canvas).
+The selected material **expands in the side list**: under it, a vertical
+list of its subjects — *on its own*, then *meets X* for every other
+material, each with its coverage and the face it is drawn in — and a
+**New transition…** button below them that opens the spell-and-place
+control. The lit row is the subject of every view: what Preview assembles,
+what Place a block writes, what the 3D fixture is built for. The bar across
+the top only names that subject. A first draft put the pairings as chips in
+the bar; the owner moved them here, where they read as part of the material
+and stack without competing for width (the owner's directions of
+2026-09-19, on the canvas).
 
 ### The side column is the materials list, and only that
 
@@ -139,11 +142,11 @@ owner's direction of 2026-09-19, on the canvas). Two more changes:
 - The count beside each is **project-wide coverage** — "14/15", from
   `coverageOf` — in place of the tagger's per-sheet corner count. A material
   with no art anywhere is dim, as an untagged palette entry is today.
-- The **slots** stop being separate rows. Under the selected material a
-  chip row shows its archetype's parts — *Surface · Fringe · Picket*, and a
-  wall's *Convex seam · Concave seam* — with Surface chosen by default. In
-  Tag view the chosen chip is the brush's slot; in Preview it filters the
-  strip. Nobody has to read *Grass · Fringe* as a thing of its own again.
+- The **slots** stop being separate rows. A material's parts — *Surface ·
+  Fringe · Picket*, and a wall's *Convex seam · Concave seam* — are a chip
+  row in the Tagging block, the brush's slot when tagging corners, with
+  Surface chosen by default. Nobody has to read *Grass · Fringe* as a thing
+  of its own again.
 
 Selecting a material selects the subject for every view and makes it the
 brush. **New material** and **Duplicate** stay at the foot. **Nothing** leaves
@@ -154,7 +157,7 @@ the list: right-click still tags nothing, and Tag view gets an explicit
 
 Unchanged at the top: Name, Swatch, Fringe angle, Picket distance,
 **Priority**, **Delete**, "used in *n* maps". The Meets list is gone from
-here; the pairings live in the subject bar. Two additions:
+here; the pairings live under the material in the side list. Two additions:
 
 - When a pairing is lit, a **Meeting** block says which face it is drawn in
   and how much of it is drawn, with **Place block…** (and **Draw a
@@ -253,7 +256,7 @@ way the strip and the patch do; not in the first cut.
 | Sheet picker in the tools row | In the Tagging block; the tools row holds undo, redo, zoom. |
 | Per-sheet corner counts | Project-wide coverage per material. |
 | Materials' archetype groups | One flat list by priority, with face icons per material. |
-| Materials' Meets list in the form | Pairing chips in the subject bar; a Meeting block in the form for the lit one. |
+| Materials' Meets list in the form | The pairings as an expandable list under the material in the side list, with New transition… below; a Meeting block in the form for the lit one. |
 | Materials' form, priority, delete | Unchanged. |
 | Images' New from template… | Stays in Images; also reachable from Meets as Draw a template…. |
 | Inspector picker | Unchanged. |
