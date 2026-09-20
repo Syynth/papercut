@@ -50,7 +50,15 @@
  * the terrain merge, so the ceiling had already been crossed by growth
  * alone. Same per-file cost as the two notes above; same honest fix.
  */
-const BUDGET_MS = 40_000
+/*
+ * Moved from 40 s to 50 s on 2026-09-19, by the owner's say-so, when the
+ * Materials section and the aseprite packages brought the suite to 732
+ * tests / 72 files. The same commit measured 41.2 s on one cold runner and
+ * 30.5 s on the next, so the ceiling was inside the runners' own variance
+ * and failed a green suite at random. The work is the 30 s; the other ten
+ * are the runner. The ceiling sits clear of both.
+ */
+const BUDGET_MS = 50_000
 
 export default function setup(): () => void {
   const start = performance.now()
