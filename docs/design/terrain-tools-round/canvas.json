@@ -106,6 +106,13 @@
       "w": 1440,
       "h": 860,
       "title": "Keeping it simple: bars, keys, build order"
+    },
+    "SelIcons.dc.html": {
+      "x": 1520,
+      "y": 7260,
+      "w": 1440,
+      "h": 1180,
+      "title": "Icons for the selection tools"
     }
   },
   "designSystems": [],
@@ -159,7 +166,8 @@
     "SelEdges.dc.html",
     "SelFaces.dc.html",
     "SelVoxels.dc.html",
-    "SelSimple.dc.html"
+    "SelSimple.dc.html",
+    "SelIcons.dc.html"
   ],
   "pages": [],
   "title": "Terrain Tools",
