@@ -301,7 +301,7 @@ Where this document and the log disagree, the log wins.
 
 ## 5. Round two: the archetype is the context, the slot is picked on the stage
 
-Decided 2026-09-19 (four entries in `decision-log.md`), with details open.
+Decided 2026-09-19 (entries in `decision-log.md`), with details open.
 
 - The Any / Floor / Wall / Ramp switch in the bar is the CONTEXT for every
   view — what the Preview assembles, what the sheet lights, what the brush and
@@ -314,6 +314,12 @@ Decided 2026-09-19 (four entries in `decision-log.md`), with details open.
 - A rail is the ramp's trim, with a style the material picks: sheared along
   the slope, or upright and stepping with it.
 
-Still open, on `Slots.dc.html`: two runs of ramp art or four; long cells on a
-square sheet, or ramp art on sheets of its own; whether strip slots keep
-corner tags; whether Head, Foot and Side are real slots.
+- A ramp has no Head or Foot slot: its surface's corner tags answer them,
+  since the plateau and the ground are its neighbours in the dual grid.
+- Direction is an axis of every tag, beside the archetype and apart from the
+  slot, and a material says whether its art is drawn for one, two or four
+  directions. Ramps are its first use.
+
+Still open: long cells on a square sheet, or ramp art on sheets of its own;
+whether strip slots keep corner tags; whether Side is a real slot. The
+`Slots.dc.html` board predates the last two decisions above.
