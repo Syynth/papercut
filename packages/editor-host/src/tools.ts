@@ -13,7 +13,7 @@
  * knows, and `tools.set { tool }` refuses an id no owner declared.
  */
 
-import type { SnapMode } from '@papercut/document'
+import type { RegionCombine, RegionDepth, RegionElement, SnapMode } from '@papercut/document'
 import { commands, defineContextKey, reserveOwner, tools } from '@papercut/registry'
 import { setup, types } from 'xstate'
 import { z } from 'zod'
@@ -32,6 +32,14 @@ const toolSettings = z
     tool: z.string().min(1).exactOptional(),
     spriteName: z.string().min(1).exactOptional(),
     snap: z.enum(['grid', 'half', 'free']).exactOptional(),
+    /** Select's two halves (ruling of 2026-09-12): objects and structures, or a region of a voxel volume. */
+    selectMode: z.enum(['objects', 'region']).exactOptional(),
+    /** What a region is of (ruling of 2026-09-20). */
+    selectElement: z.enum(['voxel', 'face', 'edge']).exactOptional(),
+    selectFootprint: z.enum(['brush', 'rect', 'fill']).exactOptional(),
+    selectSize: z.int().min(1).max(12).exactOptional(),
+    selectDepth: z.enum(['surface', 'through']).exactOptional(),
+    selectCombine: z.enum(['replace', 'add', 'subtract', 'intersect']).exactOptional(),
   })
   .strict()
 
@@ -40,13 +48,26 @@ export type ToolSettings = z.infer<typeof toolSettings>
 /** One feature's parameters, as the host holds them: shaped by the feature, opaque here. */
 export type FeatureParams = Record<string, unknown>
 
+export type SelectFootprint = 'brush' | 'rect' | 'fill'
+
 export interface ToolsContext {
   readonly tool: ToolId
   readonly spriteName: string
   /** How the Select and Objects tools snap a drag; the sketch feature keeps its own for now. */
   readonly snap: SnapMode
+  readonly selectMode: 'objects' | 'region'
+  readonly selectElement: RegionElement
+  /** How a press becomes a set of cells: under a brush, in a rectangle from the press, or the connected flat. */
+  readonly selectFootprint: SelectFootprint
+  readonly selectSize: number
+  readonly selectDepth: RegionDepth
+  /** How a new region meets the one there; shift adds and alt subtracts whatever this says. */
+  readonly selectCombine: RegionCombine
   readonly features: Readonly<Record<string, FeatureParams>>
 }
+
+/** How Select starts: on objects, and for a region, one voxel under a one-cell brush, replacing what was selected. */
+export const SELECT_DEFAULTS = { selectMode: 'objects', selectElement: 'voxel', selectFootprint: 'brush', selectSize: 1, selectDepth: 'surface', selectCombine: 'replace' } as const satisfies Partial<ToolsContext>
 
 commands.declare(TOOLS_OWNER, { id: 'tools.set', title: 'Set Tool', category: 'Tools', args: toolSettings })
 
@@ -54,7 +75,7 @@ tools.declare(TOOLS_OWNER, { id: 'select', title: 'Select', icon: 'select' })
 tools.declare(TOOLS_OWNER, { id: 'object', title: 'Objects', icon: 'objects' })
 
 function applySettings(settings: ToolSettings): { context: Partial<ToolsContext> } | undefined {
-  const next: { tool?: ToolId; spriteName?: string; snap?: SnapMode } = {}
+  const next: { -readonly [K in keyof Omit<ToolsContext, 'features'>]?: ToolsContext[K] } = {}
   if (settings.tool !== undefined) {
     // A tool nobody declared is not a tool; the rail could never have shown it.
     if (tools.ownerOf(settings.tool) === undefined) return undefined
@@ -62,12 +83,18 @@ function applySettings(settings: ToolSettings): { context: Partial<ToolsContext>
   }
   if (settings.spriteName !== undefined) next.spriteName = settings.spriteName
   if (settings.snap !== undefined) next.snap = settings.snap
+  if (settings.selectMode !== undefined) next.selectMode = settings.selectMode
+  if (settings.selectElement !== undefined) next.selectElement = settings.selectElement
+  if (settings.selectFootprint !== undefined) next.selectFootprint = settings.selectFootprint
+  if (settings.selectSize !== undefined) next.selectSize = settings.selectSize
+  if (settings.selectDepth !== undefined) next.selectDepth = settings.selectDepth
+  if (settings.selectCombine !== undefined) next.selectCombine = settings.selectCombine
   return { context: next }
 }
 
 /** The tools logic, seeded with each installed feature's default parameters. A closure, not `input`: `input` leaks into the inspector. */
 export function toolsLogicWith(seeds: Readonly<Record<string, FeatureParams>>) {
-  const initial: ToolsContext = { tool: 'select', spriteName: 'tree', snap: 'grid', features: { ...seeds } }
+  const initial: ToolsContext = { tool: 'select', spriteName: 'tree', snap: 'grid', ...SELECT_DEFAULTS, features: { ...seeds } }
   return setup({
     schemas: {
       context: types<ToolsContext>(),

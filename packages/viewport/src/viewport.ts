@@ -21,9 +21,19 @@ import { ViewCube, type CubePiece } from './cube'
 import { FrameProfile, GpuTimer, type FrameProfileReport } from './profile'
 
 import {
+  DIR_VECTORS,
+  FACE_BOTTOM,
+  FACE_TOP,
   SURFACE_CLIFF,
   SURFACE_TOP,
+  columnTopAt,
   cornerHeights,
+  parseEdgeKey,
+  parseFaceKey,
+  parseVoxelKey,
+  shapeHeight,
+  voxelAt,
+  type Region,
   groundHeight,
   inBounds,
   type DocumentReader,
@@ -183,6 +193,8 @@ export interface ViewportOptions {
   hover: SurfaceAddress | null
   /** What is selected, as the scene knows it: framed with a box, whatever its kind. */
   selection: DocumentTarget | null
+  /** The region selected: some of a voxel volume's edges, faces or voxels, drawn as themselves (rulings of 2026-09-12 and 2026-09-20). */
+  region: Region | null
   /** The height range drawn, in half-tiles, or `null` for all of it — the layer view. */
   layers: LayerRange | null
   /** The sketch being drawn or edited: its points in world space, whether its outline closes, and which point is selected. */
@@ -210,6 +222,7 @@ const DEFAULT_OPTIONS: ViewportOptions = {
   play: null,
   hover: null,
   selection: null,
+  region: null,
   layers: null,
   sketch: null,
 }
@@ -272,6 +285,10 @@ export class Viewport {
   private options: ViewportOptions = { ...DEFAULT_OPTIONS }
   private handlers: ViewportHandlers
 
+  private regionMesh: THREE.Mesh
+  private regionLines: THREE.LineSegments
+  private drawnRegion: Region | null = null
+  private drawnRegionRevision = -1
   private overlay = new THREE.Group()
   /** The terrain grid, chunked like the terrain and updated chunk by chunk (`grid.ts`). */
   private grid = new TerrainGrid()
@@ -395,6 +412,15 @@ export class Viewport {
       }),
     )
     this.hoverMesh.renderOrder = 901
+    // The selected region, over the terrain it is part of: amber, the app's accent, and see-through so the art reads under it.
+    this.regionMesh = new THREE.Mesh(
+      new THREE.BufferGeometry(),
+      new THREE.MeshBasicMaterial({ color: 0xe9a23b, transparent: true, opacity: 0.42, depthTest: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+    )
+    this.regionMesh.renderOrder = 899
+    // Its outline, so a region reads at a glance over busy art: every selected element's own border.
+    this.regionLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false }))
+    this.regionLines.renderOrder = 899
     this.selectionBox = new THREE.Box3Helper(new THREE.Box3(), new THREE.Color(0x7fd4ff))
     this.selectionBox.visible = false
     // The sketch under the Sketch tool: its outline, its points, the selected point. Drawn on top of everything.
@@ -405,7 +431,7 @@ export class Viewport {
     this.sketchSelected = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color: 0xffffff, size: 13, sizeAttenuation: false, depthTest: false }))
     this.sketchSelected.renderOrder = 952
 
-    this.overlay.add(this.brushMesh, this.hoverMesh, this.selectionBox, this.sketchLine, this.sketchPoints, this.sketchSelected)
+    this.overlay.add(this.regionMesh, this.regionLines, this.brushMesh, this.hoverMesh, this.selectionBox, this.sketchLine, this.sketchPoints, this.sketchSelected)
     this.overlay.add(this.grid.group)
     // Grid lines above the ceiling go with the terrain they outline.
     this.grid.clipWith(this.scene.section.plane)
@@ -790,6 +816,87 @@ export class Viewport {
       this.sketchSelected.geometry.setAttribute('position', flat([sketch.points[sketch.selected]]))
       this.sketchSelected.geometry.computeBoundingSphere()
     }
+  }
+
+  /**
+   * The selected region as geometry: a face as the face, a voxel as its six sides, an edge as a ribbon folded over
+   * it. Rebuilt only when the region or the document has changed — a region can hold thousands of elements, and
+   * unlike the hover it does not move with the pointer.
+   */
+  private updateRegion(): void {
+    const region = this.options.region
+    const revision = this.reader.revision
+    this.regionMesh.visible = region !== null && !this.playing
+    this.regionLines.visible = this.regionMesh.visible
+    if (region === this.drawnRegion && revision === this.drawnRegionRevision) return
+    this.drawnRegion = region
+    this.drawnRegionRevision = revision
+    const points: number[] = []
+    const lines: number[] = []
+    const voxel = region ? structureOf(this.reader.doc, region.structure, 'voxel') : undefined
+    if (region && voxel) {
+      const frame = frameOf(this.reader.doc, voxel.id)
+      const at = (lx: number, h: number, lz: number): number[] => {
+        const [wx, wz] = toWorld(frame, lx, lz)
+        return [wx, frame.y + h, wz]
+      }
+      const quad = (a: number[], b: number[], c: number[], d: number[]): void => {
+        points.push(...a, ...b, ...c, ...a, ...c, ...d)
+        lines.push(...a, ...b, ...b, ...c, ...c, ...d, ...d, ...a)
+      }
+      /** A cell-local corner's height, in world units: the column's own surface, so a ramp's top is followed. */
+      const cornerAt = (x: number, z: number, cx: number, cz: number): number => cornerHeights(voxel, x, z)[[[0, 1], [3, 2]][cx][cz]] * 0.5
+      /** A voxel's top, in world units: a slab or a ramp stands half as high as a cube. */
+      const topOf = (x: number, z: number, y: number): number => y + shapeHeight(voxelAt(voxel, x, z, y)) * 0.5
+      const side = (dir: number): { ox: number; oz: number; ux: number; uz: number } => {
+        const g = [{ o: [1, 1], u: [0, -1] }, { o: [0, 1], u: [1, 0] }, { o: [0, 0], u: [0, 1] }, { o: [1, 0], u: [-1, 0] }][dir]
+        return { ox: g.o[0], oz: g.o[1], ux: g.u[0], uz: g.u[1] }
+      }
+      const face = (x: number, z: number, y: number, dir: number, inflate = 0): void => {
+        if (dir === FACE_TOP || dir === FACE_BOTTOM) {
+          // The column's top follows its slope; any other top, and every underside, is level.
+          const onTop = dir === FACE_TOP && y === columnTopAt(voxel, x, z)
+          const h = (cx: number, cz: number): number => (dir === FACE_BOTTOM ? y - inflate : onTop ? cornerAt(x, z, cx, cz) + inflate : (y < 0 ? 0 : topOf(x, z, y)) + inflate)
+          quad(at(x, h(0, 0), z), at(x, h(0, 1), z + 1), at(x + 1, h(1, 1), z + 1), at(x + 1, h(1, 0), z))
+          return
+        }
+        const { ox, oz, ux, uz } = side(dir)
+        const [nx, nz] = DIR_VECTORS[dir]
+        const [x0, z0, x1, z1] = [x + ox + nx * inflate, z + oz + nz * inflate, x + ox + ux + nx * inflate, z + oz + uz + nz * inflate]
+        quad(at(x0, y, z0), at(x1, y, z1), at(x1, topOf(x, z, y), z1), at(x0, topOf(x, z, y), z0))
+      }
+      for (const key of region.keys) {
+        if (region.element === 'face') {
+          const f = parseFaceKey(key)
+          face(f.x, f.z, f.y, f.dir)
+        } else if (region.element === 'voxel') {
+          const v = parseVoxelKey(key)
+          // A hair larger than the voxel, so its sides stand clear of the terrain's own and of the voxel beside it.
+          for (const dir of [0, 1, 2, 3, FACE_TOP, FACE_BOTTOM]) face(v.x, v.z, v.y, dir, 0.01)
+        } else {
+          const e = parseEdgeKey(key)
+          const { ox, oz, ux, uz } = side(e.dir)
+          const [nx, nz] = DIR_VECTORS[e.dir]
+          const RIBBON = 0.12
+          // The wall's line: along its top at the column's own heights, or along its foot at the heights of the ground it stands on.
+          const [bx, bz] = [e.x + nx, e.z + nz]
+          const beside = inBounds(voxel.size, bx, bz)
+          const heightAt = (cx: number, cz: number): number => (e.end === 'top' ? cornerAt(e.x, e.z, cx, cz) : beside ? cornerAt(bx, bz, cx - nx, cz - nz) : 0)
+          const [h0, h1] = [heightAt(ox, oz), heightAt(ox + ux, oz + uz)]
+          const [x0, z0, x1, z1] = [e.x + ox, e.z + oz, e.x + ox + ux, e.z + oz + uz]
+          // Folded over the edge: a strip on the wall, and a strip on the level beside it — the top's own for a top, the ground's for a foot.
+          const up = e.end === 'top' ? -RIBBON : RIBBON
+          const out = e.end === 'top' ? -RIBBON : RIBBON
+          quad(at(x0 + nx * 0.01, h0, z0 + nz * 0.01), at(x1 + nx * 0.01, h1, z1 + nz * 0.01), at(x1 + nx * 0.01, h1 + up, z1 + nz * 0.01), at(x0 + nx * 0.01, h0 + up, z0 + nz * 0.01))
+          quad(at(x0, h0 + 0.01, z0), at(x1, h1 + 0.01, z1), at(x1 + nx * out, h1 + 0.01, z1 + nz * out), at(x0 + nx * out, h0 + 0.01, z0 + nz * out))
+        }
+      }
+    }
+    const geometry = this.regionMesh.geometry
+    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
+    geometry.computeBoundingSphere()
+    this.regionLines.geometry.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3))
+    this.regionLines.geometry.computeBoundingSphere()
   }
 
   private updateSelection(): void {
@@ -1212,6 +1319,7 @@ export class Viewport {
     this.updateBrushPreview()
     this.updateHover()
     this.updateSelection()
+    this.updateRegion()
     this.updateSketch()
 
     if (!this.softwareRenderer) {

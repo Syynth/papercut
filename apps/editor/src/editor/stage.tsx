@@ -180,7 +180,7 @@ export function Stage({ platform }: { platform: Platform }) {
   // where the character stands up, read at the transition.
   const play = useMemo(() => (playing ? host.playSession() : null), [host, playing])
   useEffect(() => {
-    viewportRef.current?.setOptions({ showGrid, showMissing, fallback, materialLayers, gameCamera, projection, play, selection: selectionSubject(selection), layers })
+    viewportRef.current?.setOptions({ showGrid, showMissing, fallback, materialLayers, gameCamera, projection, play, selection: selectionSubject(selection), region: selection?.kind === 'region' ? selection : null, layers })
   }, [showGrid, showMissing, fallback, materialLayers, gameCamera, projection, play, selection, layers])
 
   useEffect(() => {

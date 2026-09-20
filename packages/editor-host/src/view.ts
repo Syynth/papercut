@@ -8,7 +8,7 @@
  * it as the object case, read by the viewport and the inspector.
  */
 
-import { MAX_HEIGHT, MIN_HEIGHT, type DocumentTarget } from '@papercut/document'
+import { MAX_HEIGHT, MIN_HEIGHT, type DocumentTarget, type RegionElement } from '@papercut/document'
 import { commands, defineContextKey, reserveOwner } from '@papercut/registry'
 import { setup, types } from 'xstate'
 import { z } from 'zod'
@@ -62,11 +62,14 @@ export type Selection =
   | { readonly kind: 'object'; readonly id: string }
   | { readonly kind: 'structure'; readonly id: string }
   | { readonly kind: 'sketchPoint'; readonly structure: string; readonly index: number }
+  /** Some of a voxel volume's edges, faces or voxels (rulings of 2026-09-12 and 2026-09-20): what the terrain verbs act on. */
+  | { readonly kind: 'region'; readonly structure: string; readonly element: RegionElement; readonly keys: readonly string[] }
 
 const selectionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('object'), id: z.string().min(1) }).strict(),
   z.object({ kind: z.literal('structure'), id: z.string().min(1) }).strict(),
   z.object({ kind: z.literal('sketchPoint'), structure: z.string().min(1), index: z.int().min(0) }).strict(),
+  z.object({ kind: z.literal('region'), structure: z.string().min(1), element: z.enum(['voxel', 'face', 'edge']), keys: z.array(z.string().min(1)).min(1).readonly() }).strict(),
 ])
 
 /** The object case, kept for the callers that only ever selected objects. */
@@ -90,6 +93,9 @@ commands.declare(VIEW_OWNER, { id: 'selection.select', title: 'Select', category
  */
 export function selectionSubject(selection: Selection | null): DocumentTarget | null {
   switch (selection?.kind) {
+    // A region is drawn as its own elements, not framed with a box round the volume it is part of.
+    case 'region':
+      return null
     case 'object':
       return { kind: 'object', id: selection.id }
     case 'structure':

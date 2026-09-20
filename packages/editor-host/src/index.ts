@@ -44,8 +44,8 @@ export type { Gesture, PointerMotion, PointerPress, PointerRelease } from './ges
 
 export type { PickSample, PointerModifiers, StrokeSample, ToolsSnapshot } from './strokes'
 
-export { TOOLS_OWNER, toolKeys } from './tools'
-export type { FeatureParams, ToolId, ToolSettings, ToolsContext } from './tools'
+export { SELECT_DEFAULTS, TOOLS_OWNER, toolKeys } from './tools'
+export type { FeatureParams, SelectFootprint, ToolId, ToolSettings, ToolsContext } from './tools'
 
 export { PROJECT_OWNER, projectKeys } from './project'
 export type { MaterialsSetArgs, MapsSetArgs, ProjectContext, ProjectCurrentArgs, ProjectLoadArgs, ProjectSettings, ImagesSetArgs } from './project'

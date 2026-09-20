@@ -12,11 +12,11 @@
 import type { Selection } from '@papercut/editor-host'
 import { mergeParams, type EditorParams } from './params'
 import { useDocument, useHost, useProject, useToolsSelector, useViewSelector } from '@papercut/editor-host'
-import type { MaterialDef, ReadonlyMapDoc, ReadonlyProjectDoc, SnapMode } from '@papercut/document'
+import { describeRegion, type MaterialDef, type ReadonlyMapDoc, type ReadonlyProjectDoc, type SnapMode } from '@papercut/document'
 import { SPRITE_NAMES } from '@papercut/fixtures/textures'
 import type { TerrainPanelProps } from '@papercut/feature-terrain'
 import { always, chordFor, evaluate, panels, tools, type PanelSlot, type Platform } from '@papercut/registry'
-import { BarDivider, BarGroup, BarLabel, BarValue, Chip, IconSegmented, Verb, type IconName } from '@papercut/ui'
+import { BarDivider, BarGroup, BarLabel, BarScrub, BarValue, Chip, IconSegmented, Verb, type IconName } from '@papercut/ui'
 import { useMemo, type ComponentType } from 'react'
 
 import { run, setParams } from './commands'
@@ -37,7 +37,7 @@ export function ContextBar({ platform }: { platform: Platform }) {
   const materials = useProject(materialsOf)
   const set = (changes: Partial<EditorParams>): void => setParams(host, changes)
   if (params.tool === 'select')
-    return <SelectBar doc={doc} selection={selection} params={params} set={set} platform={platform} onDelete={() => run(host, 'selection.delete')} onClear={() => run(host, 'selection.set', { id: null })} />
+    return <SelectBar doc={doc} selection={selection} params={params} set={set} platform={platform} onDelete={() => run(host, 'selection.delete')} onClear={() => run(host, 'selection.set', { id: null })} onRegion={(op) => run(host, 'selection.region', { op })} />
   if (params.tool === 'object') return <ObjectBar params={params} set={set} />
   return <FeaturePanels slot="bar" tool={params.tool} doc={doc} materials={materials} params={params} platform={platform} selection={selection} />
 }
@@ -109,6 +109,8 @@ export function describeSelection(doc: ReadonlyMapDoc, selection: Selection | nu
       return doc.structures[selection.id]?.name ?? null
     case 'sketchPoint':
       return doc.structures[selection.structure] ? `point ${selection.index + 1} of ${doc.structures[selection.structure]?.name}` : null
+    case 'region':
+      return doc.structures[selection.structure] ? describeRegion(selection) : null
     default:
       return null
   }
@@ -140,6 +142,7 @@ export function SelectBar({
   platform,
   onDelete,
   onClear,
+  onRegion,
 }: {
   doc: ReadonlyMapDoc
   selection: Selection | null
@@ -148,31 +151,89 @@ export function SelectBar({
   platform: Platform
   onDelete: () => void
   onClear: () => void
+  onRegion: (op: 'expand' | 'contract' | 'invert') => void
 }) {
   const named = describeSelection(doc, selection)
+  const region = params.selectMode === 'region'
+  const held = selection?.kind === 'region'
   return (
     <>
+      {/* The mode first, as every tool's bar has it (ruling of 2026-09-12): things that stand on the map, or a region of the terrain itself. */}
+      <IconSegmented
+        value={params.selectMode}
+        onChange={(selectMode) => set({ selectMode })}
+        options={[
+          { value: 'objects', icon: 'objects', title: 'Objects and structures: click to select, drag to move' },
+          { value: 'region', icon: 'marquee', title: 'A region of the terrain: its voxels, its faces or its edges' },
+        ]}
+      />
+      <BarDivider />
       <BarLabel>Selection</BarLabel>
       <BarValue>{named ?? 'nothing'}</BarValue>
       <BarDivider />
-      <BarGroup>
-        <Verb icon="trash" title="Delete the selection" kbd={chordFor('selection.delete', undefined, platform)} disabled={named === null} onClick={onDelete} />
-        <Verb icon="clear" title="Clear the selection" disabled={named === null} onClick={onClear} />
-      </BarGroup>
-      <BarDivider />
-      <SnapControl value={params.snap} onChange={(snap) => set({ snap })} />
-      <BarDivider />
-      {/* The region half of Select — marquee, expand, contract, invert — is
-          designed (docs/design/select-first.html) and waits on a typed
-          selection on the view actor (#100 records the voxel data it wants).
-          Shown disabled so the bar has its final shape rather than growing
-          later; each tooltip says why it does nothing yet. */}
-      <BarGroup>
-        <Verb icon="move" title="Move the region — not built yet" disabled onClick={() => undefined} />
-        <Verb icon="expand" title="Expand the region — not built yet" disabled onClick={() => undefined} />
-        <Verb icon="contract" title="Contract the region — not built yet" disabled onClick={() => undefined} />
-        <Verb icon="invert" title="Invert the region — not built yet" disabled onClick={() => undefined} />
-      </BarGroup>
+      {region ? (
+        <>
+          <IconSegmented
+            value={params.selectElement}
+            onChange={(selectElement) => set({ selectElement })}
+            options={[
+              { value: 'voxel', icon: 'voxel', title: 'Select voxels: what Move, Fill and Carve act on' },
+              { value: 'face', icon: 'faceOf', title: 'Select faces: what paint and extrusion act on' },
+              { value: 'edge', icon: 'edgeOf', title: 'Select edges: what fringes, pickets and rails act on' },
+            ]}
+          />
+          <BarDivider />
+          <IconSegmented
+            value={params.selectFootprint}
+            onChange={(selectFootprint) => set({ selectFootprint })}
+            options={[
+              { value: 'brush', icon: 'brush', title: 'Brush: takes what the drag passes over' },
+              { value: 'rect', icon: 'rect', title: 'Rectangle: from the press to the pointer' },
+              { value: 'fill', icon: 'fill', title: 'Fill: the connected flat under the press' },
+            ]}
+          />
+          {params.selectFootprint === 'brush' ? <BarScrub label="Size" title="Brush size: drag to change, click to type" value={params.selectSize} min={1} max={12} onChange={(selectSize) => set({ selectSize })} /> : null}
+          <BarDivider />
+          <IconSegmented
+            value={params.selectDepth}
+            onChange={(selectDepth) => set({ selectDepth })}
+            options={[
+              { value: 'surface', icon: 'depthSurface', title: 'Surface: only what the press touches' },
+              { value: 'through', icon: 'depthThrough', title: 'Through: on down through the volume from the face you press, within the layer view' },
+            ]}
+          />
+          <BarDivider />
+          <IconSegmented
+            value={params.selectCombine}
+            onChange={(selectCombine) => set({ selectCombine })}
+            options={[
+              { value: 'replace', icon: 'replace', title: 'Replace the selection' },
+              { value: 'add', icon: 'add', title: 'Add to the selection — holding shift does this too' },
+              { value: 'subtract', icon: 'subtract', title: 'Take from the selection — holding alt does this too' },
+              { value: 'intersect', icon: 'intersect', title: 'Keep only what both hold' },
+            ]}
+          />
+          <BarDivider />
+          <BarGroup>
+            <Verb icon="expand" title="Grow the region by what is beside it" disabled={!held} onClick={() => onRegion('expand')} />
+            <Verb icon="contract" title="Shrink the region by its rim" disabled={!held} onClick={() => onRegion('contract')} />
+            <Verb icon="invert" title="Select everything else of the same kind, within the layer view" disabled={!held} onClick={() => onRegion('invert')} />
+            {/* Move is designed (docs/design/terrain-tools-round) and is the next piece of the selection work. */}
+            <Verb icon="move" title="Move the region — not built yet" disabled onClick={() => undefined} />
+          </BarGroup>
+          <BarDivider />
+          <Verb icon="clear" title="Clear the selection" disabled={named === null} onClick={onClear} />
+        </>
+      ) : (
+        <>
+          <BarGroup>
+            <Verb icon="trash" title="Delete the selection" kbd={chordFor('selection.delete', undefined, platform)} disabled={named === null} onClick={onDelete} />
+            <Verb icon="clear" title="Clear the selection" disabled={named === null} onClick={onClear} />
+          </BarGroup>
+          <BarDivider />
+          <SnapControl value={params.snap} onChange={(snap) => set({ snap })} />
+        </>
+      )}
     </>
   )
 }
