@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Open questions, and an order to build in</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#15171c;color:#e8eaf0;font:13px/1.45 'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.k{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7b8294}
+.mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace}
+.hint{font-size:12px;color:#aab0c0;line-height:1.5}
+.hint b,.card p b{color:#e8eaf0;font-weight:600}
+.card{background:#1b1e25;border:1px solid #353b4a;border-radius:6px;padding:14px;display:grid;gap:10px;align-content:start;min-width:0}
+.card h3{margin:0;font-size:14px;font-weight:600}
+.card h3 span{font-weight:400;color:#7b8294}
+.card p{margin:0;font-size:12px;color:#aab0c0;line-height:1.5}
+.cap{font-size:11px;color:#7b8294;text-align:center}
+.fig{display:flex;gap:14px;align-items:end;flex-wrap:wrap}
+.fig>div{display:grid;gap:4px;justify-items:center}
+.q{background:#242833;border:1px solid #353b4a;border-left:3px solid #e9a23b;border-radius:4px;padding:10px 12px;font-size:12px;color:#aab0c0;line-height:1.5}
+.q b{color:#e8eaf0;font-weight:600}
+.tag{font:600 9px/1 'IBM Plex Sans',sans-serif;letter-spacing:.08em;text-transform:uppercase;border:1px solid #414859;border-radius:3px;padding:2px 4px;color:#7b8294;margin-left:6px;vertical-align:1px}
+.tag.ok{color:#7bc47f;border-color:#35523a}.tag.new{color:#e9a23b;border-color:#6b5324}.tag.chg{color:#5b8def;border-color:#2c4270}
+.bar{display:flex;align-items:center;gap:6px;background:#1b1e25;border:1px solid #353b4a;border-radius:6px;padding:6px 8px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid #353b4a;border-radius:4px;overflow:hidden}
+.seg span{padding:4px 9px;font-size:12px;color:#aab0c0;border-right:1px solid #353b4a;white-space:nowrap}
+.seg span:last-child{border-right:0}
+.seg span.on{background:#e9a23b;color:#15171c;font-weight:600}
+.scrub{font-size:12px;color:#aab0c0;border:1px solid #353b4a;border-radius:4px;padding:4px 8px;white-space:nowrap}
+.scrub b{color:#e8eaf0;font-weight:600;margin-left:6px}
+.div{width:1px;height:20px;background:#353b4a;margin:0 4px}
+.lbl{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7b8294;margin-right:2px}
+table{border-collapse:collapse;width:100%;font-size:12px}
+th{text-align:left;font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7b8294;padding:6px 8px;border-bottom:1px solid #353b4a}
+td{padding:7px 8px;border-bottom:1px solid #2c3140;color:#aab0c0;vertical-align:top;line-height:1.45}
+td:first-child{color:#e8eaf0;font-weight:600;white-space:nowrap}
+.leg{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#aab0c0;margin-right:14px}
+.leg i{width:12px;height:12px;display:inline-block;border-radius:2px}
+</style>
+</helmet>
+<div style="width: 1440px; height: 860px; box-sizing: border-box; padding: 28px 32px; background: #15171c; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 16px;">
+  <div style="display: grid; gap: 4px;">
+    <div style="font-size: 18px; font-weight: 600;">Open questions, and an order to build in</div>
+    <div class="hint" style="max-width: 1100px;">What I need your call on before any of this is built. Comment on the boards, or answer here.</div>
+  </div>
+  <div style="display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:14px;min-height:0"><div style="display:grid;gap:10px;align-content:start"><div class="q"><b>Is the pressed face the right rule?</b><br>It makes Raise on a cliff push the cliff out. The alternative is a separate Extrude-only tool and Raise that always means up. One rule is less to learn; the risk is pushing a wall out when you meant to lift the ground beside it, which the ghost is there to catch.</div><div class="q"><b>Is a surface the run of solid you pressed, or the column?</b><br>With overhangs a column can hold two surfaces. Proposed: the run you pressed. Lowering a bridge to nothing removes the bridge and leaves the ground.</div><div class="q"><b>Four modes, or fewer?</b><br>Sculpt, Build, Edges, Paint. Build could fold into Sculpt as more verbs, at the cost of a very long bar. Edges could stay in Paint, at the cost of staying hidden.</div><div class="q"><b>Which shape fills first?</b><br>Drawn: Box, Wall, Cylinder, Dome, Stairs, each Add or Carve, Solid or Hollow. Not drawn: pyramid, cone, arch, torus, a lathe from a sketch profile. Which of these earn a place?</div><div class="q"><b>Whole tiles sideways?</b><br>Out and in move a tile at a time because a voxel is a cube. A half-tile step sideways would be a new shape in all four directions. Proposed: no.</div><div class="q"><b>A material names its cliffs?</b><br>"Cliffs are: Dirt" on Grass, used when Inherit exposes a side with nothing to copy. Small, and it removes the most common second pass.</div><div class="q"><b>Smooth with slopes on by default?</b><br>It changes what Smooth has always done here. On by default makes it useful at once; off keeps old maps behaving the same under the same stroke.</div></div><div class="card"><h3>A build order, if this is right</h3>
+<table>
+<tr><th style="width:26px">#</th><th>Piece of work</th><th>Why there</th></tr>
+<tr><td>1</td><td>The document's operations become voxel operations: add, remove and move a run of solid along an axis, with faces reconciled by Inherit or Active.</td><td>Everything else calls these. Today's verbs are rewritten on top and behave the same on a plain hill.</td></tr>
+<tr><td>2</td><td>The pressed face sets the direction; ghosts; once a stroke.</td><td>Extrusion in six directions falls out of step 1, and the feel changes land together.</td></tr>
+<tr><td>3</td><td>The new footprints: Line, Ellipse, Lasso.</td><td>Shared by every mode, so they are built once.</td></tr>
+<tr><td>4</td><td>Build: Block and the Piece picker, then the shape fills; the Slice control.</td><td>Needs 1 and 3.</td></tr>
+<tr><td>5</td><td>Ramp between two heights, Reshape, Smooth with slopes.</td><td>Needs the pieces from 4.</td></tr>
+<tr><td>6</td><td>Edges mode, and the material override.</td><td>Independent of 1–5; could go first if fringes hurt most.</td></tr>
+</table></div></div>
+  <div></div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":860}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

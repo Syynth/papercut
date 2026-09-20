@@ -54,3 +54,7 @@
   fixture the runtime's own renderer draws for anything with a wall or a ramp. Decided
   2026-09-19; the decisions are in `docs/decision-log.md` under that date.
   Published copy: https://claude.ai/artifact/AsSJRC2UoYhVzzBzyrB3yY
+- [`terrain-tools-round/`](terrain-tools-round/README.md) — the 2026-09-19 design round on redoing the
+  terrain tools for voxels: surface verbs that act along the pressed face's normal, a Build mode of blocks and
+  shape fills, ramps and pieces, and one Edges mode for fringes, pickets and rails. Proposed, with its open
+  questions on the last board.
