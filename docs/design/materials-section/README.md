@@ -317,8 +317,8 @@ Decided 2026-09-19 (entries in `decision-log.md`), with details open.
 - A ramp has no Head or Foot slot: its surface's corner tags answer them,
   since the plateau and the ground are its neighbours in the dual grid.
 - Direction is an axis of every tag, beside the archetype and apart from the
-  slot, and a material says whether its art is drawn for one, two or four
-  directions. Ramps are its first use.
+  slot, and a material says, per archetype, whether its art is drawn for one,
+  two or four directions. Ramps are its first use.
 
 Still open: long cells on a square sheet, or ramp art on sheets of its own;
 whether strip slots keep corner tags; whether Side is a real slot. The
