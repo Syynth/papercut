@@ -18,6 +18,7 @@ a wall or a ramp in it.
 | `Wall.dc.html` | **Round two:** the Tag view working on walls — the archetype switch in the bar as the context, the dropdown on the stage as that archetype's slot picker, shown open |
 | `Ramp.dc.html` | **Round two:** the same working on ramps, with ramp tiles longer than they are wide and the slots a ramp might have |
 | `Slots.dc.html` | **Round two:** every archetype's slots with the shape of each one's tile, what was decided, and what is still open |
+| `Rails.dc.html` | **Decided 2026-09-19:** how a ramp's rail tiles. A rail is a patch seen from the side, tagged with the arrangements a material has, capped at head and foot. Sloped is turned along the slope (never sheared), three half-tile pieces a cell; upright is two columns a cell, stepping down, with a body to the ground. Also the ramp's `side` slot, and landings as an upright material's setting. Still open: a rail meeting a fence on a plateau, whether a rail stands out from the edge, how long a landing is |
 | `canvas.json` | Canvas layout, and the proposal and open questions as notes |
 
 Published copy: https://claude.ai/artifact/AsSJRC2UoYhVzzBzyrB3yY
