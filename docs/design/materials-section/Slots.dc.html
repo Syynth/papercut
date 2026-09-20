@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Archetypes, their slots, and the shape of a slot's tile</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#15171c;color:#e8eaf0;font:13px/1.45 'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#e9a23b}a:hover{color:#f0b65c}
+.k{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7b8294}
+.mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace}
+.hint{font-size:12px;color:#aab0c0;line-height:1.5}
+.col{background:#1b1e25;border:1px solid #353b4a;border-radius:6px;padding:14px;display:grid;gap:10px;align-content:start}
+.col h3{margin:0;font-size:14px;font-weight:600;display:flex;align-items:center;gap:8px}
+.col h3 svg{width:14px;height:14px;stroke:#e9a23b;fill:none;stroke-width:1.5;stroke-linejoin:round}
+.slot{display:grid;grid-template-columns:44px minmax(0,1fr);gap:10px;align-items:center;padding:8px;border:1px solid #2c3140;border-radius:4px;background:#15171c}
+.slot b{font-weight:600}
+.slot small{display:block;color:#7b8294;font-size:11.5px;line-height:1.4}
+.g{display:grid;place-items:center;width:44px;height:40px}
+.g svg{stroke:#aab0c0;fill:rgba(255,255,255,.07);stroke-width:1.3}
+.tag{font:600 9px/1 'IBM Plex Sans',sans-serif;letter-spacing:.08em;text-transform:uppercase;border:1px solid #414859;border-radius:3px;padding:2px 4px;color:#7b8294;margin-left:6px;vertical-align:1px}
+.tag.ok{color:#7bc47f;border-color:#35523a}
+.tag.new{color:#e9a23b;border-color:#6b5324}
+.q{background:#242833;border:1px solid #353b4a;border-left:3px solid #e9a23b;border-radius:4px;padding:12px 14px;display:grid;gap:6px}
+.q h4{margin:0;font-size:13px;font-weight:600}
+.q p{margin:0;font-size:12px;color:#aab0c0;line-height:1.5}
+.q p b{color:#e8eaf0;font-weight:600}
+</style>
+</helmet>
+<div style="width: 1440px; height: 900px; box-sizing: border-box; padding: 28px 32px; background: #15171c; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 18px;">
+  <div style="display: grid; gap: 4px;">
+    <div style="font-size: 18px; font-weight: 600;">Archetypes, their slots, and the shape of a slot's tile</div>
+    <div class="hint" style="max-width: 980px;">The bar says which archetype we are working with; the dropdown on the stage offers that archetype's slots. Today every tag is a corner of a square tile, whatever it names. The slots below are not all square, which is the thing to settle. <span class="tag ok">draws today</span> <span class="tag">tagged, not drawn yet</span> <span class="tag new">proposed</span></div>
+  </div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.25fr); gap: 14px; min-height: 0;">
+
+    <div class="col">
+      <h3><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg>Floor</h3>
+      <div class="hint" style="font-size: 11.5px; color: #7b8294;">Top faces, in the map's own plane.</div>
+      <div class="slot"><span class="g"><svg width="26" height="26" viewBox="0 0 26 26"><rect x=".7" y=".7" width="24.6" height="24.6"></rect><path d="M13 .7v24.6M.7 13h24.6" stroke-dasharray="2 2"></path></svg></span><span><b>Surface</b><span class="tag ok">draws today</span><small>1 × 1, four corners. The fifteen arrangements.</small></span></div>
+      <div class="slot"><span class="g"><svg width="26" height="14" viewBox="0 0 26 14"><rect x=".7" y=".7" width="24.6" height="12.6"></rect></svg></span><span><b>Fringe</b><span class="tag ok">draws today</span><small>1 × ½: the bottom half of an edge tile, hung off a cliff top as a flap. Tagged on the whole tile today.</small></span></div>
+      <div class="slot"><span class="g"><svg width="26" height="14" viewBox="0 0 26 14"><rect x=".7" y=".7" width="24.6" height="12.6"></rect></svg></span><span><b>Picket</b><span class="tag ok">draws today</span><small>1 × ½: the top half of an edge tile, stood at a wall's foot.</small></span></div>
+    </div>
+
+    <div class="col">
+      <h3><svg viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg>Wall</h3>
+      <div class="hint" style="font-size: 11.5px; color: #7b8294;">Side faces, in elevation.</div>
+      <div class="slot"><span class="g"><svg width="26" height="26" viewBox="0 0 26 26"><rect x=".7" y=".7" width="24.6" height="24.6"></rect><path d="M13 .7v24.6M.7 13h24.6" stroke-dasharray="2 2"></path></svg></span><span><b>Surface</b><span class="tag ok">draws today</span><small>1 × 1, four corners, read upright: cap, middle, foot and ends are the same fifteen.</small></span></div>
+      <div class="slot"><span class="g"><svg width="14" height="26" viewBox="0 0 14 26"><rect x=".7" y=".7" width="12.6" height="24.6"></rect></svg></span><span><b>Convex seam</b><span class="tag">not drawn yet</span><small>½ × 1: a strip down an outside turn. Mitred when there is none.</small></span></div>
+      <div class="slot"><span class="g"><svg width="14" height="26" viewBox="0 0 14 26"><rect x=".7" y=".7" width="12.6" height="24.6"></rect></svg></span><span><b>Concave seam</b><span class="tag">not drawn yet</span><small>½ × 1: a strip down an inside turn.</small></span></div>
+    </div>
+
+    <div class="col">
+      <h3><svg viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg>Ramp <span style="font-size: 11px; font-weight: 400; color: #7b8294;">and stairs, for now</span></h3>
+      <svg viewBox="60 20 220 165" width="100%" height="118" role="img" aria-label="A ramp off a plateau, with its surface, head, foot, side and rail marked">
+        <polygon points="150,30 210,60 150,90 90,60" fill="#2c3140" stroke="#414859"></polygon>
+        <polygon points="210,60 150,90 150,150 210,120" fill="#242833" stroke="#414859"></polygon>
+        <polygon points="90,60 150,90 150,150 90,120" fill="#1f232c" stroke="#414859"></polygon>
+        <polygon points="165,82.5 225,172.5 165,142.5" fill="#5a4a2a" stroke="#e9a23b" stroke-width="1"></polygon>
+        <polygon points="195,67.5 165,82.5 225,172.5 255,157.5" fill="#3a4152" stroke="#aab0c0"></polygon>
+        <polygon points="195,67.5 165,82.5 180,105 210,90" fill="rgba(233,162,59,.35)" stroke="#e9a23b"></polygon>
+        <polygon points="240,135 210,150 225,172.5 255,157.5" fill="rgba(233,162,59,.35)" stroke="#e9a23b"></polygon>
+        <polygon points="165,82.5 225,172.5 225,157.5 165,67.5" fill="rgba(123,196,127,.35)" stroke="#7bc47f"></polygon>
+        <text x="218" y="126" font-size="9" fill="#e8eaf0">surface</text>
+        <text x="200" y="72" font-size="9" fill="#e9a23b">head</text>
+        <text x="246" y="176" font-size="9" fill="#e9a23b">foot</text>
+        <text x="168" y="158" font-size="9" fill="#e9a23b">side</text>
+        <text x="146" y="62" font-size="9" fill="#7bc47f">rail</text>
+      </svg>
+      <div class="slot"><span class="g"><svg width="20" height="30" viewBox="0 0 20 30"><rect x=".7" y=".7" width="18.6" height="28.6"></rect><path d="M10 .7v28.6M.7 15h18.6" stroke-dasharray="2 2"></path></svg></span><span><b>Surface</b><span class="tag ok">draws today, stretched</span><small>1 × 1½ along its run. Today a square tile pulled 1.41× down the slope.</small></span></div>
+      <div class="slot"><span class="g"><svg width="26" height="14" viewBox="0 0 26 14"><rect x=".7" y=".7" width="24.6" height="12.6"></rect></svg></span><span><b>Head · Foot</b><span class="tag new">proposed</span><small>1 × ½ each: the lip onto the plateau, the landing on the ground.</small></span></div>
+      <div class="slot"><span class="g"><svg width="26" height="26" viewBox="0 0 26 26"><path d="M1 25h24V3z"></path></svg></span><span><b>Side</b><span class="tag new">proposed</span><small>The triangle under the slope. Wall art cut on the diagonal today.</small></span></div>
+      <div class="slot"><span class="g"><svg width="30" height="12" viewBox="0 0 30 12"><rect x=".7" y=".7" width="28.6" height="10.6"></rect></svg></span><span><b>Rail</b><span class="tag new">proposed</span><small>1½ × ½: a ramp's trim, stood along its open sides and sheared to the slope. Handrails, kerbs, banisters.</small></span></div>
+    </div>
+
+    <div style="display: grid; gap: 12px; align-content: start;">
+      <div class="k">To settle</div>
+      <div class="q">
+        <h4>1 · A slot has a size and a shape</h4>
+        <p>A fringe is half a tile, a seam is a strip, a ramp's surface is longer than it is wide, a ramp's side is a triangle. <b>Proposed:</b> a slot declares its cell in half-tiles, and the tagger's grid and cursor follow the slot picked on the stage: pick Rail and the brush covers a 3 × 1 cell. <b>To decide:</b> does every slot keep four corner tags, so strips auto-tile end to end the way a surface does, or is a strip tagged whole?</p>
+      </div>
+      <div class="q">
+        <h4>2 · Trims on ramps: the rail</h4>
+        <p>A fringe hangs off a cliff top and a picket stands at a wall's foot, both from art the floor already has. The ramp's version stands along its open sides. <b>Proposed:</b> Rail is a slot of the Ramp archetype with a height per material, on by default where a ramp's side is open, switched off per edge by the same brush that switches fringes off. <b>To decide:</b> a new slot, or the picket slot asked for by a ramp's edge, so one piece of art serves both?</p>
+      </div>
+      <div class="q">
+        <h4>3 · Which way the long side runs, and how long it is</h4>
+        <p>Steps seen head-on are not steps seen from the side turned a quarter. A ramp that runs north–south wants a tile 1 × 1½; one that runs east–west wants 1½ × 1, and different art. <b>Proposed:</b> the ramp context has two runs, <span class="mono">3@ramp</span> down the sheet and <span class="mono">3@ramp-across</span>, picked beside the slot, and the mesher mirrors each for the opposite direction. And <b>1½ rather than √2</b>: it sits on the half-tile grid every sheet already has, and the mesher takes up the 6 %. <b>To decide:</b> two runs or four, and whether a sheet may mix square and long cells or ramp art lives on sheets of its own.</p>
+      </div>
+      <div class="q" style="border-left-color: #7b8294;">
+        <h4>Stairs</h4>
+        <p><b>Tentative:</b> stairs are ramp art for now, steps drawn on a ramp's tiles over a slope that stays smooth. A stair that steps its geometry, with treads the player stands level on, is a later question and would ask for the same art.</p>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":900}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

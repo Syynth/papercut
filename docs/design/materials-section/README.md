@@ -15,6 +15,9 @@ a wall or a ramp in it.
 | `Tag.dc.html` | The same section in **Tag** view, placing the Stone-over-Grass block: the Tagging block in the form, the block's values as a sentence, the tags it would write ghosted under the pointer |
 | `Fixture.dc.html` | The **3D** view: the renderer's fixture for Grass meeting Stone, drawn as a stand-in — the fold, the fringe flap, the picket, a ramp nobody drew art for, and the marks on unanswered corners |
 | `Placing.dc.html` | Spelling and placing transitions in five steps: spell the values, point, click, swap a value and place the next, a third value for a 6 × 6 block |
+| `Wall.dc.html` | **Round two, proposed:** the Tag view working on walls — the archetype switch in the bar as the context, the dropdown on the stage as that archetype's slot picker, shown open |
+| `Ramp.dc.html` | **Round two, proposed:** the same working on ramps, with ramp tiles longer than they are wide and the slots a ramp might have |
+| `Slots.dc.html` | **Round two, to discuss:** every archetype's slots with the shape of each one's tile, and the three things to settle — a slot's size and shape, a ramp's rail, and which way a ramp tile's long side runs |
 | `canvas.json` | Canvas layout, and the proposal and open questions as notes |
 
 Published copy: https://claude.ai/artifact/AsSJRC2UoYhVzzBzyrB3yY
@@ -295,3 +298,20 @@ the default following the subject; the tagging controls live in the form
 column; Erase is a tool and the list is materials only; coverage is the grid
 and the number; and the model comes first, with no interim Archetype select.
 Where this document and the log disagree, the log wins.
+
+## 5. Round two: the archetype is the context, the slot is picked on the stage
+
+Proposed 2026-09-19, not decided. The owner's direction: the Floor / Wall /
+Ramp switch in the bar (with Any beside it) is the CONTEXT for every view —
+what the Preview assembles, what the sheet lights, what the brush and a
+block write — and the dropdown on the stage is the picker for the SLOTS that
+archetype has. One control for what is seen and what is written, where the
+built section has two that can disagree (the Show filter and the For
+picker); the Slot and For fields leave the form, and a slot that means
+nothing on a face can no longer be picked for it.
+
+Three things are open, on `Slots.dc.html`: a slot has a size and a shape, so
+the tagger's cell may need to follow the slot; trims on ramps, a Rail for
+handrails and kerbs; and which way a ramp tile's long side runs, with 1½
+proposed over √2 because it sits on the half-tile grid. Stairs are ramp art
+for now (tentative).

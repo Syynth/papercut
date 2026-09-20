@@ -1,0 +1,208 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Materials, Tag view, working on walls</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#15171c;color:#e8eaf0;font:13px/1.4 'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#e9a23b}a:hover{color:#f0b65c}
+button{font:inherit;color:inherit;background:none;border:0;padding:0;cursor:pointer;text-align:left}
+img{display:block;image-rendering:pixelated}
+.k{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7b8294}
+.mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+.btn{display:inline-flex;align-items:center;gap:6px;height:26px;padding:0 10px;border:1px solid #353b4a;border-radius:4px;background:#242833;color:#aab0c0;font-size:12px}
+.btn.accent{background:#e9a23b;border-color:#e9a23b;color:#1a1206;font-weight:600}
+.btn.danger{color:#e5636f;border-color:#4a2f34}
+.btn:disabled{opacity:.4;cursor:default}
+.kbd{font:500 10.5px/1 'IBM Plex Mono',ui-monospace,monospace;color:#7b8294;background:#1b1e25;border:1px solid #353b4a;border-bottom-width:2px;border-radius:3px;padding:2px 4px 1px}
+.seg{display:inline-flex;background:#1b1e25;border:1px solid #353b4a;border-radius:6px;padding:2px;gap:2px}
+.seg button{height:22px;padding:0 10px;border-radius:4px;color:#aab0c0;font-size:12px;display:inline-flex;align-items:center;gap:5px}
+.seg button.on{background:#2c3140;color:#e8eaf0;box-shadow:inset 0 -2px 0 #e9a23b}
+.row{display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:center;gap:8px;height:26px;padding:0 4px 0 8px;border-radius:4px;color:#aab0c0}
+.row.on{background:rgba(233,162,59,.16);color:#e9a23b}
+.row.meets{background:#242833;color:#e8eaf0}
+.sw{width:12px;height:12px;border-radius:3px;overflow:hidden}
+.chip{height:20px;padding:0 8px;border-radius:10px;border:1px solid #353b4a;color:#aab0c0;font-size:11px;display:inline-flex;align-items:center;gap:4px}
+.chip.on{background:#2c3140;border-color:#414859;color:#e8eaf0}
+.pair{height:26px;padding:0 9px 0 6px;border-radius:6px;border:1px solid #353b4a;background:#1b1e25;color:#aab0c0;font-size:12px;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
+.pair:hover{border-color:#414859;color:#e8eaf0}
+.pair.on{background:rgba(233,162,59,.16);border-color:#e9a23b;color:#e9a23b}
+.pair .sw{width:14px;height:14px}
+.pair .st{font-size:10.5px;font-weight:500}
+.face{display:inline-flex;gap:3px;align-items:center;margin-left:6px}
+.face svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linejoin:round;display:block}
+.face .off{opacity:.22}
+.ctx{display:inline-flex;background:#1b1e25;border:1px solid #353b4a;border-radius:6px;padding:2px;gap:2px}
+.ctx button{height:24px;padding:0 10px;border-radius:4px;color:#aab0c0;font-size:12px;display:inline-flex;align-items:center;gap:6px}
+.ctx button.on{background:#2c3140;color:#e8eaf0;box-shadow:inset 0 -2px 0 #e9a23b}
+.ctx svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linejoin:round}
+.opt{display:grid;grid-template-columns:30px minmax(0,1fr) auto;align-items:center;gap:8px;min-height:34px;padding:3px 8px;border-radius:4px;color:#aab0c0;font-size:12px}
+.opt.on{background:rgba(233,162,59,.16);color:#e9a23b}
+.opt small{display:block;font-size:10.5px;color:#7b8294;line-height:1.3}
+.opt .tag{font:600 9px/1 'IBM Plex Sans',sans-serif;letter-spacing:.08em;text-transform:uppercase;border:1px solid #414859;border-radius:3px;padding:2px 4px;color:#7b8294}
+.opt .tag.new{color:#e9a23b;border-color:#6b5324}
+.glyph{width:30px;height:24px;display:grid;place-items:center}
+.glyph svg{stroke:currentColor;fill:rgba(255,255,255,.08);stroke-width:1.3}
+.cov{display:inline-grid;grid-template-columns:repeat(4,3px);gap:1px;margin-right:6px;flex:none}
+.cov i{display:block;width:3px;height:3px;background:#8fd093}
+.cov i.off{background:#e5636f}
+.cov i.na{background:transparent}
+.cov.lg{grid-template-columns:repeat(4,6px);gap:1.5px;margin:0 8px 0 4px}
+.cov.lg i{width:6px;height:6px;border-radius:1px}
+.covn{display:inline-flex;align-items:center}
+.sub{display:grid;grid-template-columns:14px minmax(0,1fr) auto;align-items:center;gap:6px;height:24px;padding:0 6px 0 8px;border-radius:4px;color:#aab0c0;font-size:12px;text-decoration:none}
+.sub:hover{background:#242833;color:#e8eaf0}
+.sub.on{background:rgba(233,162,59,.16);color:#e9a23b}
+.sub .k{font-size:9.5px;margin-left:4px}
+.field{display:grid;gap:4px}
+.field label{font-size:11px;color:#7b8294}
+.input{height:28px;border:1px solid #353b4a;border-radius:4px;background:#1b1e25;padding:0 8px;display:flex;align-items:center;color:#e8eaf0;font-size:12.5px}
+.status{font-size:11px;font-weight:500}
+.status.ok{color:#7bc47f}.status.warn{color:#e9a23b}.status.muted{color:#7b8294}
+.hint{font-size:11.5px;color:#7b8294;line-height:1.45}
+.rail-item{display:flex;align-items:center;gap:8px;height:28px;padding:0 10px;border-radius:4px;color:#aab0c0;font-size:12.5px;width:100%}
+.rail-item.on{background:#2c3140;color:#e8eaf0}
+.rail-item svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
+.sentence{display:flex;flex-wrap:wrap;align-items:center;gap:6px;font-size:12.5px;color:#aab0c0}
+.sentence b{display:inline-flex;align-items:center;gap:5px;color:#e8eaf0;font-weight:600;border:1px solid #353b4a;border-radius:4px;padding:2px 7px 2px 5px;background:#242833}
+</style>
+</helmet>
+<div style="position: relative; width: 1440px; height: 860px; overflow: hidden; background: #15171c;">
+
+  <div style="position: absolute; inset: 0; display: grid; grid-template-rows: 44px 40px 1fr 28px; grid-template-columns: 52px 1fr 300px; opacity: .45;">
+    <div style="grid-column: 1 / -1; background: #1b1e25; border-bottom: 1px solid #353b4a; display: flex; align-items: center; gap: 10px; padding: 0 12px;"><span style="font-weight: 600; color: #aab0c0;">Papercut</span><span style="color: #7b8294;">the test project · <b style="color: #e8eaf0; font-weight: 500;">Valley</b></span></div>
+    <div style="grid-row: 2 / 4; background: #1b1e25; border-right: 1px solid #353b4a;"></div>
+    <div style="background: #242833; border-bottom: 1px solid #353b4a;"></div>
+    <div style="grid-row: 2 / 4; background: #1b1e25; border-left: 1px solid #353b4a;"></div>
+    <div style="background: #0f1115;"></div>
+    <div style="grid-column: 1 / -1; background: #1b1e25; border-top: 1px solid #353b4a;"></div>
+  </div>
+  <div style="position: absolute; inset: 0; background: rgba(8, 9, 12, .55);"></div>
+
+  <div style="position: absolute; left: 48px; top: 48px; width: 1344px; height: 764px; background: #242833; border: 1px solid #353b4a; border-radius: 6px; box-shadow: 0 16px 48px rgba(0,0,0,.45); display: grid; grid-template-columns: 176px minmax(0, 1fr); overflow: hidden;">
+
+    <div style="background: #1b1e25; border-right: 1px solid #353b4a; padding: 10px 8px; display: flex; flex-direction: column; gap: 8px;">
+      <div class="seg" style="width: 100%; box-sizing: border-box;"><button class="on" type="button" style="flex: 1; justify-content: center;">Project</button><button type="button" disabled style="flex: 1; justify-content: center; opacity: .45;">Map</button></div>
+      <div class="input" style="height: 26px; color: #7b8294; font-size: 12px;">Search settings</div>
+      <div style="display: grid; gap: 2px; margin-top: 4px;">
+        <button class="rail-item" type="button"><svg viewBox="0 0 16 16"><circle cx="8" cy="8" r="5.5"></circle><path d="M8 2v2M8 12v2M2 8h2M12 8h2"></path></svg>General</button>
+        <button class="rail-item" type="button"><svg viewBox="0 0 16 16"><path d="M2 4l4-1.5 4 1.5 4-1.5v10l-4 1.5-4-1.5-4 1.5z"></path><path d="M6 2.5v10M10 4v10"></path></svg>Maps</button>
+        <button class="rail-item" type="button"><svg viewBox="0 0 16 16"><rect x="2.5" y="2.5" width="11" height="11" rx="1"></rect><path d="M2.5 8h11M8 2.5v11"></path></svg>Images</button>
+        <button class="rail-item on" type="button"><svg viewBox="0 0 16 16"><path d="M2 12l3-6 3 4 2-2 4 4z"></path></svg>Materials</button>
+      </div>
+      <div class="hint" style="padding: 8px 10px; border-top: 1px solid #353b4a; margin-top: 4px;">Tagging is undoable while the section is open; the rest of the form is not.</div>
+    </div>
+
+    <div style="display: grid; grid-template-rows: 44px minmax(0, 1fr); min-height: 0;">
+      <div style="display: flex; align-items: center; padding: 0 12px 0 16px; border-bottom: 1px solid #353b4a; gap: 12px;">
+        <span style="font-size: 14px; font-weight: 600;">Materials</span>
+        <span style="flex: 1;"></span>
+        <span style="font-size: 12px; color: #7b8294;">5 materials · priority top to bottom · 72 of 75 arrangements drawn</span>
+        <button type="button" aria-label="Close" style="width: 24px; height: 24px; display: grid; place-items: center; color: #aab0c0; border-radius: 4px;"><svg viewBox="0 0 14 14" width="12" height="12" style="stroke: currentColor; stroke-width: 1.6; fill: none;"><path d="M3 3l8 8M11 3l-8 8"></path></svg></button>
+      </div>
+
+      <div style="display: grid; grid-template-columns: 224px minmax(0, 1fr) 272px; grid-template-rows: 38px minmax(0, 1fr); min-height: 0;">
+
+        <div style="grid-column: 1 / -1; display: flex; align-items: center; gap: 8px; padding: 0 12px; border-bottom: 1px solid #353b4a;">
+          <img class="sw" src="swatch-0.png" alt="" style="width: 14px; height: 14px;">
+          <span style="font-size: 13px; font-weight: 600;">Grass</span>
+          <span class="face" title="Has floor art; no wall or ramp art yet"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg class="off" viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span>
+          <span class="hint" style="margin: 0 2px 0 4px;">meets</span>
+          <img class="sw" src="swatch-2.png" alt="" style="width: 14px; height: 14px;">
+          <span style="font-size: 13px; font-weight: 600;">Stone</span>
+          <span class="hint" style="margin-left: 4px;">on a wall</span><span class="cov lg" aria-hidden="true"><i class="na"></i><i class="off"></i><i class="off"></i><i class="on"></i><i class="off"></i><i class="on"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="on"></i><i class="off"></i><i class="off"></i><i class="na"></i></span><span class="hint">3 of 14 arrangements drawn</span>
+          <span style="flex: 1;"></span>
+          <span class="k">Working on</span><div class="ctx"><button type="button"><svg viewBox="0 0 12 12"><circle cx="6" cy="6" r="4"></circle></svg>Any</button><button type="button"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg>Floor</button><button type="button" class="on"><svg viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg>Wall</button><button type="button"><svg viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg>Ramp</button></div>
+          <span style="width: 1px; height: 16px; background: #353b4a; margin: 0 4px;"></span>
+          <button class="btn" type="button">Undo <span class="kbd">⌘Z</span></button>
+          <button class="btn" type="button" disabled>Redo <span class="kbd">⌘⇧Z</span></button>
+          <span style="width: 1px; height: 16px; background: #353b4a; margin: 0 4px;"></span>
+          <button class="btn" type="button" aria-label="Zoom out" style="width: 26px; justify-content: center; padding: 0;">−</button>
+          <span class="mono" style="width: 44px; text-align: center; font-size: 11.5px; color: #aab0c0;">200%</span>
+          <button class="btn" type="button" aria-label="Zoom in" style="width: 26px; justify-content: center; padding: 0;">+</button>
+        </div>
+
+        <div style="background: #1b1e25; border-right: 1px solid #353b4a; display: grid; grid-template-rows: minmax(0, 1fr) auto; min-height: 0;">
+          <div style="padding: 8px; display: grid; gap: 2px; align-content: start; overflow-y: auto;">
+            <div class="k" style="padding: 4px 8px 2px;">By priority</div>
+            <!-- one flat list in priority order; the faces a material has art for are icons on its row, not groups -->
+            <div class="row on"><img class="sw" src="swatch-0.png" alt=""><span style="display: inline-flex; align-items: center;">Grass<span class="face"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg class="off" viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span></span><span class="covn"><span class="cov" aria-hidden="true"><i class="na"></i><i class="off"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="off"></i><i class="on"></i><i class="on"></i><i class="off"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="mono status warn">12/15</span></span></div>
+            <!-- the selected material expands: its pairings as a vertical list, the lit one being the subject of every view, and New transition… below them -->
+            <div style="display: grid; gap: 1px; padding: 2px 0 8px 16px;">
+              <a class="sub" href="Main.dc.html"><span></span><span>On its own</span><span class="covn"><span class="cov" aria-hidden="true"><i class="na"></i><i class="off"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="off"></i><i class="on"></i><i class="on"></i><i class="off"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="mono status">12/15</span></span></a>
+              <a class="sub" href="Main.dc.html"><img class="sw" src="swatch-1.png" alt=""><span><span class="hint">meets</span> Dirt</span><span class="covn"><span class="cov" aria-hidden="true"><i class="na"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="na"></i></span><span class="mono status ok">14/14</span></span></a>
+              <a class="sub" href="Main.dc.html"><img class="sw" src="swatch-3.png" alt=""><span><span class="hint">meets</span> Sand</span><span class="covn"><span class="cov" aria-hidden="true"><i class="na"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="na"></i></span><span class="mono status ok">14/14</span></span></a>
+              <a class="sub" href="Main.dc.html"><img class="sw" src="swatch-4.png" alt=""><span><span class="hint">meets</span> Path</span><span class="covn"><span class="cov" aria-hidden="true"><i class="na"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="na"></i></span><span class="mono status ok">14/14</span></span></a>
+              <a class="sub on" href="Tag.dc.html"><img class="sw" src="swatch-2.png" alt=""><span><span class="hint" style="color: inherit; opacity: .7;">meets</span> Stone<span class="k" style="color: inherit;">wall</span></span><span class="covn"><span class="cov" aria-hidden="true"><i class="na"></i><i class="off"></i><i class="off"></i><i class="on"></i><i class="off"></i><i class="on"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="on"></i><i class="off"></i><i class="off"></i><i class="na"></i></span><span class="mono status">3/14</span></span></a>
+              <a class="btn" href="Placing.dc.html" style="margin: 6px 6px 0 0; justify-content: center; text-decoration: none;">New transition…</a>
+            </div>
+            <div class="row"><img class="sw" src="swatch-1.png" alt=""><span style="display: inline-flex; align-items: center;">Dirt<span class="face"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg class="off" viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span></span><span class="covn"><span class="cov" aria-hidden="true"><i class="na"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="mono status ok">15/15</span></span></div>
+            <div class="row meets"><img class="sw" src="swatch-2.png" alt=""><span style="display: inline-flex; align-items: center;">Stone<span class="face"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span><span style="font-size: 10.5px; color: #7b8294; margin-left: 6px;">meets</span></span><span class="covn"><span class="cov" aria-hidden="true"><i class="na"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="mono status ok">15/15</span></span></div>
+            <div class="row"><img class="sw" src="swatch-3.png" alt=""><span style="display: inline-flex; align-items: center;">Sand<span class="face"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg class="off" viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span></span><span class="covn"><span class="cov" aria-hidden="true"><i class="na"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="mono status ok">15/15</span></span></div>
+            <div class="row"><img class="sw" src="swatch-4.png" alt=""><span style="display: inline-flex; align-items: center;">Path<span class="face"><svg viewBox="0 0 12 12"><path d="M6 1.5 10.5 6 6 10.5 1.5 6z"></path></svg><svg class="off" viewBox="0 0 12 12"><rect x="2.5" y="1.5" width="7" height="9"></rect><path d="M2.5 5h7M2.5 8h7"></path></svg><svg class="off" viewBox="0 0 12 12"><path d="M1.5 10.5h9V3z"></path></svg></span></span><span class="covn"><span class="cov" aria-hidden="true"><i class="na"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i><i class="on"></i></span><span class="mono status ok">15/15</span></span></div>
+            <div class="hint" style="padding: 8px 8px 2px;">The icons are the faces a material has art for: floor, wall, ramp.</div>
+          </div>
+          <div style="border-top: 1px solid #353b4a; padding: 8px; display: grid; gap: 6px;">
+            <button class="btn accent" type="button" style="justify-content: center;">New material</button>
+            <button class="btn" type="button" style="justify-content: center;">Duplicate</button>
+          </div>
+        </div>
+
+        <!-- stage: the sheet in the Wall context, the slot picker open on it -->
+        <div style="position: relative; overflow: hidden; min-height: 0; background-color: #0f1115; background-image: linear-gradient(45deg, #171a21 25%, transparent 25%), linear-gradient(-45deg, #171a21 25%, transparent 25%), linear-gradient(45deg, transparent 75%, #171a21 75%), linear-gradient(-45deg, transparent 75%, #171a21 75%); background-size: 12px 12px; background-position: 0 0, 0 6px, 6px -6px, -6px 0;">
+          <img src="sheet-wall.png" alt="ground.png in the Wall context: tags for walls lit, tags for any face faint, tiles without Grass dimmed" style="position: absolute; left: 20px; top: 20px; width: 512px; height: 512px;">
+          
+          <div class="seg" style="position: absolute; top: 12px; right: 12px; z-index: 2; background: #242833; box-shadow: 0 4px 16px rgba(0,0,0,.45);"><a href="Main.dc.html" style="height: 22px; padding: 0 10px; border-radius: 4px; color: #aab0c0; font-size: 12px; display: inline-flex; align-items: center; text-decoration: none;">Preview</a><button class="on" type="button">Tag</button><a href="Fixture.dc.html" style="height: 22px; padding: 0 10px; border-radius: 4px; color: #aab0c0; font-size: 12px; display: inline-flex; align-items: center; text-decoration: none;">3D</a></div>
+          <!-- the dropdown is the slot picker for the archetype in the bar: what the brush writes, and which tags are lit -->
+          <div style="position: absolute; top: 12px; left: 12px; z-index: 2; display: grid; gap: 4px; width: 292px;">
+            <button type="button" class="input" style="height: 28px; gap: 8px; background: #242833; box-shadow: 0 4px 16px rgba(0,0,0,.45); border-color: #e9a23b; width: 190px;"><span class="k">Wall slot</span><span>Surface</span><span style="flex: 1;"></span><span style="color: #7b8294;">▴</span></button>
+            <div role="listbox" style="background: #242833; border: 1px solid #414859; border-radius: 6px; padding: 4px; box-shadow: 0 8px 24px rgba(0,0,0,.5); display: grid; gap: 1px;"><div role="option" class="opt on"><span class="glyph"><svg width="18" height="18" viewBox="0 0 18 18"><rect x=".7" y=".7" width="16.6" height="16.6"></rect></svg></span><span>Surface<small>the wall itself · 1 × 1, the fifteen arrangements read upright</small></span><span></span></div><div role="option" class="opt"><span class="glyph"><svg width="9" height="18" viewBox="0 0 9 18"><rect x=".7" y=".7" width="7.6" height="16.6"></rect></svg></span><span>Convex seam<small>an outside turn · a strip ½ × 1 · mitred when undrawn</small></span><span class="tag">not drawn yet</span></div><div role="option" class="opt"><span class="glyph"><svg width="9" height="18" viewBox="0 0 9 18"><rect x=".7" y=".7" width="7.6" height="16.6"></rect></svg></span><span>Concave seam<small>an inside turn · a strip ½ × 1 · mitred when undrawn</small></span><span class="tag">not drawn yet</span></div></div>
+          </div>
+          <div style="position: absolute; left: 0; right: 0; bottom: 0; padding: 6px 16px; background: rgba(21, 23, 28, .88); border-top: 1px solid #353b4a; font-size: 11.5px; color: #aab0c0;"><b style="color: #e8eaf0; font-weight: 600;">Grass @ wall</b> · click or drag over corners · tags for walls are lit, tags for any face faint · right-click for nothing</div>
+        </div>
+
+        <!-- form: the Tagging block first, then the subject -->
+        <div style="border-left: 1px solid #353b4a; background: #1b1e25; padding: 14px 16px; display: grid; gap: 12px; align-content: start; overflow-y: auto; min-height: 0;">
+          <div class="k">Tagging</div>
+          <div class="field"><label>Sheet</label>
+            <div class="input" style="height: 36px; gap: 8px; padding-left: 5px;"><img src="sheet-tagged.png" alt="" style="width: 26px; height: 26px; border-radius: 3px;"><span style="display: grid; line-height: 1.2;"><span>ground.png</span><span class="mono" style="font-size: 10.5px; color: #7b8294;">16 × 16 tiles · 16 px · 240 tagged</span></span><span style="flex: 1;"></span><span style="color: #7b8294;">▾</span></div>
+          </div>
+          <div class="field"><label>Tool</label>
+            <div class="seg" style="width: 100%; box-sizing: border-box;"><button class="on" type="button" style="flex: 1; justify-content: center;">Tag corners</button><button type="button" style="flex: 1; justify-content: center;">Erase</button></div>
+          </div>
+          <a class="btn" href="Placing.dc.html" style="justify-content: center; text-decoration: none;">New transition…</a>
+          <div class="hint">The archetype in the bar is the context for every view: what the Preview assembles, what the sheet lights, what the brush and a block write. The slot is picked on the stage, from that archetype's own slots. The Slot and For fields are gone from here.</div>
+
+          <div style="border-top: 1px solid #353b4a; margin: 2px 0;"></div>
+          <div class="field"><label>Name</label><div class="input">Grass</div></div>
+          <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+            <div class="field"><label>Fringe angle</label><div class="input mono">45°</div></div>
+            <div class="field"><label>Picket distance</label><div class="input mono">0 px</div></div>
+          </div>
+          <div class="k" style="margin-top: 4px;">Meeting Stone</div>
+          <div class="hint">Drawn in the wall, because that is the face the boundary is on. <span class="status warn mono">3 of 14</span> arrangements drawn; this block writes the other eleven.</div>
+          <div style="display: flex; gap: 6px;"><a class="btn" href="Fixture.dc.html" style="text-decoration: none;">See in 3D</a></div>
+          <div style="display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px;">
+            <button class="btn" type="button" disabled>Move up</button>
+            <button class="btn" type="button">Move down</button>
+            <button class="btn danger" type="button">Delete</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":860}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>
