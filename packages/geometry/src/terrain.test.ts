@@ -807,3 +807,72 @@ describe('a material nothing is tagged with', () => {
     expect([data[at], data[at + 1], data[at + 2], data[at + 3]]).toEqual([0x10, 0x20, 0x30, 255])
   })
 })
+
+describe("a ramp's surface is a tile and a half long, drawn from quarters (decision of 2026-09-19)", () => {
+  /** The triangles of cell (x, y)'s top, each with the centroid of its UVs. */
+  function topTriangles(chunk: TerrainChunkMesh, x: number, y: number): Array<{ u: number; v: number }> {
+    const { solid } = chunk
+    const out: Array<{ u: number; v: number }> = []
+    for (let t = 0; t < solid.triangleCount; t++) {
+      const address = readAddress(solid.faceAddr, t, 'ground')
+      if (address.kind !== SURFACE_TOP || address.x !== x || address.y !== y) continue
+      let u = 0
+      let v = 0
+      for (let k = 0; k < 3; k++) {
+        const vertex = solid.indices[t * 3 + k]
+        u += solid.uvs[vertex * 2] / 3
+        v += solid.uvs[vertex * 2 + 1] / 3
+      }
+      out.push({ u, v })
+    }
+    return out
+  }
+
+  it('cuts a full ramp into six pieces, and leaves a level top at four', () => {
+    const doc = createMap(8, 8)
+    setHeight(doc, 3, 3, 4)
+    setHeight(doc, 5, 5, 4)
+    setRamp(doc, 3, 3, 1)
+    const chunk = mesh(doc, '0,0')
+    expect(topTriangles(chunk, 3, 3)).toHaveLength(12)
+    expect(topTriangles(chunk, 5, 5)).toHaveLength(8)
+  })
+
+  it('cuts the middle row from the plain edge arrangement along the run', () => {
+    const doc = createMap(8, 8)
+    setHeight(doc, 3, 3, 4)
+    // Descending south: its sides, west and east, stand over level ground that joins it only at its foot.
+    setRamp(doc, 3, 3, 1)
+    const look = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet()])
+    const chunk = meshTerrainChunk(ground(doc), '0,0', look)
+    const grass = tagOf(0)
+    const inside = (rect: readonly [number, number, number, number]) => (t: { u: number; v: number }): boolean => t.u > rect[0] && t.u < rect[2] && t.v > rect[1] && t.v < rect[3]
+    // West of the centre line: nothing to the west, grass to the east, the same above as below; its north-east quadrant.
+    const west = look.atlas.tileFor([null, grass, null, grass], 'ramp')
+    const east = look.atlas.tileFor([grass, null, grass, null], 'ramp')
+    expect(west.missing || east.missing).toBe(false)
+    const triangles = topTriangles(chunk, 3, 3)
+    expect(triangles.filter(inside(look.atlas.uv(west.tile, 1)))).toHaveLength(2)
+    expect(triangles.filter(inside(look.atlas.uv(east.tile, 0)))).toHaveLength(2)
+  })
+
+  it('stretches a pasted tile over the whole slope rather than repeating a row of it', () => {
+    const doc = createMap(8, 8)
+    setHeight(doc, 3, 3, 4)
+    setRamp(doc, 3, 3, 1)
+    const g = ground(doc)
+    const key = faceKey(3, 3, 1, FACE_TOP)
+    g.paint.faces[key] = [tileSlot(1, 5), null, null, null]
+    const look = createTerrainLook(DEFAULT_MATERIALS, [{ ...placeholderSet(), imageId: 1 }])
+    const chunk = meshTerrainChunk(g, '0,0', look)
+    const tile = look.atlas.pastedTile(1, 5)
+    expect(tile).not.toBeNull()
+    const [u0, v0, u1, v1] = look.atlas.uv(tile as number, -1)
+    const triangles = topTriangles(chunk, 3, 3)
+    expect(triangles).toHaveLength(12)
+    // Every piece samples the pasted tile, and between them they reach its top third and its bottom third.
+    for (const t of triangles) expect(t.u > u0 && t.u < u1 && t.v > v0 && t.v < v1).toBe(true)
+    expect(triangles.some((t) => t.v > v0 + ((v1 - v0) * 2) / 3)).toBe(true)
+    expect(triangles.some((t) => t.v < v0 + (v1 - v0) / 3)).toBe(true)
+  })
+})

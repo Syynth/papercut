@@ -586,9 +586,9 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
    * instead: quarter q is the tile's own quadrant q, not the opposite one of
    * a corner tile, and nothing auto-tiles onto it on that layer.
    */
-  const quarterRects = (face: FaceKeys, archetype: ArchetypeId, quarter: number, cornerOf: (layer: number) => CornerKeys, markAt: () => void): Rect[] => {
+  const quarterRects = (face: FaceKeys, archetype: ArchetypeId, quarter: number, cornerOf: (layer: number) => CornerKeys, markAt: () => void, piece?: { quadrant: number; pasted: (tile: number) => Rect }): Rect[] => {
     const rects: Rect[] = []
-    const quadrant = QUADRANT_OF_QUARTER[quarter]
+    const quadrant = piece ? piece.quadrant : QUADRANT_OF_QUARTER[quarter]
     for (let layer = 0; layer < STACK; layer++) {
       const pasted = face.tiles[layer]
       if (pasted !== null) {
@@ -596,7 +596,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
           markAt()
           missing.add('pasted tile')
         }
-        rects.push(pasted === -1 ? fallback : atlas.uv(pasted, quarter))
+        rects.push(pasted === -1 ? fallback : piece ? piece.pasted(pasted) : atlas.uv(pasted, quarter))
         continue
       }
       const answer = atlas.tileFor(cornerOf(layer), archetype)
@@ -631,21 +631,21 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
         // A face's archetype comes from its geometry (ruling of 2026-09-18): a level top is a floor, a sloped one a ramp.
         const topArchetype: ArchetypeId = cornerH.every((h) => h === cornerH[0]) ? 'floor' : 'ramp'
         const at = (fx: number, fy: number): [number, number, number] => [x + fx, bilinear(cornerH, fx, fy) * HALF, y + fy]
-        for (let q = 0; q < 4; q++) {
-          const fx0 = (q % 2) * 0.5
-          const fy0 = q > 1 ? 0.5 : 0
-          const vx = x + (q % 2)
-          const vy = y + (q > 1 ? 1 : 0)
-          const rects = quarterRects(
-            cells.at(x, y).face,
-            topArchetype,
-            q,
-            (layer) => topCorner(cells, voxel, x, y, vx, vy, layer),
-            () => mark(vx, bilinear(cornerH, q % 2, q > 1 ? 1 : 0) * HALF, vy),
-          )
-          // Corner order c00, c01, c11, c10 within the quarter. Sheets are authored top-down, so increasing map +Z walks down the sheet, which is decreasing v.
+        // A full ramp's surface is 1½ long along its run and drawn from quarter tiles (decision of 2026-09-19): two
+        // quarters wide and THREE long, so the slope, which is √2 long, carries a tile and a half of art with 6 % to
+        // take up rather than one tile pulled 1.41×. The rows at its head and foot come from the corner tiles, as on
+        // any face. The middle row is cut from the tile at a corner that is not on the grid: the middle of the edge
+        // beside it, where what is on this side and what is on that side are the same above as below — the plain edge
+        // arrangement along the run, or the solid tile where both sides are one thing.
+        const hNW = cornerH[0]
+        const hSW = cornerH[1]
+        const hSE = cornerH[2]
+        const hNE = cornerH[3]
+        const run: 'x' | 'y' | null = hNW === hNE && hSW === hSE && Math.abs(hNW - hSW) === 2 ? 'y' : hNW === hSW && hNE === hSE && Math.abs(hNW - hNE) === 2 ? 'x' : null
+        const emit = (fx0: number, fy0: number, fx1: number, fy1: number, rects: Rect[]): void => {
+          // Corner order c00, c01, c11, c10 within the piece. Sheets are authored top-down, so increasing map +Z walks down the sheet, which is decreasing v.
           solid.polygon(
-            [at(fx0, fy0), at(fx0, fy0 + 0.5), at(fx0 + 0.5, fy0 + 0.5), at(fx0 + 0.5, fy0)],
+            [at(fx0, fy0), at(fx0, fy1), at(fx1, fy1), at(fx1, fy0)],
             [
               [0, 1],
               [0, 0],
@@ -653,10 +653,55 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
               [1, 1],
             ],
             rects,
-            [bilinear(shadeAt, fx0, fy0), bilinear(shadeAt, fx0, fy0 + 0.5), bilinear(shadeAt, fx0 + 0.5, fy0 + 0.5), bilinear(shadeAt, fx0 + 0.5, fy0)],
+            [bilinear(shadeAt, fx0, fy0), bilinear(shadeAt, fx0, fy1), bilinear(shadeAt, fx1, fy1), bilinear(shadeAt, fx1, fy0)],
             tint,
             [SURFACE_TOP, x, y, 0],
           )
+        }
+        const face = cells.at(x, y).face
+        /** The part of a pasted tile, which is a picture of the whole face, that falls in a piece of it. */
+        const pastedPart = (fx0: number, fy0: number, fx1: number, fy1: number) => (tile: number): Rect => {
+          const [u0, v0, u1, v1] = atlas.uv(tile, -1)
+          return [u0 + (u1 - u0) * fx0, v1 - (v1 - v0) * fy1, u0 + (u1 - u0) * fx1, v1 - (v1 - v0) * fy0]
+        }
+        for (let q = 0; q < 4; q++) {
+          const cx = q % 2
+          const cy = q > 1 ? 1 : 0
+          const vx = x + cx
+          const vy = y + cy
+          const cornerOf = (layer: number): CornerKeys => topCorner(cells, voxel, x, y, vx, vy, layer)
+          const markAt = (): void => mark(vx, bilinear(cornerH, cx, cy) * HALF, vy)
+          if (run === null) {
+            emit(cx * 0.5, cy * 0.5, cx * 0.5 + 0.5, cy * 0.5 + 0.5, quarterRects(face, topArchetype, q, cornerOf, markAt))
+            continue
+          }
+          // The quarter at a corner, a third of the run long instead of a half.
+          const along0 = (run === 'y' ? cy : cx) * (2 / 3)
+          const [fx0, fy0, fx1, fy1] = run === 'y' ? [cx * 0.5, along0, cx * 0.5 + 0.5, along0 + 1 / 3] : [along0, cy * 0.5, along0 + 1 / 3, cy * 0.5 + 0.5]
+          emit(fx0, fy0, fx1, fy1, quarterRects(face, topArchetype, q, cornerOf, markAt, { quadrant: QUADRANT_OF_QUARTER[q], pasted: pastedPart(fx0, fy0, fx1, fy1) }))
+        }
+        if (run !== null) {
+          // The middle row: one piece on each side of the run's centre line.
+          for (let side = 0; side < 2; side++) {
+            const [fx0, fy0, fx1, fy1] = run === 'y' ? [side * 0.5, 1 / 3, side * 0.5 + 0.5, 2 / 3] : [1 / 3, side * 0.5, 2 / 3, side * 0.5 + 0.5]
+            // The two grid vertices at the ends of the edge this piece lies along, and which of their corners is the cell beside us.
+            const [ax, ay, bx, by] = run === 'y' ? [x + side, y, x + side, y + 1] : [x, y + side, x + 1, y + side]
+            const besideAtA = run === 'y' ? (side === 0 ? 2 : 3) : side === 0 ? 1 : 3
+            const besideAtB = run === 'y' ? (side === 0 ? 0 : 1) : side === 0 ? 0 : 2
+            const cornerOf = (layer: number): CornerKeys => {
+              const own = face.keys[layer]
+              const a = topCorner(cells, voxel, x, y, ax, ay, layer)[besideAtA]
+              const b = topCorner(cells, voxel, x, y, bx, by, layer)[besideAtB]
+              // What is beside the run is what is beside both its ends; a neighbour that joins at one end only, a level
+              // at the ramp's foot, is across a wall for most of the way and counts as nothing.
+              const beside = a === b ? a : null
+              return run === 'y' ? (side === 0 ? [beside, own, beside, own] : [own, beside, own, beside]) : side === 0 ? [beside, beside, own, own] : [own, own, beside, beside]
+            }
+            // The half of that tile on our side of the edge, and of that half the part nearer its start.
+            const quadrant = run === 'y' ? (side === 0 ? 1 : 0) : side === 0 ? 2 : 0
+            const markAt = (): void => mark((ax + bx) / 2, bilinear(cornerH, (ax + bx) / 2 - x, (ay + by) / 2 - y) * HALF, (ay + by) / 2)
+            emit(fx0, fy0, fx1, fy1, quarterRects(face, topArchetype, 0, cornerOf, markAt, { quadrant, pasted: pastedPart(fx0, fy0, fx1, fy1) }))
+          }
         }
       }
 
