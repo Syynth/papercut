@@ -965,3 +965,36 @@ Each entry:
 - **SCOPE:** moderate (refines "A transition is spelled as its values and placed with one button", same day)
 - **WHAT:** New transition… (and Place block… on a pairing) enters a PLACING MODE rather than switching a tool in the form. While it is on, a toolbar is attached to the top of the Tag stage holding the whole interaction: the spelling as three value pickers (under, over it, third), the kind of face the art is for, the block's size, and Done. The pointer is armed for as long as the mode lasts, showing the block it would write under it: click places one, the spelling stays, a value is swapped in the toolbar and the next is placed. Done or Esc leaves the mode and returns to tagging corners. It is modal in behaviour and never a dialog: the sheet, the list and the form stay visible and the view does not change size. The form's Tagging block keeps only what is not part of the mode: the sheet, Tag corners / Erase, the slot and the face. Place a block leaves the tool switch, since it is entered, not selected.
 - **WHY:** Placing transitions is one focused activity with its own state — what is spelled, that the pointer is armed — so it wants to be a mode the artist is plainly in or out of. Spread over the form column it was neither: the spelling sat away from the sheet it acts on, and the pointer had to be re-armed for every block. A dialog would be modal but would cover the sheet, which is the thing being pointed at; a toolbar on the stage puts the controls where the eyes and the pointer already are.
+
+## The archetype in the bar is the working context, and the stage's dropdown picks that archetype's slots
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui / terrain-tools
+- **SCOPE:** moderate (refines "The arrangements strip is a crop of the sheet, and the Tag stage filters and dims", same day)
+- **WHAT:** The Materials section's bar carries one switch — Any, Floor, Wall, Ramp — that is the CONTEXT for every view: what the Preview assembles, which tags the sheet lights, and which archetype the brush and a placed block write. The dropdown floating on the Tag stage is the picker for the SLOTS that archetype has, and only those. The Show filter, and the form's Slot and For fields, go: what is seen and what is written are one choice. Any stays, for art that draws on every face.
+- **WHY:** The built section had two controls that both meant "which kind of face" — one for what you see and one for what you write — and they could disagree, so you could look at wall tags while painting floor tags. It also offered every slot for every face, so a seam could be tagged on floor art, which means nothing. One context, and slots that hang off it, removes both.
+
+## The Tag view has a small floating preview, switchable between 2D and 3D
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui / terrain-tools
+- **SCOPE:** moderate
+- **WHAT:** While tagging, a small viewport floats on the Tag stage showing the subject as the tags now make it draw: the assembled patch in 2D or the fixture in 3D, with a toggle between them. It updates as corners are tagged and blocks are placed, in the working context's archetype. The full Preview and 3D views stay as they are; this is the same content small, where the work is.
+- **WHY:** Tagging and seeing the result were two views, so checking a stroke meant leaving the sheet and coming back. The point of the merged section was to close that loop, and a preview that is visible while the tagging happens closes it completely.
+
+## A rail is a ramp's trim, and a material says which style of rail it is
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model / geometry
+- **SCOPE:** moderate (companion to "A fringe is a flap of geometry hanging off the rim" and "Pickets stand at the foot of a wall", 2026-09-18)
+- **WHAT:** A material can have rail art: a trim slot of the Ramp archetype, stood along a ramp's open sides. How it is stood is an enumerated STYLE the material chooses, because one geometry does not suit all art. SHEARED runs the art as a strip parallel to the slope, for kerbs, ropes and low walls. UPRIGHT runs the side art straight up from the slope, stepping with it rather than leaning, for banisters and posts on stairs. More styles can join the list.
+- **WHY:** A stair with banisters wants its side piece vertical; shearing it along the slope makes posts lean. A kerb or a rope wants exactly that shear. Both are rails, so the slot is one and the style is the material's, the way its fringe angle and picket distance are.
+
+## A ramp's surface is a tile 1 × 1½ that keeps the surface's corner tags; stairs are ramp art for now
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model / geometry
+- **SCOPE:** architectural (carries out the ramp half of "A material fills an archetype's slots", 2026-09-17)
+- **STATUS:** tentative on the stairs half
+- **WHAT:** A ramp's surface tile is one tile wide and one and a half long along its run, not √2: it sits on the half-tile grid every sheet already has, and the mesher takes up the 6 %. It is tagged exactly as a surface is — four corner tags, the same fifteen arrangements — so two materials blend on a slope through the same dual grid they blend through on a floor, and a block places ramp transitions the way it places floor ones. Stairs reuse this for now: steps are drawn on a ramp's tiles over a slope that stays smooth.
+- **WHY:** A ramp's art today is a square tile stretched 1.41×, which straight step edges make obvious. √2 lands on no pixel grid; 1½ does, and nobody will see 6 %. Keeping the surface's tags is what keeps ramps inside the system instead of beside it: blends, blocks, coverage and the preview all work on a slope because nothing about tagging changed but the cell's length.

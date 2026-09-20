@@ -116,21 +116,21 @@
       "maxW": 2960,
       "x": 0,
       "y": 2700,
-      "text": "Round two: the archetype is the context, the slot is picked on the stage — proposed"
+      "text": "Round two: the archetype is the context, the slot is picked on the stage — decided 2026-09-19, details open"
     },
     "context": {
-      "color": "orange",
+      "color": "green",
       "w": 340,
       "x": 1520,
       "y": 3940,
-      "text": "PROPOSED. The owner's direction (2026-09-19): the switch in the bar is the CONTEXT — which archetype we are working with, for every view — and the dropdown on the stage is the picker for the SLOTS that archetype has. One control for what you see and what you write; the Slot and For fields leave the form. Any stays, for art that draws on every face."
+      "text": "DECIDED 2026-09-19. The switch in the bar is the CONTEXT — which archetype we are working with, for every view — and the dropdown on the stage picks the SLOTS that archetype has. One control for what you see and what you write; the Show filter and the Slot and For fields go. A small preview floats on the Tag stage, 2D or 3D, so the result is visible while tagging."
     },
     "discuss": {
       "color": "red",
       "w": 340,
       "x": 1900,
       "y": 3940,
-      "text": "TO DISCUSS, on the board to the left: (1) a slot has a size and a shape, so the tagger's cell should follow the slot; (2) trims on ramps — a Rail, for handrails and kerbs; (3) which way a ramp tile's long side runs, and 1½ rather than √2. Stairs are ramp art for now (tentative)."
+      "text": "DECIDED: a ramp's surface is 1 × 1½ and keeps the surface's corner tags; a rail is the ramp's trim with a style per material, sheared or upright; stairs are ramp art for now (tentative). STILL OPEN, on the board to the left: two runs or four; long cells on a square sheet or sheets of their own; whether strips keep corner tags; whether Head, Foot and Side are real slots."
     }
   },
   "order": [
