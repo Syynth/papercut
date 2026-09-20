@@ -1078,3 +1078,19 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** A face that sculpting or building creates starts as one of two things, chosen by a switch on the tool: Inherit, where the surface keeps its paint as it moves and an exposed side takes the paint of the side it grew from; or Active, where every new face takes the palette's material. This answers the question left open on 2026-09-18 and replaces the stopgap that copies a neighbour's stack.
 - **WHY:** Neither is right alone. Shaping land that is already painted wants the paint to follow; blocking out something new wants to paint as it goes. Never guessing silently was the point of the 2026-09-18 ruling, and a visible switch keeps that.
+
+## The selection drives the terrain tools, and Move is one of them
+- **WHEN:** 2026-09-20
+- **PROJECT:** papercut
+- **SYSTEM:** feature-terrain / select
+- **SCOPE:** architectural
+- **WHAT:** Largely speaking, the terrain verbs act on the selection: a set of voxels is selected first, with the shared footprints, and Raise, Extrude, Flatten, Smooth, Ramp, Fill, Carve, Paint and Edges then change what is selected, with handles and a ghost. This replaces the round's earlier idea of a selection as a mask on a brush. With nothing selected, a press takes the footprint under the pointer as a selection that lasts one press, so quick brushing survives. Move is a first-class verb: select voxels and drag them along any axis, with its paint and whatever stands on it.
+- **WHY:** Precision: what will change is decided exactly before anything changes, where a stray voxel under a brush is expensive to notice and fix. One model: every verb needs a set of voxels to act on, and one way of saying which is simpler than a footprint per tool. And it lets operations compose: a region can be selected one way and then acted on another, such as selecting a region and flood filling it with a terrain paint.
+
+## The selection tools are built first; the sculpt tools are then iterated one at a time from use
+- **WHEN:** 2026-09-20
+- **PROJECT:** papercut
+- **SYSTEM:** feature-terrain / select (process)
+- **SCOPE:** moderate
+- **WHAT:** The terrain rework starts with the voxel selection tools (the Region half of Select). The sculpt tools are not built from the design round as a block: each is taken up individually afterwards, in the order and shape that the owner's experience building and editing levels shows to be necessary. The round's boards stay as proposals to draw on, not a plan to execute.
+- **WHY:** What the sculpt tools need is best learned by trying to build and edit levels with a working selection, rather than decided up front on a board.

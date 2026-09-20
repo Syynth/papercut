@@ -10,53 +10,67 @@
       "title": "Today: what each tool does, and what it cannot"
     },
     "Rule.dc.html": {
-      "x": 1520,
-      "y": 0,
+      "x": 0,
+      "y": 980,
       "w": 1440,
       "h": 860,
       "title": "Four modes, one footprint, and the pressed face sets the direction"
     },
     "Sculpt.dc.html": {
-      "x": 0,
-      "y": 980,
+      "x": 1520,
+      "y": 1960,
       "w": 1440,
       "h": 860,
       "title": "Sculpt: verbs, stroke feel, new faces"
     },
     "Build.dc.html": {
-      "x": 1520,
-      "y": 980,
+      "x": 0,
+      "y": 2940,
       "w": 1440,
       "h": 860,
       "title": "Build: blocks and shape fills"
     },
     "Pieces.dc.html": {
-      "x": 0,
-      "y": 1960,
+      "x": 1520,
+      "y": 2940,
       "w": 1440,
       "h": 860,
       "title": "Ramps, slabs and stairs"
     },
     "Edges.dc.html": {
-      "x": 1520,
-      "y": 1960,
+      "x": 0,
+      "y": 3920,
       "w": 1440,
       "h": 860,
       "title": "Edges: fringes, pickets and rails"
     },
     "Questions.dc.html": {
-      "x": 0,
-      "y": 2940,
+      "x": 1520,
+      "y": 3920,
       "w": 1440,
       "h": 860,
       "title": "Open questions, and a build order"
     },
     "Regions.dc.html": {
       "x": 1520,
-      "y": 2940,
+      "y": 980,
       "w": 1440,
       "h": 860,
-      "title": "Selecting voxels: regions, and a region as a mask"
+      "title": "Selecting voxels: the Region half of Select"
+    },
+    "SelectFirst.dc.html": {
+      "w": 1440,
+      "h": 860,
+      "x": 1520,
+      "y": 0,
+      "title": "Selection drives the terrain tools"
+    },
+    "Move.dc.html": {
+      "w": 1440,
+      "h": 860,
+      "x": 0,
+      "y": 1960,
+      "title": "Move: select voxels and drag them around"
     }
   },
   "designSystems": [],
@@ -77,17 +91,19 @@
       "w": 340,
       "x": 3040,
       "y": 0,
-      "text": "PROPOSED, not decided, except: surface verbs stay and a Block tool is added; a new face's paint is a choice on the tool; boards on a canvas. Both from the owner on 2026-09-19. Comment on any board and send it to Claude."
+      "text": "PROPOSED, not decided, except: surface verbs stay and block editing is added; a new face's paint is a choice on the tool (both logged 2026-09-19); and the selection drives the terrain tools (the owner, 2026-09-20). Boards read left to right, top to bottom. Comment on any board and send it to Claude."
     }
   },
   "order": [
     "Inventory.dc.html",
+    "SelectFirst.dc.html",
     "Rule.dc.html",
+    "Regions.dc.html",
+    "Move.dc.html",
     "Sculpt.dc.html",
     "Build.dc.html",
     "Pieces.dc.html",
     "Edges.dc.html",
-    "Regions.dc.html",
     "Questions.dc.html"
   ],
   "pages": [],
