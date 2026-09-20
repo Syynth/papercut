@@ -32,6 +32,7 @@ export const projectKeys = {
 
 const relativePath = z.string().min(1).refine((p) => !p.startsWith('/') && !p.includes('\\') && !p.split('/').includes('..'), { message: 'a path inside the project' })
 
+const directionCount = z.union([z.literal(1), z.literal(2), z.literal(4)])
 const materialDef = z
   .object({
     id: z.int().min(0),
@@ -41,6 +42,11 @@ const materialDef = z
     fringeAngle: z.number().min(0).max(90).exactOptional(),
     /** Pixels of art its picket stands out from the wall. */
     picketDistance: z.number().min(0).max(MAX_PICKET_DISTANCE).exactOptional(),
+    /** How many directions its art is drawn for, per archetype; absent is one. */
+    directions: z
+      .object({ floor: directionCount.exactOptional(), wall: directionCount.exactOptional(), ramp: directionCount.exactOptional() })
+      .strict()
+      .exactOptional(),
   })
   .strict()
 /** The whole list, replaced: its order is the materials' priority, so a reorder is as much an edit as a rename. */

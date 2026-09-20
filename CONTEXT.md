@@ -193,7 +193,12 @@ face the art is for — `3@wall` — and a slot, `3@wall:convex` (rulings of
 2026-09-17 and 2026-09-18). A material is not tied to one archetype: a face's
 archetype comes from its geometry (a top is floor, a cliff is wall, a slope is
 ramp), a tag that names none means any face, and the atlas answers a face
-with the art named for it before the art named for any.
+with the art named for it before the art named for any. A tag may also name
+a **direction**, `3@ramp/s`, an axis of its own beside the archetype
+(ruling of 2026-09-19): a ramp's is the way it descends. Art for one
+direction serves the others too — the opposite mirrored along its run, the
+rest turned a quarter — and a material says, per archetype, whether its art
+is drawn for one, two or four.
 
 Terrain sets live in the project file, never in sidecars beside the images
 (decision of 2026-09-17).

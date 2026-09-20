@@ -4,7 +4,7 @@ import { applyPatches, History, inversePatch, patchAddress, type Patch, type Str
 import { createMap, defaultFacing, layersOf, NO_RAMP, SHAPE_BLOCK, SHAPE_SLAB, type MapDoc, type MapObject, type ReadonlyMapDoc } from './document'
 import { childrenOf, descendantsOf, outlineOf, type VoxelStructure } from './structure'
 import { deserialize, LoadError, serialize } from './io'
-import { PROJECT_FORMAT_VERSION, archetypeOfTag, createProject, materialOfTag, parseProject, serializeProject, sheetName, slotOfTag, stemOf, tagOf, withArchetype } from './project'
+import { PROJECT_FORMAT_VERSION, archetypeOfTag, createProject, directionOfTag, withDirection, materialOfTag, parseProject, serializeProject, sheetName, slotOfTag, stemOf, tagOf, withArchetype } from './project'
 import { addObject, addSketchPoint, addStructure, brushCells, clearRampRun, closeSketch, columnPatches, createSketch, deleteSketchPoint, fillCells, flatten, paintFace, pasteTiles, placeStructureOnto, raise, rampPlan, rampRun, rampRunBlocked, rampRunLength, removeObject, stampFaces, removeStructure, reparentStructure, setEdges, setMaterial, setSketch, updateObject } from './ops'
 import { FACE_TOP, faceKey } from './paint'
 import { EditorStore } from './store'
@@ -1015,6 +1015,32 @@ describe('a corner tag names a material, and optionally an archetype and a slot'
     expect(archetypeOfTag('3@wall:convex')).toBe('wall')
     expect(archetypeOfTag('3:convex')).toBeNull()
     expect(archetypeOfTag(null)).toBeNull()
+  })
+
+  it('names a direction beside the archetype and apart from the slot', () => {
+    expect(tagOf(3, null, 'ramp', 's')).toBe('3@ramp/s')
+    expect(tagOf(3, 'rail', 'ramp', 'e')).toBe('3@ramp/e:rail')
+    expect(tagOf(3, null, null, 'n')).toBe('3/n')
+    for (const tag of ['3@ramp/s', '3@ramp/e:rail', '3/n']) expect(materialOfTag(tag)).toBe(3)
+    expect(directionOfTag('3@ramp/e:rail')).toBe('e')
+    expect(archetypeOfTag('3@ramp/e:rail')).toBe('ramp')
+    expect(slotOfTag('3@ramp/e:rail')).toBe('rail')
+    expect(directionOfTag('3@ramp')).toBeNull()
+    expect(withDirection('3@ramp:rail', 'w')).toBe('3@ramp/w:rail')
+    expect(withArchetype('3@ramp/w:rail', null)).toBe('3/w:rail')
+    expect(withDirection('3@ramp/w', null)).toBe('3@ramp')
+  })
+
+  it('refuses a tag for a direction that is not one', () => {
+    const project = createProject('Faces')
+    project.images[0] = { ...project.images[0], terrain: { tiles: { '0': ['0@ramp/up', null, null, null] } } }
+    expect(() => parseProject(serializeProject(project))).toThrow(/direction/)
+  })
+
+  it("keeps a material's directions per archetype, and only the ones that are not one", () => {
+    const raw = JSON.parse(serializeProject(createProject('Runs'))) as { materials: Array<Record<string, unknown>> }
+    raw.materials[0].directions = { ramp: 4, wall: 1, floor: 3 }
+    expect(parseProject(JSON.stringify(raw)).materials[0].directions).toEqual({ ramp: 4 })
   })
 
   it('moves a tag to an archetype and back without losing its slot, and leaves nothing as nothing', () => {

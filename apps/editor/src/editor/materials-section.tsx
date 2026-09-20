@@ -20,13 +20,13 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
-import { DEFAULT_FRINGE_ANGLE, DEFAULT_PICKET_DISTANCE, MAX_PICKET_DISTANCE, materialById, materialOfTag, nextMaterialId, archetypeOfTag, slotOfTag, tagOf, withArchetype, type ArchetypeId, type MaterialDef, type ReadonlyProjectDoc, type Tag } from '@papercut/document'
+import { DEFAULT_FRINGE_ANGLE, DEFAULT_PICKET_DISTANCE, MAX_PICKET_DISTANCE, materialById, materialOfTag, nextMaterialId, archetypeOfTag, directionOfTag, slotOfTag, tagOf, withArchetype, withDirection, type ArchetypeId, type DirectionCount, type MaterialDef, type ReadonlyProjectDoc, type Tag, type TagDirection } from '@papercut/document'
 import { useHost, useProject, useViewSelector } from '@papercut/editor-host'
 import { allSlots, archetypeOf, archetypes, arrangements, type LoadedSet, type Slot } from '@papercut/geometry'
 import { Action, AssetPicker, ColorInput, CoverageMark, FaceMarks, Field, FloatStage, StagePanel, StageToolbar, Library, LibraryGroup, MaterialRow, Note, NumberInput, Segmented, Select, StageFloat, SubjectRow, TextInput, type IconName } from '@papercut/ui'
 
 import { run } from './commands'
-import { assembleAcross, coverageOf, cropOf, facesOf, maskAt, pairingFace, subjectTags, type Coverage, type Found, type Subject } from './coverage'
+import { assembleAcross, coverageOf, cropOf, directionsOffered, facesOf, maskAt, pairingFace, subjectTags, type Coverage, type Found, type Subject } from './coverage'
 import { Fixture } from './fixture-view'
 import { useDeleteMaterial } from './materials'
 import { PatchPreview, SheetCrop, TileGrid } from './preview'
@@ -48,6 +48,13 @@ const viewFor = (context: Context): View => (context === 'wall' || context === '
 /** The slots a context offers: its archetype's own, and for Any the ones every archetype has. */
 const slotsFor = (context: Context): readonly Slot[] => archetypeOf(context ?? 'floor').slots
 const contextName = (context: Context): string => (context === null ? 'any face' : `${context}s`)
+/**
+ * The archetypes whose faces have a direction the map asks art for today: a ramp, by the way it descends. Direction
+ * is an axis of every tag (ruling of 2026-09-19), but offering it where nothing would ever ask for it would only
+ * make art that never draws.
+ */
+const DIRECTED: readonly ArchetypeId[] = ['ramp']
+const DIRECTION_NAMES: Record<TagDirection, string> = { n: 'runs north', e: 'runs east, across the sheet', s: 'runs south, down the sheet', w: 'runs west' }
 
 const cssColor = (color: number): string => `#${color.toString(16).padStart(6, '0')}`
 const materialsOf = (project: ReadonlyProjectDoc): readonly MaterialDef[] => project.materials
@@ -87,6 +94,8 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
   const [lit, setLit] = useState<number | null>(null)
   const [tool, setTool] = useState<'corners' | 'erase'>('corners')
   const [slot, setSlot] = useState<string | null>(null)
+  /** The direction the art being worked on is drawn for; `null` is every direction, which is what art that has no run wants. */
+  const [direction, setDirection] = useState<TagDirection | null>(null)
   const [spell, setSpell] = useState<Spell>(() => ({ under: null, over: materialById(materials, selected)?.id ?? materials[0]?.id ?? null, third: null }))
   /**
    * Placing transitions is a MODE of the Tag stage (decision of 2026-09-19): entered by New transition…, left by Done
@@ -126,6 +135,8 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
     setContext(next)
     // A slot the new archetype does not have falls back to its surface.
     if (slot !== null && !slotsFor(next).some((s) => s.id === slot)) setSlot(null)
+    // Only a context whose faces have a direction keeps one.
+    if (next === null || !DIRECTED.includes(next)) setDirection(null)
     setMini(viewFor(next) === '3d' ? '3d' : '2d')
     if (view !== 'tag') setView(viewFor(next))
   }
@@ -157,10 +168,10 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
 
   const { mine, theirs } = subjectTags(subject)
   /** The subject as the chosen face draws it: what the Preview shows. */
-  const cover = useMemo(() => (material ? coverageOf(sets, { material: active, other: meets?.id ?? null }, context) : null), [material, active, meets, sets, context])
+  const cover = useMemo(() => (material ? coverageOf(sets, { material: active, other: meets?.id ?? null }, context, direction) : null), [material, active, meets, sets, context, direction])
   const crop = useMemo(() => (cover ? cropOf(cover) : null), [cover])
   const cells = useMemo(() => (material ? cellsOf(theirs === null ? BLOB : MEETING, mine, theirs) : []), [material, mine, theirs])
-  const corners = useMemo(() => assembleAcross(sets, cells, context), [sets, cells, context])
+  const corners = useMemo(() => assembleAcross(sets, cells, context, direction), [sets, cells, context, direction])
   const tile = sets[0]?.set.tile ?? 16
   const drawnFor = cover ? pairingFace(cover) : null
 
@@ -173,7 +184,8 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
       const name = names.get(materialOfTag(tag) ?? -1) ?? tag
       const slotName = slotOfTag(tag)
       const archetype = archetypeOfTag(tag)
-      return `${name}${slotName ? ` · ${slots.get(slotName) ?? slotName}` : ''}${archetype ? ` @ ${archetype}` : ''}`
+      const drawnFor = directionOfTag(tag)
+      return `${name}${slotName ? ` · ${slots.get(slotName) ?? slotName}` : ''}${archetype ? ` @ ${archetype}` : ''}${drawnFor ? ` / ${drawnFor}` : ''}`
     }
   }, [materials])
   const colourOf = useMemo(() => {
@@ -183,13 +195,13 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
   /** The spelled transition as the tags a block writes, under first; empty while what is drawn over it is not picked. */
   const values = useMemo((): Tag[] => {
     if (spell.over === null) return []
-    const of = (id: number | null): Tag => (id === null ? null : withArchetype(tagOf(id), context))
+    const of = (id: number | null): Tag => (id === null ? null : withDirection(withArchetype(tagOf(id), context), direction))
     return [of(spell.under), of(spell.over), ...(spell.third === null ? [] : [of(spell.third)])]
-  }, [spell, context])
-  const brush = material ? tagOf(material.id, slot, context) : null
+  }, [spell, context, direction])
+  const brush = material ? tagOf(material.id, slot, context, direction) : null
   /** The sheet that holds the subject's art, when one does: where the Tag view opens. */
   const preferred = useMemo(() => [...(cover?.tiles.values() ?? [])].find((f) => f !== null && tagSets.includes(f.loaded))?.loaded.set.sheet ?? null, [cover, tagSets])
-  const tagger = useTagger({ session, sets: tagSets, active: view === 'tag', tool: placing ? 'block' : tool, brush, values, armed: placing && values.length > 1, onPlaced: () => undefined, context, slot, selected: material ? material.id : null, nameOfTag, colourOf, preferred })
+  const tagger = useTagger({ session, sets: tagSets, active: view === 'tag', tool: placing ? 'block' : tool, brush, values, armed: placing && values.length > 1, onPlaced: () => undefined, context, slot, direction, selected: material ? material.id : null, nameOfTag, colourOf, preferred })
 
   // Esc leaves the placing mode, before anything else hears it: it must not close the settings under the artist.
   useEffect(() => {
@@ -286,6 +298,13 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
     )
   }
 
+  /** Whether the context's faces have a direction, and which the material's art for it is drawn for. */
+  const directed = context !== null && DIRECTED.includes(context)
+  const count: DirectionCount = (context !== null ? material.directions?.[context] : undefined) ?? 1
+  const offered = directionsOffered(count)
+  /** Everything owed across the directions offered, beside the count for the one being worked in. */
+  const allDirections = directed && offered.length > 1 ? offered.map((d) => coverageOf(sets, subject, context, d)) : null
+
   // --- the bar: the subject, and the view's own tools ---------------------------------
   const art = faces.get(material.id)
   const tabs = (
@@ -304,6 +323,11 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
       )}
       {drawnFor ? <span className="ui-hint-line">· drawn for {drawnFor}s</span> : null}
       <CoverageMark cells={cellsOfCoverage(cover)} drawn={cover.drawn} owed={cover.masks.length} large />
+      {allDirections ? (
+        <span className="ui-hint-line" title="Drawn and owed across every direction this material's art is drawn for">
+          all {allDirections.length} directions {allDirections.reduce((n, c) => n + c.drawn, 0)}/{allDirections.reduce((n, c) => n + c.masks.length, 0)}
+        </span>
+      ) : null}
       <span className="ui-subject-bar-grow" />
       <div style={{ width: 250 }}>
         <Segmented
@@ -427,6 +451,14 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
             {/* The slot picker for the archetype in the bar: what the brush writes, and which tags are lit. */}
             <StageFloat corner="left">
               <Select value={slot ?? ''} options={slotsFor(context).map((s) => ({ value: s.ordinary ? '' : s.id, label: `Slot: ${s.name}${s.note ? ` — ${s.note}` : ''}` }))} onChange={(next) => setSlot(next === '' ? null : next)} />
+              {/* Direction is its own axis beside the slot: as many as the material says its art for this archetype is drawn for. */}
+              {directed ? (
+                <Select
+                  value={direction ?? ''}
+                  options={[{ value: '', label: 'Direction: any' }, ...offered.map((d): { value: string; label: string } => ({ value: d, label: `Direction: ${DIRECTION_NAMES[d]}` }))]}
+                  onChange={(next) => setDirection(next === '' ? null : (next as TagDirection))}
+                />
+              ) : null}
             </StageFloat>
             {/* The subject as the tags now make it draw, small and where the work is; it follows each stroke. */}
             <StagePanel
@@ -490,6 +522,28 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
           <NumberInput value={material.picketDistance ?? DEFAULT_PICKET_DISTANCE} min={0} max={MAX_PICKET_DISTANCE} step={1} onChange={(picketDistance) => change({ picketDistance })} />
         </Field>
       </div>
+
+      {directed && context !== null ? (
+        <Field label={`${context[0].toUpperCase()}${context.slice(1)} art is drawn for`} hint="What you mean to draw: it decides the directions offered on the sheet and how much is owed. The map uses whatever art there is: this direction's, then the opposite mirrored, then another's turned, then art for any.">
+          <Select
+            value={String(count)}
+            options={[
+              { value: '1', label: 'One direction, turned for the rest' },
+              { value: '2', label: 'Two: down the sheet and across, mirrored' },
+              { value: '4', label: 'Four: north, east, south and west' },
+            ]}
+            onChange={(next) => {
+              const rest = Object.fromEntries(Object.entries(material.directions ?? {}).filter(([id]) => id !== context))
+              const directions = next === '1' ? rest : { ...rest, [context]: Number(next) as DirectionCount }
+              // A direction the new count no longer offers falls back to any.
+              if (direction !== null && !directionsOffered(Number(next) as DirectionCount).includes(direction)) setDirection(null)
+              // The field is absent rather than empty when every archetype is at one, which is what the file and the schema expect.
+              const plain: MaterialDef = { id: material.id, name: material.name, color: material.color, ...(material.fringeAngle === undefined ? {} : { fringeAngle: material.fringeAngle }), ...(material.picketDistance === undefined ? {} : { picketDistance: material.picketDistance }) }
+              commit(materials.map((m) => (m.id === active ? (Object.keys(directions).length ? { ...plain, directions } : plain) : m)))
+            }}
+          />
+        </Field>
+      ) : null}
 
       {meets ? (
         <>

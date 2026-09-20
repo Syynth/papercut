@@ -169,6 +169,33 @@ describe('the materials section', () => {
     expect([...window.document.querySelectorAll<HTMLInputElement>('.ui-stage-panel input[type="radio"]')].some((r) => r.value === '3d' && r.checked)).toBe(true)
   })
 
+  it("offers a direction beside the slot where a face has one, as many as the material's art is drawn for", () => {
+    mount(section(ground([[0, null]])))
+    const { host } = started[started.length - 1]
+    const radio = (value: string): HTMLInputElement | undefined => [...window.document.querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((r) => r.value === value)
+    const pickers = (): HTMLSelectElement[] => [...window.document.querySelectorAll<HTMLSelectElement>('.ui-stage-float select')]
+    const directions = (): string[] => [...(pickers()[1]?.options ?? [])].map((o) => (o.textContent ?? '').replace(/^Direction: /, '').split(',')[0])
+    act(() => radio('tag')?.click())
+    // A floor has no direction the map asks art for, so there is a slot picker and nothing beside it.
+    act(() => radio('floor')?.click())
+    expect(pickers()).toHaveLength(1)
+
+    act(() => radio('ramp')?.click())
+    expect(directions()).toEqual(['any', 'runs south'])
+
+    // The material says its ramp art is drawn for four directions: per archetype, so its walls and floors say nothing.
+    const field = [...window.document.querySelectorAll<HTMLSelectElement>('.ui-library-form select')].find((el) => [...el.options].some((o) => o.value === '4'))
+    act(() => {
+      if (field) {
+        field.value = '4'
+        field.dispatchEvent(new window.Event('change', { bubbles: true }))
+      }
+    })
+    expect(host.children.project.getSnapshot().context.project.materials[0].directions).toEqual({ ramp: 4 })
+    expect(directions()).toEqual(['any', 'runs north', 'runs east', 'runs south', 'runs west'])
+    expect(text()).toContain('all 4 directions')
+  })
+
   it('opens walls and ramps in 3D, and floors flat', () => {
     mount(section(ground([[0, null]])))
     const radio = (label: string): HTMLInputElement | undefined => [...window.document.querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((r) => r.parentElement?.textContent?.trim() === label || r.value === label)

@@ -44,8 +44,8 @@ export interface ResolutionProfile {
  * optionally a SLOT. `null` is nothing — the edge of the ground, the air
  * beside a cliff.
  *
- * Spelled as a string, `"3"`, `"3@wall"`, `"3:convex"` or `"3@wall:convex"`,
- * for two reasons. A tag is compared far more often than it is read apart:
+ * Spelled as a string — `"3"`, `"3@wall"`, `"3@ramp/s"`, `"3:convex"`,
+ * `"3@wall/n:convex"`: material, archetype, direction, slot — for two reasons. A tag is compared far more often than it is read apart:
  * the atlas interns it, the mesher packs four of them into one number, and the
  * tagger asks whether two corners are the same thing. A primitive makes every
  * one of those an `===`. And the tiles record is the bulkiest thing in a
@@ -58,6 +58,14 @@ export interface ResolutionProfile {
  * many of them as someone has drawn. A corner that names none means ANY: the
  * art draws on whatever face asks for it. The atlas answers a face with the
  * art named for it before the art named for any.
+ *
+ * The DIRECTION is an axis of its own, beside the archetype and apart from the
+ * slot, and universal (ruling of 2026-09-19): any tag may name one of north,
+ * east, south and west, and a tag that names none serves every direction. A
+ * ramp is its first use — the direction it descends toward — because steps
+ * seen head-on are not steps seen from the side. Art for one direction also
+ * serves the others, mirrored for the opposite and turned for the rest; the
+ * atlas says how.
  *
  * The slot is ALLOWED on every tag and expected on almost none. Absent, a tag
  * means the material's ordinary surface, which is what an artist tags all day;
@@ -72,15 +80,20 @@ export type CornerTags = readonly [Tag, Tag, Tag, Tag]
 
 const ARCHETYPE_IDS: readonly ArchetypeId[] = ['floor', 'wall', 'ramp']
 
-/** The tag for a material; a slot when the ordinary surface is not what is meant; an archetype when the art is for one kind of face only. */
-export function tagOf(material: number, slot?: string | null, archetype?: ArchetypeId | null): Tag {
-  return `${material}${archetype ? `@${archetype}` : ''}${slot ? `:${slot}` : ''}`
+/** A direction a tag can name: the way a ramp descends, in the map's own terms. The letters are what a tag spells. */
+export type TagDirection = 'n' | 'e' | 's' | 'w'
+/** In the map's direction order — east, south, west, north — so a direction index is a position in this. */
+export const TAG_DIRECTIONS: readonly TagDirection[] = ['e', 's', 'w', 'n']
+
+/** The tag for a material; a slot when the ordinary surface is not what is meant; an archetype when the art is for one kind of face only; a direction when it is drawn for one. */
+export function tagOf(material: number, slot?: string | null, archetype?: ArchetypeId | null, direction?: TagDirection | null): Tag {
+  return `${material}${archetype ? `@${archetype}` : ''}${direction ? `/${direction}` : ''}${slot ? `:${slot}` : ''}`
 }
 
 /** The material a tag names, or `null` for nothing. */
 export function materialOfTag(tag: Tag): number | null {
   if (tag === null) return null
-  const end = tag.search(/[@:]/)
+  const end = tag.search(/[@/:]/)
   const id = Number(end === -1 ? tag : tag.slice(0, end))
   return Number.isInteger(id) && id >= 0 ? id : null
 }
@@ -97,15 +110,33 @@ export function archetypeOfTag(tag: Tag): ArchetypeId | null | undefined {
   if (tag === null) return null
   const at = tag.indexOf('@')
   if (at === -1) return null
-  const colon = tag.indexOf(':')
-  const name = tag.slice(at + 1, colon === -1 ? undefined : colon)
+  const rest = tag.slice(at + 1)
+  const end = rest.search(/[/:]/)
+  const name = end === -1 ? rest : rest.slice(0, end)
   return ARCHETYPE_IDS.find((id) => id === name)
+}
+
+/** The direction a tag names its art for, or `null` for every direction. A letter that is no direction is `undefined`: the tag is malformed. */
+export function directionOfTag(tag: Tag): TagDirection | null | undefined {
+  if (tag === null) return null
+  const slash = tag.indexOf('/')
+  if (slash === -1) return null
+  const colon = tag.indexOf(':')
+  if (colon !== -1 && colon < slash) return null
+  const name = tag.slice(slash + 1, colon === -1 ? undefined : colon)
+  return TAG_DIRECTIONS.find((d) => d === name)
 }
 
 /** The same tag, for `archetype`'s faces only, or for any when `null`. Nothing stays nothing. */
 export function withArchetype(tag: Tag, archetype: ArchetypeId | null): Tag {
   const material = materialOfTag(tag)
-  return material === null ? tag : tagOf(material, slotOfTag(tag), archetype)
+  return material === null ? tag : tagOf(material, slotOfTag(tag), archetype, directionOfTag(tag) ?? null)
+}
+
+/** The same tag, drawn for `direction`, or for every direction when `null`. Nothing stays nothing. */
+export function withDirection(tag: Tag, direction: TagDirection | null): Tag {
+  const material = materialOfTag(tag)
+  return material === null ? tag : tagOf(material, slotOfTag(tag), archetypeOfTag(tag) ?? null, direction)
 }
 
 /** What an image's tiles are, tagged by corner, as the project file holds it. Tile indexes are row-major on the image's grid. */
@@ -259,10 +290,22 @@ export function normaliseMaterials(raw: unknown): MaterialDef[] {
       name: typeof m.name === 'string' ? m.name : `Material ${index + 1}`,
       color: typeof m.color === 'number' ? m.color : 0x808080,
       ...(typeof m.fringeAngle === 'number' && m.fringeAngle >= 0 && m.fringeAngle <= 90 ? { fringeAngle: m.fringeAngle } : {}),
+      ...normaliseDirections(m.directions),
       ...(typeof m.picketDistance === 'number' && m.picketDistance >= 0 && m.picketDistance <= MAX_PICKET_DISTANCE ? { picketDistance: m.picketDistance } : {}),
     }
   })
   return out
+}
+
+/** A material's directions, per archetype: only the counts papercut has, and only the ones that are not the default. */
+function normaliseDirections(raw: unknown): { directions?: MaterialDef['directions'] } {
+  if (typeof raw !== 'object' || raw === null) return {}
+  const out: NonNullable<MaterialDef['directions']> = {}
+  for (const id of ARCHETYPE_IDS) {
+    const count = (raw as Record<string, unknown>)[id]
+    if (count === 2 || count === 4) out[id] = count
+  }
+  return Object.keys(out).length ? { directions: out } : {}
 }
 
 const isRelativePath = (value: unknown): value is string => typeof value === 'string' && value.length > 0 && !value.startsWith('/') && !value.includes('\\') && !value.split('/').includes('..')
@@ -313,6 +356,7 @@ export function normaliseTerrain(raw: unknown, where: string): ImageTerrain {
         if (tag === null) continue
         if (typeof tag !== 'string' || materialOfTag(tag) === null) throw new LoadError(`Image ${where}, tile ${key} has a corner tag that names no material.`)
         if (archetypeOfTag(tag) === undefined) throw new LoadError(`Image ${where}, tile ${key} has a corner tag, ${tag}, for a kind of face papercut does not have.`)
+        if (directionOfTag(tag) === undefined) throw new LoadError(`Image ${where}, tile ${key} has a corner tag, ${tag}, for a direction that is not n, e, s or w.`)
       }
       // A tile tagged nothing everywhere is held: the template tags one so on purpose (the all-under tile).
       tiles[String(index)] = [...(tags as [Tag, Tag, Tag, Tag])]

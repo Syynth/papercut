@@ -12,7 +12,7 @@
  * vocabulary (a SUBJECT, a CROP); it reads nothing but loaded sets.
  */
 
-import { archetypeOfTag, materialOfTag, tagOf, withArchetype, type ArchetypeId, type Tag } from '@papercut/document'
+import { archetypeOfTag, materialOfTag, tagOf, withArchetype, withDirection, type ArchetypeId, type Tag, type TagDirection } from '@papercut/document'
 import { CORNER_BITS, CORNER_BLOCKS, archetypes, arrangements, exactTile, templateTags, type CornerTags, type LoadedSet } from '@papercut/geometry'
 
 /** A tile, by the sheet it is on. */
@@ -41,8 +41,13 @@ export function findTile(sets: readonly LoadedSet[], tags: CornerTags): Found | 
  * archetype, then the art named for any. With no archetype asked for, any tile at all counts — named for any face
  * first, then for each in turn — which is what "has anyone drawn this" means in a list.
  */
-export function answerFor(sets: readonly LoadedSet[], tags: CornerTags, archetype: ArchetypeId | null): Found | null {
-  const named = (a: ArchetypeId | null): Found | null => findTile(sets, tags.map((t) => withArchetype(t, a)) as unknown as CornerTags)
+export function answerFor(sets: readonly LoadedSet[], tags: CornerTags, archetype: ArchetypeId | null, direction: TagDirection | null = null): Found | null {
+  // Art drawn for the direction being worked in, then art that names none. Art for another direction, mirrored or
+  // turned, is how the map fills a gap, not something anyone has drawn for this one, so it does not count here.
+  const named = (a: ArchetypeId | null): Found | null => {
+    const forArchetype = tags.map((t) => withArchetype(t, a)) as unknown as CornerTags
+    return (direction === null ? null : findTile(sets, forArchetype.map((t) => withDirection(t, direction)) as unknown as CornerTags)) ?? findTile(sets, forArchetype)
+  }
   if (archetype !== null) return named(archetype) ?? named(null)
   for (const a of [null, ...archetypes().map((x) => x.id)]) {
     const found = named(a)
@@ -65,7 +70,7 @@ export function subjectTags(subject: Subject): { mine: Tag; theirs: Tag } {
   return { mine: tagOf(subject.material), theirs: subject.other === null ? null : tagOf(subject.other) }
 }
 
-export function coverageOf(sets: readonly LoadedSet[], subject: Subject, archetype: ArchetypeId | null): Coverage {
+export function coverageOf(sets: readonly LoadedSet[], subject: Subject, archetype: ArchetypeId | null, direction: TagDirection | null = null): Coverage {
   const { mine, theirs } = subjectTags(subject)
   // Mask 15 is every corner this material and none of the other: the material's OWN tile, not something a pairing owes.
   const masks = arrangements()
@@ -74,11 +79,16 @@ export function coverageOf(sets: readonly LoadedSet[], subject: Subject, archety
   const tiles = new Map<number, Found | null>()
   let drawn = 0
   for (const mask of masks) {
-    const found = answerFor(sets, templateTags(mask, theirs, mine), archetype)
+    const found = answerFor(sets, templateTags(mask, theirs, mine), archetype, direction)
     tiles.set(mask, found)
     if (found !== null) drawn += 1
   }
   return { masks, tiles, drawn }
+}
+
+/** The directions the editor offers for a material's art of one archetype, by how many it says it is drawn for (ruling of 2026-09-19): south is down the sheet, east is across it. */
+export function directionsOffered(count: 1 | 2 | 4 | undefined): readonly TagDirection[] {
+  return count === 4 ? ['n', 'e', 's', 'w'] : count === 2 ? ['s', 'e'] : ['s']
 }
 
 /** How a material stands with one kind of face: art of its own for it, art for any face that therefore draws there too, or nothing. */
@@ -218,7 +228,7 @@ export interface Assembled {
 }
 
 /** Lay a patch of cells out through the dual grid and find each corner's tile across every sheet, as a face of `archetype` would. */
-export function assembleAcross(sets: readonly LoadedSet[], cells: ReadonlyArray<ReadonlyArray<Tag>>, archetype: ArchetypeId | null): Assembled[] {
+export function assembleAcross(sets: readonly LoadedSet[], cells: ReadonlyArray<ReadonlyArray<Tag>>, archetype: ArchetypeId | null, direction: TagDirection | null = null): Assembled[] {
   const rows = cells.length
   const columns = rows === 0 ? 0 : cells[0].length
   const at = (r: number, c: number): Tag => (r < 0 || c < 0 || r >= rows || c >= columns ? null : (cells[r][c] ?? null))
@@ -226,7 +236,7 @@ export function assembleAcross(sets: readonly LoadedSet[], cells: ReadonlyArray<
   for (let r = 0; r <= rows; r++) {
     for (let c = 0; c <= columns; c++) {
       const corners: CornerTags = [at(r - 1, c - 1), at(r - 1, c), at(r, c - 1), at(r, c)]
-      out.push({ column: c, row: r, corners, found: corners.every((t) => t === null) ? null : answerFor(sets, corners, archetype) })
+      out.push({ column: c, row: r, corners, found: corners.every((t) => t === null) ? null : answerFor(sets, corners, archetype, direction) })
     }
   }
   return out

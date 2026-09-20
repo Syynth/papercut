@@ -121,7 +121,7 @@ export type {
   WallProfile,
   WallProfilePoint,
 } from './structure'
-export type { ArchetypeId } from './document'
+export type { ArchetypeId, DirectionCount } from './document'
 export type { RgbaImage, SpriteAsset } from './image'
 export {
   DEFAULT_WALL_PROFILE,
@@ -210,5 +210,5 @@ export { snapTo, type SnapAnchor, type SnapMode } from './snap'
 export type { DocumentTarget } from './target'
 
 // The project: what every map in a folder shares (2026-09-14).
-export { MAPS_DIR, PROJECT_FILE, PROJECT_FORMAT_VERSION, SHEETS_DIR, archetypeOfTag, createProject, emptyTerrain, materialOfTag, newProjectId, normaliseGrid, normaliseImage, normaliseLayout, normaliseMaterials, normaliseSprites, normaliseTerrain, nextImageId, parseProject, placeholderImage, plainGrid, serializeProject, sheetName, slotOfTag, stemOf, tagOf, withArchetype } from './project'
-export type { Axes, CornerTags, SpriteDef, Grid, ImageEntry, ImageKind, ImageLayout, ImageTerrain, ProjectDoc, ReadonlyProjectDoc, ResolutionProfile, Tag } from './project'
+export { MAPS_DIR, PROJECT_FILE, PROJECT_FORMAT_VERSION, SHEETS_DIR, TAG_DIRECTIONS, archetypeOfTag, createProject, directionOfTag, emptyTerrain, materialOfTag, newProjectId, normaliseGrid, normaliseImage, normaliseLayout, normaliseMaterials, normaliseSprites, normaliseTerrain, nextImageId, parseProject, placeholderImage, plainGrid, serializeProject, sheetName, slotOfTag, stemOf, tagOf, withArchetype, withDirection } from './project'
+export type { Axes, CornerTags, SpriteDef, Grid, ImageEntry, ImageKind, ImageLayout, ImageTerrain, ProjectDoc, ReadonlyProjectDoc, ResolutionProfile, Tag, TagDirection } from './project'

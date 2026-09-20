@@ -856,6 +856,31 @@ describe("a ramp's surface is a tile and a half long, drawn from quarters (decis
     expect(triangles.filter(inside(look.atlas.uv(east.tile, 0)))).toHaveLength(2)
   })
 
+  it('draws a ramp that runs east with art drawn for south, turned, rather than falling back (ruling of 2026-09-19)', () => {
+    // A lone ramp on level ground: every corner of it meets nothing at a lower neighbour or grass at its foot. Give it
+    // art for ONE direction only, every arrangement of grass against nothing drawn for a run to the south.
+    const south = tagOf(0, null, 'ramp', 's')
+    const set = stampTemplate(createTerrainSet('runs.png', TILE, 16, 8), 0, 0, null, south)
+    const look = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet(), { set, image: solid(16 * TILE, 8 * TILE, [200, 0, 0, 255]) }])
+    const texelsOf = (dir: number): number[][] => {
+      const doc = createMap(8, 8)
+      setHeight(doc, 3, 3, 4)
+      setRamp(doc, 3, 3, dir)
+      const chunk = meshTerrainChunk(ground(doc), '0,0', look)
+      const { width, data } = look.atlas.image
+      const height = look.atlas.image.height
+      return topTriangles(chunk, 3, 3).map((t) => {
+        const at = (Math.floor((1 - t.v) * height) * width + Math.floor(t.u * width)) * 4
+        return [data[at], data[at + 1], data[at + 2], data[at + 3]]
+      })
+    }
+    // Red is the directed sheet; the placeholder is green. South is the art as drawn, north its mirror, east and west turned.
+    for (const dir of [0, 1, 2, 3]) {
+      const reds = texelsOf(dir).filter((rgba) => rgba[0] === 200 && rgba[3] === 255)
+      expect(reds.length, `direction ${dir}`).toBeGreaterThan(0)
+    }
+  })
+
   it('stretches a pasted tile over the whole slope rather than repeating a row of it', () => {
     const doc = createMap(8, 8)
     setHeight(doc, 3, 3, 4)
