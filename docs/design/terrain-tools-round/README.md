@@ -32,3 +32,4 @@ gestures and one Match menu, and everything specialised is what a double-click m
 | `SelFaces.dc.html` | Flat (connected and coplanar), Material, Tile, Surface with a Step, Wall and Band |
 | `SelVoxels.dc.html` | Island, Layer, Column, Same piece; Box depth and air in a region; what is selected inside hidden layers |
 | `SelSimple.dc.html` | The bar per element, the keys, an order to build in, and four questions |
+| `SelIcons.dc.html` | The icon set for all of it: 35 glyphs on the app's 24-unit grid, each shown large, at the bar's 18 px, and assembled into the three bars. Their markup is in `selection-icons.json`, ready to go into `packages/ui/src/icons.tsx` as each control is built |
