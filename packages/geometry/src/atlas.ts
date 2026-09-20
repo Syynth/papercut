@@ -258,6 +258,18 @@ export class TerrainAtlas {
   }
 
   /**
+   * A tile's rectangle to the texel, [u0, v0, u1, v1], with none of `uv`'s half-texel inset. For art cut into parts
+   * that must keep their texels square and in step from one piece to the next — a rail, drawn half a tile at a time
+   * (found 2026-09-19: through the inset rect half a tile showed seven and a half texels, and a line at 45° across
+   * two pieces came out uneven). The caller keeps its samples off the very edge.
+   */
+  bounds(tile: number): [number, number, number, number] {
+    const column = tile % ATLAS_COLUMNS
+    const row = Math.floor(tile / ATLAS_COLUMNS)
+    return [column / ATLAS_COLUMNS, 1 - (row + 1) / this.rows, (column + 1) / ATLAS_COLUMNS, 1 - row / this.rows]
+  }
+
+  /**
    * The tile a material's trim is drawn from, or `null` when it has none: its
    * fringe is its bottom edge tagged `fringe` (the material on top, nothing
    * below), its picket its top edge tagged `picket`. `tag` is the material's

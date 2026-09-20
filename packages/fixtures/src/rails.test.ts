@@ -86,6 +86,22 @@ describe('the placeholder rail sheet', () => {
     for (let x = 0; x < T / 2 - 1; x++) expect(railRows(foot, x)).toEqual(railRows(middle, x))
   })
 
+  it("runs the stringer's edge strip unbroken down the steps: above the slope line, with the corner that leaves the body drawn in the rail's own tile", () => {
+    const SEAM = [0x46, 0x35, 0x19]
+    const body = exactTile(set, [upright, upright, upright, upright]) as number
+    const middle = exactTile(set, [null, null, upright, upright]) as number
+    for (const x0 of [0, T / 2]) {
+      // Along the cut, the strip is the two texels over the slope line, to the very end of the half.
+      for (let x = 2; x < T / 2; x++) for (const up of [1, 2]) expect(is(body, x0 + x, x - up, SEAM), `body ${x0 + x},${x - up}`).toBe(true)
+      // Its first corner is over the top of the body, at the foot of the rail tile that stands on it.
+      expect(is(middle, x0, T - 1, SEAM)).toBe(true)
+      expect(is(middle, x0, T - 2, SEAM)).toBe(true)
+      expect(is(middle, x0 + 1, T - 1, SEAM)).toBe(true)
+      // And nothing of it is left to the plain board that repeats to the ground.
+      for (let x = 0; x < T / 2; x++) expect(is(body, x0 + x, T / 2, SEAM)).toBe(false)
+    }
+  })
+
   it('goes into an atlas, and is the same drawing as its SVG', () => {
     expect(() => new TerrainAtlas([{ set, image }])).not.toThrow()
     const svg = railSheetSvg(48)

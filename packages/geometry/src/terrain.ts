@@ -613,8 +613,13 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
   }
   /** Part of a tile as a rect: across from `a0` to `a1` of its width, and from `b0` to `b1` of its height, measured up from its bottom. */
   const partOf = (tile: number, a0: number, a1: number, b0: number, b1: number): Rect => {
-    const [u0, v0, u1, v1] = atlas.uv(tile, -1)
-    return [u0 + (u1 - u0) * a0, v0 + (v1 - v0) * b0, u0 + (u1 - u0) * a1, v0 + (v1 - v0) * b1]
+    // To the texel: a part is a whole number of texels, and every piece of a rail has to show them the same size
+    // and in step with the piece beside it. A sixteenth of a texel is kept off each edge: a GPU places a sample to
+    // about a 256th of a texel, and with less of a guard than that allows for, the odd pixel along a piece's edge
+    // took the texel beyond it and drew as a dotted hairline (seen 2026-09-19). Under one percent of a piece's width.
+    const [u0, v0, u1, v1] = atlas.bounds(tile)
+    const [eu, ev] = [(u1 - u0) / (atlas.tile * 16), (v1 - v0) / (atlas.tile * 16)]
+    return [u0 + (u1 - u0) * a0 + eu, v0 + (v1 - v0) * b0 + ev, u0 + (u1 - u0) * a1 - eu, v0 + (v1 - v0) * b1 - ev]
   }
   const cells = new Cells(voxel, look)
   const marks: number[] = []
