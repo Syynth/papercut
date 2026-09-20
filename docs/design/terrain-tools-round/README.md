@@ -18,3 +18,17 @@ proposals to draw on rather than a plan. The boards are generated; their source 
 | `Edges.dc.html` | Fringes, pickets and rails in one mode, drawn as lines and swept with the same footprints; an edge may take its trim from a named material |
 | `Regions.dc.html` | Selecting voxels: the Region half of Select (decided 2026-09-12, never built), with the shared footprints and a Depth of Surface, Through or Box; and what a selection is for: Fill, Extrude, Expand, Rotate, Copy as a stamp |
 | `Questions.dc.html` | The open questions, and an order to build in |
+
+## The selection tools, mapped out: design pass of 2026-09-20
+
+Proposed. What is built already is Region mode, the three elements, brush, rectangle and fill, surface and
+through, combine, and grow, shrink and invert. This pass maps the rest, with the aim that it stays simple: three
+gestures and one Match menu, and everything specialised is what a double-click means.
+
+| Board | What it shows |
+| --- | --- |
+| `SelOneWay.dc.html` | Click, drag, double-click for "the whole", triple-click for the next whole out; hover shows what a click would take; one Match menu with a default per element; changing element converts the selection |
+| `SelEdges.dc.html` | What an edge is (top, foot, slope, corner), the full edge as a Run, the Loop, Follow slopes, Pair, and matching by kind or by trim |
+| `SelFaces.dc.html` | Flat (connected and coplanar), Material, Tile, Surface with a Step, Wall and Band |
+| `SelVoxels.dc.html` | Island, Layer, Column, Same piece; Box depth and air in a region; what is selected inside hidden layers |
+| `SelSimple.dc.html` | The bar per element, the keys, an order to build in, and four questions |
