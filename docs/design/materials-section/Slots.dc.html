@@ -35,7 +35,7 @@ a{color:#e9a23b}a:hover{color:#f0b65c}
 <div style="width: 1440px; height: 900px; box-sizing: border-box; padding: 28px 32px; background: #15171c; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 18px;">
   <div style="display: grid; gap: 4px;">
     <div style="font-size: 18px; font-weight: 600;">Archetypes, their slots, and the shape of a slot's tile</div>
-    <div class="hint" style="max-width: 980px;">The bar says which archetype we are working with; the dropdown on the stage offers that archetype's slots. Today every tag is a corner of a square tile, whatever it names. The slots below are not all square, which is the thing to settle. <span class="tag ok">draws today</span> <span class="tag">tagged, not drawn yet</span> <span class="tag new">proposed</span></div>
+    <div class="hint" style="max-width: 980px;">The bar says which archetype we are working with; the dropdown on the stage offers that archetype's slots. Today every tag is a corner of a square tile, whatever it names. The slots below are not all square. <span class="tag ok">draws today</span> <span class="tag">tagged, not drawn yet</span> <span class="tag new">proposed</span></div>
   </div>
 
   <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)) minmax(0, 1.25fr); gap: 14px; min-height: 0;">
@@ -73,29 +73,35 @@ a{color:#e9a23b}a:hover{color:#f0b65c}
         <text x="168" y="158" font-size="9" fill="#e9a23b">side</text>
         <text x="146" y="62" font-size="9" fill="#7bc47f">rail</text>
       </svg>
-      <div class="slot"><span class="g"><svg width="20" height="30" viewBox="0 0 20 30"><rect x=".7" y=".7" width="18.6" height="28.6"></rect><path d="M10 .7v28.6M.7 15h18.6" stroke-dasharray="2 2"></path></svg></span><span><b>Surface</b><span class="tag ok">draws today, stretched</span><small>1 × 1½ along its run. Today a square tile pulled 1.41× down the slope.</small></span></div>
+      <div class="slot"><span class="g"><svg width="20" height="30" viewBox="0 0 20 30"><rect x=".7" y=".7" width="18.6" height="28.6"></rect><path d="M10 .7v28.6M.7 15h18.6" stroke-dasharray="2 2"></path></svg></span><span><b>Surface</b><span class="tag ok">decided</span><small>1 × 1½ along its run, with the surface's own four corner tags and fifteen arrangements, so materials blend on a slope as they do on a floor. Today a square tile pulled 1.41×.</small></span></div>
       <div class="slot"><span class="g"><svg width="26" height="14" viewBox="0 0 26 14"><rect x=".7" y=".7" width="24.6" height="12.6"></rect></svg></span><span><b>Head · Foot</b><span class="tag new">proposed</span><small>1 × ½ each: the lip onto the plateau, the landing on the ground.</small></span></div>
       <div class="slot"><span class="g"><svg width="26" height="26" viewBox="0 0 26 26"><path d="M1 25h24V3z"></path></svg></span><span><b>Side</b><span class="tag new">proposed</span><small>The triangle under the slope. Wall art cut on the diagonal today.</small></span></div>
-      <div class="slot"><span class="g"><svg width="30" height="12" viewBox="0 0 30 12"><rect x=".7" y=".7" width="28.6" height="10.6"></rect></svg></span><span><b>Rail</b><span class="tag new">proposed</span><small>1½ × ½: a ramp's trim, stood along its open sides and sheared to the slope. Handrails, kerbs, banisters.</small></span></div>
+      <div class="slot"><span class="g"><svg width="40" height="34" viewBox="0 0 40 34"><path d="M2 12 38 30" stroke="#7b8294"></path><path d="M2 4 38 22 38 30 2 12Z" fill="rgba(123,196,127,.3)" stroke="#7bc47f"></path></svg></span><span><b>Rail · sheared</b><span class="tag ok">decided</span><small>The art as a strip parallel to the slope. Kerbs, ropes, low walls.</small></span></div>
+      <div class="slot"><span class="g"><svg width="40" height="34" viewBox="0 0 40 34"><path d="M2 12 38 30" stroke="#7b8294"></path><path d="M2 12V2h9v14.5M11 16.5V6.5h9v14.5M20 21V11h9v14.5M29 25.5V15.5h9V30" fill="rgba(123,196,127,.3)" stroke="#7bc47f"></path></svg></span><span><b>Rail · upright</b><span class="tag ok">decided</span><small>The side art run straight up, stepping with the slope rather than leaning. Banisters and posts on stairs. The style is the material's; more can join.</small></span></div>
     </div>
 
     <div style="display: grid; gap: 12px; align-content: start;">
-      <div class="k">To settle</div>
+      <div class="k">Decided 2026-09-19</div>
+      <div class="q" style="border-left-color: #7bc47f;">
+        <h4>The context, and the preview while tagging</h4>
+        <p>The archetype in the bar is the working context for every view; the dropdown on the stage picks that archetype's slots. A small preview floats on the Tag stage, 2D or 3D, and updates as you tag.</p>
+      </div>
+      <div class="q" style="border-left-color: #7bc47f;">
+        <h4>Ramps</h4>
+        <p>A ramp's surface is <b>1 × 1½</b>, not √2: it sits on the half-tile grid and the mesher takes up the 6 %. It <b>keeps the surface's corner tags</b>, so blends, blocks, coverage and the preview all work on a slope. A <b>rail</b> is the ramp's trim, and the material picks its <b>style</b>: sheared or upright. Stairs are ramp art for now (tentative).</p>
+      </div>
+      <div class="k" style="margin-top: 4px;">Still open</div>
       <div class="q">
-        <h4>1 · A slot has a size and a shape</h4>
-        <p>A fringe is half a tile, a seam is a strip, a ramp's surface is longer than it is wide, a ramp's side is a triangle. <b>Proposed:</b> a slot declares its cell in half-tiles, and the tagger's grid and cursor follow the slot picked on the stage: pick Rail and the brush covers a 3 × 1 cell. <b>To decide:</b> does every slot keep four corner tags, so strips auto-tile end to end the way a surface does, or is a strip tagged whole?</p>
+        <h4>1 · Which way the long side runs</h4>
+        <p>Steps seen head-on are not steps seen from the side turned a quarter. <b>Proposed:</b> two runs, <span class="mono">3@ramp</span> down the sheet and <span class="mono">3@ramp-across</span>, picked beside the slot, the mesher mirroring each for the opposite direction. <b>To decide:</b> two runs or four.</p>
       </div>
       <div class="q">
-        <h4>2 · Trims on ramps: the rail</h4>
-        <p>A fringe hangs off a cliff top and a picket stands at a wall's foot, both from art the floor already has. The ramp's version stands along its open sides. <b>Proposed:</b> Rail is a slot of the Ramp archetype with a height per material, on by default where a ramp's side is open, switched off per edge by the same brush that switches fringes off. <b>To decide:</b> a new slot, or the picket slot asked for by a ramp's edge, so one piece of art serves both?</p>
+        <h4>2 · Long cells on a square sheet</h4>
+        <p>A 1 × 1½ cell does not fit a grid of whole tiles. <b>To decide:</b> may a sheet mix square and long cells, say as a region with its own cell, or does ramp art live on sheets of its own whose grid is 1 × 1½ throughout? The second is far simpler and costs one more image.</p>
       </div>
       <div class="q">
-        <h4>3 · Which way the long side runs, and how long it is</h4>
-        <p>Steps seen head-on are not steps seen from the side turned a quarter. A ramp that runs north–south wants a tile 1 × 1½; one that runs east–west wants 1½ × 1, and different art. <b>Proposed:</b> the ramp context has two runs, <span class="mono">3@ramp</span> down the sheet and <span class="mono">3@ramp-across</span>, picked beside the slot, and the mesher mirrors each for the opposite direction. And <b>1½ rather than √2</b>: it sits on the half-tile grid every sheet already has, and the mesher takes up the 6 %. <b>To decide:</b> two runs or four, and whether a sheet may mix square and long cells or ramp art lives on sheets of its own.</p>
-      </div>
-      <div class="q" style="border-left-color: #7b8294;">
-        <h4>Stairs</h4>
-        <p><b>Tentative:</b> stairs are ramp art for now, steps drawn on a ramp's tiles over a slope that stays smooth. A stair that steps its geometry, with treads the player stands level on, is a later question and would ask for the same art.</p>
+        <h4>3 · Strips and the rest</h4>
+        <p><b>To decide:</b> do strip slots (fringe, picket, rail, seams) keep corner tags so they tile end to end, or are they tagged whole? And are Head, Foot and Side real slots, or does the ramp's surface carrying corner tags already answer head and foot, since the plateau and the ground are just its neighbours?</p>
       </div>
     </div>
   </div>
