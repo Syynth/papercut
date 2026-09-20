@@ -146,6 +146,8 @@ export class TerrainAtlas {
   private readonly buffer: Uint8ClampedArray<ArrayBuffer>
   /** Corners answered so far, keyed by the four interned terrain ids packed into one number. */
   private byCorner = new Map<number, AtlasTile>()
+  /** Optional parts asked for so far, by the same packed key: `null` where nobody drew one. */
+  private bySlot = new Map<number, AtlasTile | null>()
   /** Tags interned to small ids; 0 is nothing. */
   private ids = new Map<Tag, number>()
   private sheetTiles = new Map<string, number>() // `<sheet>:<index>` -> atlas tile
@@ -302,8 +304,18 @@ export class TerrainAtlas {
   private resolve(keys: CornerKeys, archetype: ArchetypeId | null, direction: number | null): AtlasTile {
     const tags = [...new Set(keys.filter((k): k is string => k !== null))]
     if (tags.length === 0) return { tile: this.blankTile(), missing: false }
-    // Wherever it was drawn. A tag names a material, so nothing about a corner is local to a sheet.
-    // Art drawn for this kind of face first, then art drawn for any; and within each, by direction.
+    const found = this.find(keys, archetype, direction)
+    if (found) return found
+    // By name, so one transition is one entry however its corners are arranged.
+    const names = tags.map((k) => this.nameOf(k)).sort()
+    if (keys.includes(null)) names.push('edge')
+    const combo = names.join(' · ')
+    this.missingCombos.add(combo)
+    return { tile: this.fallbackTile(), missing: true, combo }
+  }
+
+  /** The authored tile for a corner, wherever it was drawn: art for this kind of face first, then art for any; and within each, by direction. */
+  private find(keys: CornerKeys, archetype: ArchetypeId | null, direction: number | null): AtlasTile | null {
     for (const a of archetype === null ? [null] : [archetype, null]) {
       const named = keys.map((k) => withArchetype(k, a)) as unknown as CornerKeys
       if (direction !== null) {
@@ -321,12 +333,21 @@ export class TerrainAtlas {
       const found = this.authored.get(cornerKey(named))
       if (found) return { tile: this.sheetTile(found.loaded, found.index), missing: false }
     }
-    // By name, so one transition is one entry however its corners are arranged.
-    const names = tags.map((k) => this.nameOf(k)).sort()
-    if (keys.includes(null)) names.push('edge')
-    const combo = names.join(' · ')
-    this.missingCombos.add(combo)
-    return { tile: this.fallbackTile(), missing: true, combo }
+    return null
+  }
+
+  /**
+   * The tile for a corner of an OPTIONAL part — a ramp's side, a rail, a landing (rulings of 2026-09-19) — or `null`
+   * when nobody drew it. Found the way any corner is, but never the fallback and never reported: art that is
+   * optional is not missing when it is absent, and the mesher has something else to do then.
+   */
+  slotTile(keys: CornerKeys, archetype: ArchetypeId | null = null, direction: number | null = null): AtlasTile | null {
+    const packed = ((((this.id(keys[0]) * 4096 + this.id(keys[1])) * 4096 + this.id(keys[2])) * 4096 + this.id(keys[3])) * 4 + (archetype === null ? 0 : ARCHETYPE_INDEX[archetype])) * 5 + (direction === null ? 0 : direction + 1)
+    const cached = this.bySlot.get(packed)
+    if (cached !== undefined) return cached
+    const answer = this.find(keys, archetype, direction)
+    this.bySlot.set(packed, answer)
+    return answer
   }
 
   /** The tile a face with nothing on it draws, and a corner no tile answers: flat, the fallback colour. */

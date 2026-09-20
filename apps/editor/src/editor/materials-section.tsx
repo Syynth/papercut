@@ -20,10 +20,10 @@
 
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
 
-import { DEFAULT_FRINGE_ANGLE, DEFAULT_PICKET_DISTANCE, MAX_PICKET_DISTANCE, materialById, materialOfTag, nextMaterialId, archetypeOfTag, directionOfTag, slotOfTag, tagOf, withArchetype, withDirection, type ArchetypeId, type DirectionCount, type MaterialDef, type ReadonlyProjectDoc, type Tag, type TagDirection } from '@papercut/document'
+import { DEFAULT_FRINGE_ANGLE, DEFAULT_PICKET_DISTANCE, DEFAULT_RAIL_STYLE, MAX_PICKET_DISTANCE, materialById, materialOfTag, nextMaterialId, archetypeOfTag, directionOfTag, slotOfTag, tagOf, withArchetype, withDirection, type ArchetypeId, type DirectionCount, type MaterialDef, type RailStyle, type ReadonlyProjectDoc, type Tag, type TagDirection } from '@papercut/document'
 import { useHost, useProject, useViewSelector } from '@papercut/editor-host'
 import { allSlots, archetypeOf, archetypes, arrangements, type LoadedSet, type Slot } from '@papercut/geometry'
-import { Action, AssetPicker, ColorInput, CoverageMark, FaceMarks, Field, FloatStage, StagePanel, StageToolbar, Library, LibraryGroup, MaterialRow, Note, NumberInput, Segmented, Select, StageFloat, SubjectRow, TextInput, type IconName } from '@papercut/ui'
+import { Action, AssetPicker, ColorInput, CoverageMark, FaceMarks, Field, FloatStage, StagePanel, StageToolbar, Library, LibraryGroup, MaterialRow, Note, NumberInput, Segmented, Select, StageFloat, SubjectRow, TextInput, Toggle, type IconName } from '@papercut/ui'
 
 import { run } from './commands'
 import { assembleAcross, coverageOf, cropOf, directionsOffered, facesOf, maskAt, pairingFace, subjectTags, type Coverage, type Found, type Subject } from './coverage'
@@ -143,6 +143,8 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
   const { remove, mapsUsing, dialog } = useDeleteMaterial(session, (next) => select(next))
 
   const commit = (next: readonly MaterialDef[]): void => void run(host, 'project.materials.set', { materials: next.map((m) => ({ ...m })) })
+  /** A material without some of its optional fields: the file and the schema want a default left unsaid, not spelled as undefined. */
+  const without = (m: MaterialDef, ...keys: Array<keyof MaterialDef>): MaterialDef => Object.fromEntries(Object.entries(m).filter(([key]) => !keys.includes(key as keyof MaterialDef))) as unknown as MaterialDef
   const change = (changes: Partial<MaterialDef>): void => {
     if (material) commit(materials.map((m) => (m.id === active ? { ...material, ...changes } : m)))
   }
@@ -195,9 +197,10 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
   /** The spelled transition as the tags a block writes, under first; empty while what is drawn over it is not picked. */
   const values = useMemo((): Tag[] => {
     if (spell.over === null) return []
-    const of = (id: number | null): Tag => (id === null ? null : withDirection(withArchetype(tagOf(id), context), direction))
-    return [of(spell.under), of(spell.over), ...(spell.third === null ? [] : [of(spell.third)])]
-  }, [spell, context, direction])
+    const of = (id: number | null, part: string | null = null): Tag => (id === null ? null : withDirection(withArchetype(tagOf(id, part), context), direction))
+    // The slot picked on the stage is the part of the material being placed — a rail's block, a side's — so it rides on what is drawn over, as the brush writes it.
+    return [of(spell.under), of(spell.over, slot), ...(spell.third === null ? [] : [of(spell.third)])]
+  }, [spell, context, direction, slot])
   const brush = material ? tagOf(material.id, slot, context, direction) : null
   /** The sheet that holds the subject's art, when one does: where the Tag view opens. */
   const preferred = useMemo(() => [...(cover?.tiles.values() ?? [])].find((f) => f !== null && tagSets.includes(f.loaded))?.loaded.set.sheet ?? null, [cover, tagSets])
@@ -523,6 +526,24 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
         </Field>
       </div>
 
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, alignItems: 'end' }}>
+        <Field label="Rail" hint="How its rail stands on a ramp's open side, once it has rail art">
+          <Select<RailStyle>
+            value={material.railStyle ?? DEFAULT_RAIL_STYLE}
+            options={[
+              { value: 'sloped', label: 'Sloped: laid along the slope' },
+              { value: 'upright', label: 'Upright: stands straight, steps down' },
+            ]}
+            onChange={(railStyle) => commit(materials.map((m) => (m.id === active ? (railStyle === 'upright' ? { ...material, railStyle } : without(material, 'railStyle', 'landings')) : m)))}
+          />
+        </Field>
+        {material.railStyle === 'upright' ? (
+          <Field label="Landings" hint="Runs half a tile onto level ground at its head and foot">
+            <Toggle checked={material.landings === true} onChange={(on) => commit(materials.map((m) => (m.id === active ? (on ? { ...material, landings: true } : without(material, 'landings')) : m)))} />
+          </Field>
+        ) : null}
+      </div>
+
       {directed && context !== null ? (
         <Field label={`${context[0].toUpperCase()}${context.slice(1)} art is drawn for`} hint="What you mean to draw: it decides the directions offered on the sheet and how much is owed. The map uses whatever art there is: this direction's, then the opposite mirrored, then another's turned, then art for any.">
           <Select
@@ -538,7 +559,7 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
               // A direction the new count no longer offers falls back to any.
               if (direction !== null && !directionsOffered(Number(next) as DirectionCount).includes(direction)) setDirection(null)
               // The field is absent rather than empty when every archetype is at one, which is what the file and the schema expect.
-              const plain: MaterialDef = { id: material.id, name: material.name, color: material.color, ...(material.fringeAngle === undefined ? {} : { fringeAngle: material.fringeAngle }), ...(material.picketDistance === undefined ? {} : { picketDistance: material.picketDistance }) }
+              const plain = without(material, 'directions')
               commit(materials.map((m) => (m.id === active ? (Object.keys(directions).length ? { ...plain, directions } : plain) : m)))
             }}
           />

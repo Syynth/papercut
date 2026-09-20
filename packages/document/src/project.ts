@@ -292,6 +292,9 @@ export function normaliseMaterials(raw: unknown): MaterialDef[] {
       ...(typeof m.fringeAngle === 'number' && m.fringeAngle >= 0 && m.fringeAngle <= 90 ? { fringeAngle: m.fringeAngle } : {}),
       ...normaliseDirections(m.directions),
       ...(typeof m.picketDistance === 'number' && m.picketDistance >= 0 && m.picketDistance <= MAX_PICKET_DISTANCE ? { picketDistance: m.picketDistance } : {}),
+      // The defaults are left unsaid, so a file says only what its author chose.
+      ...(m.railStyle === 'upright' ? { railStyle: m.railStyle } : {}),
+      ...(m.landings === true ? { landings: true } : {}),
     }
   })
   return out

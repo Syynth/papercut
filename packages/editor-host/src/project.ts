@@ -42,6 +42,10 @@ const materialDef = z
     fringeAngle: z.number().min(0).max(90).exactOptional(),
     /** Pixels of art its picket stands out from the wall. */
     picketDistance: z.number().min(0).max(MAX_PICKET_DISTANCE).exactOptional(),
+    /** How its rail stands on a ramp; absent is sloped. */
+    railStyle: z.enum(['sloped', 'upright']).exactOptional(),
+    /** Whether its upright rail runs onto the level ground at its ends. */
+    landings: z.boolean().exactOptional(),
     /** How many directions its art is drawn for, per archetype; absent is one. */
     directions: z
       .object({ floor: directionCount.exactOptional(), wall: directionCount.exactOptional(), ramp: directionCount.exactOptional() })

@@ -9,6 +9,8 @@ export {
   DEFAULT_FRINGE_ANGLE,
   DEFAULT_MATERIALS,
   DEFAULT_PICKET_DISTANCE,
+  DEFAULT_RAIL_STYLE,
+  RAIL_STYLES,
   MAX_PICKET_DISTANCE,
   MAX_LAYERS,
   SHAPE_COUNT,
@@ -121,7 +123,7 @@ export type {
   WallProfile,
   WallProfilePoint,
 } from './structure'
-export type { ArchetypeId, DirectionCount } from './document'
+export type { ArchetypeId, DirectionCount, RailStyle } from './document'
 export type { RgbaImage, SpriteAsset } from './image'
 export {
   DEFAULT_WALL_PROFILE,

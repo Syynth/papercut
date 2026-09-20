@@ -21,7 +21,7 @@ import { useMemo } from 'react'
 
 import { PLACEHOLDER_SHEET, sheetName, type ReadonlyProjectDoc, type RgbaImage, type SpriteAsset, type SpriteDef } from '@papercut/document'
 import { useProject, useViewportSelector } from '@papercut/editor-host'
-import { generatePlaceholderTerrainSet } from '@papercut/fixtures'
+import { generatePlaceholderTerrainSet, generateRailSet } from '@papercut/fixtures'
 // Behind its own subpath (#48): the sprite generator draws with a canvas, and the package root stays DOM-free.
 import { generateSketchTextures, generateSprites } from '@papercut/fixtures/textures'
 import { projectSprites, type LoadedSet } from '@papercut/geometry'
@@ -43,7 +43,8 @@ function perDensity<V>(make: (density: number) => V): (density: number) => V {
   }
 }
 
-const terrainFor = perDensity((density: number): LoadedSet[] => [generatePlaceholderTerrainSet(density)])
+// The ground sheet, and the rail sheet beside it: a banister, its landings and a ramp's side for the default materials that have them.
+const terrainFor = perDensity((density: number): LoadedSet[] => [generatePlaceholderTerrainSet(density), generateRailSet(density)])
 const spritesFor = perDensity((density: number): Record<string, SpriteAsset> => generateSprites(density))
 const texturesFor = perDensity((density: number): Record<string, RgbaImage> => generateSketchTextures(density))
 

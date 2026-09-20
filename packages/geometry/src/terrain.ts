@@ -63,14 +63,16 @@ import {
   edgeOff,
   faceLayers,
   inBounds,
+  materialOfTag,
   slotMaterial,
   slotTile,
+  tagOf,
   tintPaint,
   topHeight,
   type Tag,
 } from '@papercut/document'
 
-import { FRINGE, PICKET } from './archetype'
+import { FRINGE, LANDING, PICKET, RAIL, SIDE } from './archetype'
 import type { AtlasTile, CornerKeys } from './atlas'
 import type { TerrainLook, TrimSettings } from './look'
 
@@ -116,6 +118,9 @@ const TRIM_LENGTH = 0.5
 
 /** How far a picket stands out from its wall: enough not to fight the wall's own pixels for depth. */
 const PICKET_GAP = 0.02
+
+/** How far a rail stands out from the ramp's side: its body lies over the side's own wall, and must not fight it for depth. */
+const RAIL_GAP = 0.02
 
 /** How much each occluding neighbour darkens a corner. */
 const AO_STRENGTH = 0.17
@@ -509,20 +514,33 @@ function courseExists(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, 
   return Math.max(corners[startCorner], corners[endCorner]) > course * 2 && Math.min(lowStart, lowEnd) < course * 2 + 2
 }
 
+/** Whether cell (x, y)'s top edge along side `dir` slopes: the side under it is a ramp's side, the triangle under the slope. */
+function slopesAlong(cells: Cells, x: number, y: number, dir: number): boolean {
+  const corners = cells.at(x, y).corners
+  const [start, end] = SIDE_CORNERS[dir]
+  return corners[start] !== corners[end]
+}
+
 /**
  * The four terrains around a corner of a course on material layer `layer`, in face space: `atEnd` picks
  * the corner at the side's end (u = 1) rather than its start, `atTop` the
  * corner at the course's top rather than its bottom. Courses beside are on the
  * cell before or after this one along the side; off the volume continues.
  */
-function courseCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, course: number, atEnd: boolean, atTop: boolean, layer: number): CornerKeys {
+function courseCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, course: number, atEnd: boolean, atTop: boolean, layer: number, asSide = false): CornerKeys {
   const [ux, uy] = SIDE_GEOMETRY[dir].u
-  const own = cells.course(x, y, dir, course).keys[layer]
+  // Read as a ramp's side (ruling of 2026-09-19), a course under a slope is that material's SIDE, and one under a
+  // level edge stays the wall it is: so side art meets the wall beside it as two things, and can blend with it.
+  const slotted = (tag: Tag, cx: number, cy: number): Tag => {
+    const material = asSide && slopesAlong(cells, cx, cy, dir) ? materialOfTag(tag) : null
+    return material === null ? tag : tagOf(material, SIDE)
+  }
+  const own = slotted(cells.course(x, y, dir, course).keys[layer], x, y)
   const at = (along: number, c: number): Tag => {
     const cx = x + along * ux
     const cy = y + along * uy
     if (!inBounds(voxel.size, cx, cy)) return own
-    return courseExists(cells, voxel, cx, cy, dir, c) ? cells.course(cx, cy, dir, c).keys[layer] : null
+    return courseExists(cells, voxel, cx, cy, dir, c) ? slotted(cells.course(cx, cy, dir, c).keys[layer], cx, cy) : null
   }
   const before = atEnd ? 0 : -1
   const upper = atTop ? course + 1 : course
@@ -572,6 +590,32 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
     }
   }
   const { atlas } = look
+  /**
+   * The rail cell (cx, cy) carries along side `d`, as the tag its tiles spell, or `null` (rulings of 2026-09-19). A
+   * rail stands on a ramp's OPEN side: the side runs with the slope, nothing beside it stands above it, and the
+   * material on top has rail art — its top edge at least. The switch that takes a fringe off an edge takes this off too.
+   */
+  const railOf = (cx: number, cy: number, d: number): string | null => {
+    if (!inBounds(voxel.size, cx, cy) || !slopesAlong(cells, cx, cy, d)) return null
+    const corners = cells.at(cx, cy).corners
+    const [start, end] = SIDE_CORNERS[d]
+    const [lowStart, lowEnd] = neighbourEdge(cells, voxel, cx, cy, d)
+    if (corners[start] < lowStart || corners[end] < lowEnd || edgeOff(voxel.paint, cx, cy, d, 'top')) return null
+    const face = cells.at(cx, cy).face
+    if (face.empty) return null
+    for (let layer = face.keys.length - 1; layer >= 0; layer--) {
+      const material = materialOfTag(face.keys[layer])
+      if (material === null) continue
+      const rail = tagOf(material, RAIL) as string
+      if (atlas.slotTile([null, null, rail, rail], 'ramp') !== null) return rail
+    }
+    return null
+  }
+  /** Part of a tile as a rect: across from `a0` to `a1` of its width, and from `b0` to `b1` of its height, measured up from its bottom. */
+  const partOf = (tile: number, a0: number, a1: number, b0: number, b1: number): Rect => {
+    const [u0, v0, u1, v1] = atlas.uv(tile, -1)
+    return [u0 + (u1 - u0) * a0, v0 + (v1 - v0) * b0, u0 + (u1 - u0) * a1, v0 + (v1 - v0) * b1]
+  }
   const cells = new Cells(voxel, look)
   const marks: number[] = []
   const marked = new Set<string>()
@@ -594,7 +638,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
     const [u0, v0, u1, v1] = atlas.uv(answer.tile, orient.corners[quadrant])
     return [orient.flipU ? u1 : u0, orient.flipV ? v1 : v0, orient.flipU ? u0 : u1, orient.flipV ? v0 : v1, orient.transpose ? 1 : 0]
   }
-  const quarterRects = (face: FaceKeys, archetype: ArchetypeId, quarter: number, cornerOf: (layer: number) => CornerKeys, markAt: () => void, piece?: { quadrant: number; pasted: (tile: number) => Rect; direction: number | null }): Rect[] => {
+  const quarterRects = (face: FaceKeys, archetype: ArchetypeId, quarter: number, cornerOf: (layer: number) => CornerKeys, markAt: () => void, piece?: { quadrant: number; pasted: (tile: number) => Rect; direction: number | null }, first?: (layer: number) => AtlasTile | null): Rect[] => {
     const rects: Rect[] = []
     const quadrant = piece ? piece.quadrant : QUADRANT_OF_QUARTER[quarter]
     for (let layer = 0; layer < STACK; layer++) {
@@ -607,7 +651,8 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
         rects.push(pasted === -1 ? fallback : piece ? piece.pasted(pasted) : atlas.uv(pasted, quarter))
         continue
       }
-      const answer = atlas.tileFor(cornerOf(layer), archetype, piece?.direction ?? null)
+      // Optional art that answers first, when the face has some: a ramp's side, before the wall art it otherwise takes.
+      const answer = first?.(layer) ?? atlas.tileFor(cornerOf(layer), archetype, piece?.direction ?? null)
       if (answer.missing) {
         markAt()
         if (answer.combo) missing.add(answer.combo)
@@ -795,9 +840,102 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
             )
           }
         }
+        // --- a rail along a ramp's open side (rulings of 2026-09-19) ---
+        // Drawn in (s, height): s runs DOWNHILL along the side from the ramp's head, which is how the art is drawn —
+        // head on the left, falling to the right. Where the side runs the other way the same pieces are laid
+        // mirrored. A tile sits on each end of the cell, as on any dual grid, picked by what the rail does past it:
+        // carries on, stops (a cap), or, for an upright rail whose material asks, runs out onto level ground (a bend).
+        const rail = topStart !== topEnd ? railOf(x, y, dir) : null
+        if (rail !== null) {
+          const settings = look.trimOf(tagOf(materialOfTag(rail) as number))
+          const upright = settings.railStyle === 'upright'
+          const down = topStart > topEnd
+          const head = Math.max(topStart, topEnd)
+          const drop = head - Math.min(topStart, topEnd)
+          const [nx, nz] = DIR_VECTORS[dir]
+          const landing = tagOf(materialOfTag(rail) as number, LANDING) as string
+          /** What the rail is past one of this cell's ends: itself, a landing, or nothing. */
+          const past = (uphill: boolean): string | null => {
+            const step = uphill === down ? -1 : 1
+            const cx = x + step * u[0]
+            const cy = y + step * u[1]
+            if (!inBounds(voxel.size, cx, cy)) return null
+            const c = cells.at(cx, cy).corners
+            const [cs, ce] = [c[startCorner], c[endCorner]]
+            const meets = uphill ? head : head - drop
+            if (railOf(cx, cy, dir) === rail && cs > ce === down && (uphill ? Math.min(cs, ce) : Math.max(cs, ce)) === meets) return rail
+            // A landing wants level ground to stand on, at the height the rail reaches it, and the bend that joins them drawn.
+            if (!upright || !settings.landings || !c.every((h) => h === meets)) return null
+            return atlas.slotTile(uphill ? [null, null, landing, rail] : [null, null, rail, landing], 'ramp') === null ? null : landing
+          }
+          const above = past(true)
+          const below = past(false)
+          const middle = atlas.slotTile([null, null, rail, rail], 'ramp') as AtlasTile
+          const topTile = (l: string | null, r: string | null): number => (atlas.slotTile([null, null, l, r], 'ramp') ?? middle).tile
+          const bodyTile = (l: string | null, r: string | null): number | null => {
+            const [bl, br] = [l === rail ? rail : null, r === rail ? rail : null]
+            return (atlas.slotTile([bl, br, bl, br], 'ramp') ?? atlas.slotTile([rail, rail, rail, rail], 'ramp'))?.tile ?? null
+          }
+          const atHead = topTile(above, rail)
+          const atFoot = topTile(rail, below)
+          const address = [SURFACE_CLIFF, x, y, encodeExtra(dir, topLevel)] as const
+          const emit = (points: ReadonlyArray<readonly [number, number]>, local: ReadonlyArray<readonly [number, number]>, rect: Rect): void => {
+            const order = points.map((_, i) => (down ? i : points.length - 1 - i))
+            trim.polygon(
+              order.map((i) => {
+                const t = down ? points[i][0] : 1 - points[i][0]
+                return [ox + u[0] * t + nx * RAIL_GAP, points[i][1], oz + u[1] * t + nz * RAIL_GAP] as const
+              }),
+              order.map((i) => local[i]),
+              [rect],
+              order.map(() => 1),
+              tint,
+              address,
+            )
+          }
+          const SQUARE = [[0, 0], [1, 0], [1, 1], [0, 1]] as const
+          if (upright) {
+            // Two columns to a cell, each standing on the high side of its half tile, so the rail's foot is a
+            // staircase over the slope; below the top row its body repeats, half a tile at a time, to the ground.
+            const lowAt = (sv: number): number => lowStart + (lowEnd - lowStart) * (down ? sv : 1 - sv)
+            const column = (s0: number, base: number, tile: number, a0: number, body: number | null): void => {
+              const y0 = base * HALF
+              emit([[s0, y0], [s0 + 0.5, y0], [s0 + 0.5, y0 + 1], [s0, y0 + 1]], SQUARE, partOf(tile, a0, a0 + 0.5, 0, 1))
+              if (body === null) return
+              const under: WallPoint[] = [[s0, lowAt(s0)], [s0 + 0.5, lowAt(s0 + 0.5)], [s0 + 0.5, base], [s0, base]]
+              const floor = Math.min(lowAt(s0), lowAt(s0 + 0.5))
+              for (let n = 0; base - n > floor; n++) {
+                const piece = clipToRect(under, s0, s0 + 0.5, base - n - 1, base - n)
+                if (piece.length === 0) continue
+                // Rows of the body alternate its upper and lower halves, so two of them are one tile of art.
+                emit(piece.map(([sv, h]) => [sv, h * HALF] as const), piece.map(([sv, h]) => [(sv - s0) / 0.5, h - (base - n - 1)] as const), partOf(body, a0, a0 + 0.5, n % 2 === 0 ? 0.5 : 0, n % 2 === 0 ? 1 : 0.5))
+              }
+            }
+            column(0, head, atHead, 0.5, bodyTile(above, rail))
+            column(0.5, head - drop / 2, atFoot, 0, bodyTile(rail, below))
+            // A landing is the far half of the bend, on the level ground past the ramp's end.
+            if (above === landing) column(-0.5, head, atHead, 0, null)
+            if (below === landing) column(1, head - drop, atFoot, 0.5, null)
+          } else {
+            // Laid along the slope, turned and never skewed: each piece a rectangle square to it, a tile tall. Three
+            // pieces to a full ramp, like its surface: the slope is √2 long and carries a tile and a half of art.
+            const rise = drop * HALF
+            const length = Math.hypot(1, rise)
+            const [lean, up] = [rise / length, 1 / length]
+            const pieces = drop >= 2 ? 3 : 2
+            for (let k = 0; k < pieces; k++) {
+              const [s0, s1] = [k / pieces, (k + 1) / pieces]
+              const [y0, y1] = [head * HALF - rise * s0, head * HALF - rise * s1]
+              const rect = k === 0 ? partOf(atHead, 0.5, 1, 0, 1) : k === pieces - 1 ? partOf(atFoot, 0, 0.5, 0, 1) : partOf(middle.tile, 0, 0.5, 0, 1)
+              emit([[s0, y0], [s1, y1], [s1 + lean, y1 + up], [s0 + lean, y0 + up]], SQUARE, rect)
+            }
+          }
+        }
+
         // A wall is tiled a COURSE at a time: one cube tall, the height of the voxel it belongs to, so its tiles are
         // square in the world like a floor's, one tile to a world unit each way (ruling of 2026-09-18: every surface
         // shares one texel scale). A course is two half-tile bands, and each band is still its own pick address.
+        const sloped = topStart !== topEnd
         const topCourse = Math.ceil(Math.max(topStart, topEnd) / 2) - 1
         const bottomCourse = Math.floor(Math.min(lowStart, lowEnd) / 2)
         for (let course = bottomCourse; course <= topCourse; course++) {
@@ -818,6 +956,11 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
               q,
               (layer) => courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer),
               () => mark(ox + u[0] * (atEnd ? 1 : 0), (atTop ? course + 1 : course) * 2 * HALF, oz + u[1] * (atEnd ? 1 : 0)),
+              undefined,
+              // Under a slope the face is the ramp's SIDE: its own art when the material has some, drawn for the way
+              // the slope runs across the face — east when it falls toward the side's end, west toward its start — so
+              // art for one is mirrored for the other; the wall art above when it has none.
+              sloped ? (layer) => atlas.slotTile(courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer, true), 'ramp', topStart > topEnd ? 0 : 2) : undefined,
             )
             solid.polygon(
               piece.map(([t, h]) => [ox + u[0] * t, h * HALF, oz + u[1] * t] as const),
