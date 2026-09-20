@@ -140,11 +140,11 @@
       "text": "DECIDED: a ramp's surface is 1 × 1½ and keeps the surface's corner tags; a rail is the ramp's trim with a style per material, sheared or upright; stairs are ramp art for now (tentative). STILL OPEN, on the board to the left: two runs or four; long cells on a square sheet or sheets of their own; whether strips keep corner tags; whether Head, Foot and Side are real slots."
     },
     "rails": {
-      "color": "orange",
+      "color": "green",
       "w": 340,
       "x": 1520,
       "y": 4960,
-      "text": "PROPOSED 2026-09-19, for the owner's call. A rail is tagged like a fringe: three tiles told apart by which of the two TOP corners carry the rail slot — start cap, middle, end cap. The mesher walks the ramp's open side in half-tile pieces and picks each piece's tile by whether the rail carries on past it. Sheared: three pieces per cell along the slope. Upright: two pieces per cell, each stepping down half a tile. Caps at head and foot in both."
+      "text": "DECIDED 2026-09-19. A rail is a patch seen from the side, tagged with the arrangements a material already has, capped at head and foot. Sloped: art turned along the slope, never sheared, three half-tile pieces a cell. Upright: two columns a cell stepping down, with a body to the ground over the ramp's triangle. The triangle is the ramp's own side slot, tiled like a wall and cut along the slope. Landings are a setting on an upright material. STILL OPEN: a rail meeting a fence on a plateau; standing out from the edge; how long a landing is."
     }
   },
   "order": [

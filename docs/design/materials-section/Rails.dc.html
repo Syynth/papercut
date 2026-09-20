@@ -29,7 +29,7 @@ body{margin:0;background:#15171c;color:#e8eaf0;font:13px/1.45 'IBM Plex Sans',sy
 <div style="width: 1440px; height: 860px; box-sizing: border-box; padding: 28px 32px; background: #15171c; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 16px;">
   <div style="display: grid; gap: 4px;">
     <div style="font-size: 18px; font-weight: 600;">How a ramp's rail tiles, with end caps</div>
-    <div class="hint" style="max-width: 1040px;">Proposed. A rail is tagged as a patch seen from the side: the corners below its top edge carry the rail slot, so its tiles are the arrangements a material already has. The mesher walks the ramp's open side in half-tile pieces and picks each piece's tile by whether the rail carries on past that point, so a run of any length gets a cap at its head and a cap at its foot. Seen here from the side.</div>
+    <div class="hint" style="max-width: 1040px;">Decided 2026-09-19. A rail is tagged as a patch seen from the side: the corners below its top edge carry the rail slot, so its tiles are the arrangements a material already has. The mesher walks the ramp's open side in half-tile pieces and picks each piece's tile by whether the rail carries on past that point, so a run of any length gets a cap at its head and a cap at its foot. Seen here from the side.</div>
   </div>
   <div style="display: grid; grid-template-columns: 330px minmax(0, 1fr) minmax(0, 1fr); gap: 14px; min-height: 0;">
     <div class="card">
@@ -106,7 +106,7 @@ body{margin:0;background:#15171c;color:#e8eaf0;font:13px/1.45 'IBM Plex Sans',sy
   </div>
   <div style="display: flex; align-items: start; gap: 14px;">
     <div style="flex: none; padding-top: 10px;"><span class="leg"><i style="border-color:#7bc47f"></i>start cap</span><span class="leg"><i style="border-color:#7b8294"></i>middle</span><span class="leg"><i style="border-color:#e9a23b"></i>the extra middle piece</span><span class="leg"><i style="border-color:#e5636f"></i>end cap</span><span class="leg"><i style="border-color:#5b8def"></i>body</span><span class="leg"><i style="border-color:#c58af9"></i>bend, where an upright rail meets its landing</span></div>
-    <div class="q" style="flex: 1;"><b>To decide.</b> Caps at both ends for both styles, as drawn? On a single cell the sloped rail is cap, middle, cap and the upright one is cap against cap. Landings are an upright material's setting, off by default. Should a rail that reaches a plateau with a fence or fringe on it still cap, or carry on into it? Is a landing always half a tile, or as long as the material says? Is the ramp's side a slot of its own, cut along the slope as drawn, and does an upright rail's body run all the way to the ground? And does the rail stand on the ramp's edge, or out from it by a distance per material, the way a picket does?</div>
+    <div class="q" style="flex: 1;"><b>Still open.</b> Decided: caps at both ends for both styles, the side slot, the body to the ground. On a single cell the sloped rail is cap, middle, cap and the upright one is cap against cap. Landings are an upright material's setting, off by default. Should a rail that reaches a plateau with a fence or fringe on it still cap, or carry on into it? Is a landing always half a tile, or as long as the material says? Is the ramp's side a slot of its own, cut along the slope as drawn, and does an upright rail's body run all the way to the ground? And does the rail stand on the ramp's edge, or out from it by a distance per material, the way a picket does?</div>
   </div>
 </div>
 </x-dc>
