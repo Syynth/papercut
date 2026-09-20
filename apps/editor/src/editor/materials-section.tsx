@@ -37,6 +37,9 @@ type View = 'preview' | 'tag' | '3d'
 
 const FACE_ICONS: Record<ArchetypeId, IconName> = { floor: 'faceFloor', wall: 'faceWall', ramp: 'faceRamp' }
 
+/** Where a preview of a kind of face starts: flat for floors, on the fixture for walls and ramps. The artist can still switch. */
+const viewFor = (face: ArchetypeId): View => (face === 'floor' ? 'preview' : '3d')
+
 const cssColor = (color: number): string => `#${color.toString(16).padStart(6, '0')}`
 const materialsOf = (project: ReadonlyProjectDoc): readonly MaterialDef[] => project.materials
 
@@ -117,12 +120,13 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
     setLit(null)
     // Placing stays on: picking another subject while placing is how the next transition is spelled.
     setSpell(spellOf(id, next))
-    // The view follows the subject (decision of 2026-09-19): a flat patch for floors, the fixture for anything whose
-    // art is drawn for walls or ramps. Tagging is left alone: the artist is in the middle of something.
-    if (view !== 'tag') {
-      const drawn = pairingFace(coverageOf(sets, { material: id, other: next }, null))
-      setView(drawn === 'wall' || drawn === 'ramp' ? '3d' : 'preview')
-    }
+    // Tagging is left alone: the artist is in the middle of something. Otherwise the view is the face's (below).
+    if (view !== 'tag') setView(viewFor(face))
+  }
+  /** Walls and ramps preview in 3D by default (decision of 2026-09-19): neither is flat, and a flat patch shows none of what matters about them. */
+  const chooseFace = (next: ArchetypeId): void => {
+    setFace(next)
+    if (view !== 'tag') setView(viewFor(next))
   }
   const { remove, mapsUsing, dialog } = useDeleteMaterial(session, (next) => select(next))
 
@@ -300,9 +304,9 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
       {drawnFor ? <span className="ui-hint-line">· drawn for {drawnFor}s</span> : null}
       <CoverageMark cells={cellsOfCoverage(cover)} drawn={cover.drawn} owed={cover.masks.length} large />
       <span className="ui-subject-bar-grow" />
-      {view === '3d' ? null : view === 'preview' ? (
+      {view !== 'tag' ? (
         <div style={{ width: 210 }}>
-          <Segmented value={face} options={archetypes().map((a) => ({ value: a.id, label: a.title, title: a.note }))} onChange={setFace} title="The kind of face the preview is assembled for" />
+          <Segmented value={face} options={archetypes().map((a) => ({ value: a.id, label: a.title, title: a.note }))} onChange={chooseFace} title="The kind of face being previewed: walls and ramps open in 3D" />
         </div>
       ) : (
         <>

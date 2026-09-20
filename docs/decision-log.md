@@ -998,3 +998,11 @@ Each entry:
 - **STATUS:** tentative on the stairs half
 - **WHAT:** A ramp's surface tile is one tile wide and one and a half long along its run, not √2: it sits on the half-tile grid every sheet already has, and the mesher takes up the 6 %. It is tagged exactly as a surface is — four corner tags, the same fifteen arrangements — so two materials blend on a slope through the same dual grid they blend through on a floor, and a block places ramp transitions the way it places floor ones. Stairs reuse this for now: steps are drawn on a ramp's tiles over a slope that stays smooth.
 - **WHY:** A ramp's art today is a square tile stretched 1.41×, which straight step edges make obvious. √2 lands on no pixel grid; 1½ does, and nobody will see 6 %. Keeping the surface's tags is what keeps ramps inside the system instead of beside it: blends, blocks, coverage and the preview all work on a slope because nothing about tagging changed but the cell's length.
+
+## Walls and ramps preview in 3D by default
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui
+- **SCOPE:** minor/local (refines "The 3D view is the runtime's own renderer on a fixture built for the subject" and "The Tag view has a small floating preview", same day)
+- **WHAT:** Whenever the working context is Wall or Ramp, a preview opens in 3D: the section's Preview gives way to the 3D view, and the floating preview on the Tag stage starts on its 3D side. Floor and Any open in 2D. The artist can still switch either way; this is only where it starts. It replaces the earlier rule, which went to 3D only when a pairing's art was already tagged for walls or ramps.
+- **WHY:** A wall or a slope is not flat, and a flat patch of one shows none of what matters about it: the fold, the rim, the foot, the run. The earlier rule also never fired in practice, since no project has art tagged for walls or ramps until someone has done the work the preview is meant to help with.

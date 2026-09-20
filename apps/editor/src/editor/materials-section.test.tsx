@@ -20,9 +20,13 @@ import { DecodedImageCache, MemoryFs, rawImageCodec } from '@papercut/project'
 import { UiProvider } from '@papercut/ui'
 import { act, type ReactNode } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 
 import { features } from '../features'
+
+// The 3D fixture is a WebGL scene with generated sprites, neither of which jsdom can stand up; which view the section
+// chooses is what these tests are about, not what the fixture draws.
+vi.mock('./fixture-view', () => ({ Fixture: () => null }))
 
 import { run } from './commands'
 import { MaterialsSection } from './materials-section'
@@ -143,6 +147,20 @@ describe('the materials section', () => {
     expect(text()).toContain('Meeting Dirt')
     act(() => subject('On its own')?.click())
     expect(text()).toContain('how it draws on a floor')
+  })
+
+  it('opens walls and ramps in 3D, and floors flat', () => {
+    mount(section(ground([[0, null]])))
+    const radio = (label: string): HTMLInputElement | undefined => [...window.document.querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((r) => r.parentElement?.textContent?.trim() === label || r.value === label)
+    const checked = (value: string): boolean => [...window.document.querySelectorAll<HTMLInputElement>('input[type="radio"]')].some((r) => r.value === value && r.checked)
+    expect(checked('preview')).toBe(true)
+    act(() => radio('wall')?.click())
+    expect(checked('3d')).toBe(true)
+    // Picking another subject keeps the wall's view rather than dropping back to the flat patch.
+    act(() => subject('meets Dirt')?.click())
+    expect(checked('3d')).toBe(true)
+    act(() => radio('floor')?.click())
+    expect(checked('preview')).toBe(true)
   })
 
   it('lights an arrangement from a tile and says how much of the patch it draws', () => {
