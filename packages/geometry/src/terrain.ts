@@ -907,8 +907,9 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
               for (let n = 0; base - n > floor; n++) {
                 const piece = clipToRect(under, s0, s0 + 0.5, base - n - 1, base - n)
                 if (piece.length === 0) continue
-                // Rows of the body alternate its upper and lower halves, so two of them are one tile of art.
-                emit(piece.map(([sv, h]) => [sv, h * HALF] as const), piece.map(([sv, h]) => [(sv - s0) / 0.5, h - (base - n - 1)] as const), partOf(body, a0, a0 + 0.5, n % 2 === 0 ? 0.5 : 0, n % 2 === 0 ? 1 : 0.5))
+                // The body's upper half is its shoulder, the row under the rail, where the slope crosses the half tile corner
+                // to corner and a stringer is cut along it; its lower half is what repeats from there to the ground.
+                emit(piece.map(([sv, h]) => [sv, h * HALF] as const), piece.map(([sv, h]) => [(sv - s0) / 0.5, h - (base - n - 1)] as const), partOf(body, a0, a0 + 0.5, n === 0 ? 0.5 : 0, n === 0 ? 1 : 0.5))
               }
             }
             column(0, head, atHead, 0.5, bodyTile(above, rail))

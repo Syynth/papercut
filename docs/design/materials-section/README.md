@@ -19,6 +19,7 @@ a wall or a ramp in it.
 | `Ramp.dc.html` | **Round two:** the same working on ramps, with ramp tiles longer than they are wide and the slots a ramp might have |
 | `Slots.dc.html` | **Round two:** every archetype's slots with the shape of each one's tile, what was decided, and what is still open |
 | `Rails.dc.html` | **Decided 2026-09-19:** how a ramp's rail tiles. A rail is a patch seen from the side, tagged with the arrangements a material has, capped at head and foot. Sloped is turned along the slope (never sheared), three half-tile pieces a cell; upright is two columns a cell, stepping down, with a body to the ground. Also the ramp's `side` slot, and landings as an upright material's setting. Still open: a rail meeting a fence on a plateau, whether a rail stands out from the edge, how long a landing is |
+| `rails-placeholder.svg` | The placeholder rail sheet as a drawing, written by `railSheetSvg()` in `packages/fixtures`: the same vector shapes the generated `rails.png` is rasterised from. Two balusters a tile; the handrail is one mitred path, level for a sloped rail, falling half a tile across each half for an upright one, and turning at the middle of the bend tile before a landing. Regenerate it from that function rather than editing it |
 | `canvas.json` | Canvas layout, and the proposal and open questions as notes |
 
 Published copy: https://claude.ai/artifact/AsSJRC2UoYhVzzBzyrB3yY
