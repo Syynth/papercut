@@ -547,3 +547,28 @@ export function StageToolbar({ title, hint, onDone, children }: { title: string;
     </div>
   )
 }
+
+/**
+ * A small panel floating on a stage (decision of 2026-09-19): the result of the work, visible while the work is done.
+ * It folds to its title bar, so it never has to be in the way.
+ */
+export function StagePanel({ title, open, onToggle, controls, caption, children }: { title: string; open: boolean; onToggle: () => void; controls?: ReactNode; caption?: ReactNode; children: ReactNode }) {
+  return (
+    <div className={`ui-stage-panel ${open ? '' : 'is-folded'}`}>
+      <div className="ui-stage-panel-head">
+        <button type="button" className="ui-stage-panel-title" onClick={onToggle} aria-expanded={open} title={open ? 'Fold away' : 'Show'}>
+          <Icon name={open ? 'chevronDown' : 'chevronRight'} size={10} />
+          {title}
+        </button>
+        {open ? controls : null}
+      </div>
+      {open ? (
+        <div className="ui-stage-panel-body">
+          {/* A box of its own, so content that sizes itself to its parent (a GL canvas) has a fixed parent to size to. */}
+          <div className="ui-stage-panel-fill">{children}</div>
+        </div>
+      ) : null}
+      {open && caption ? <div className="ui-stage-panel-caption">{caption}</div> : null}
+    </div>
+  )
+}
