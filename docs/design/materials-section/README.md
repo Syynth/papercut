@@ -320,6 +320,12 @@ Decided 2026-09-19 (entries in `decision-log.md`), with details open.
   slot, and a material says, per archetype, whether its art is drawn for one,
   two or four directions. Ramps are its first use.
 
-Still open: long cells on a square sheet, or ramp art on sheets of its own;
-whether strip slots keep corner tags; whether Side is a real slot. The
-`Slots.dc.html` board predates the last two decisions above.
+- A ramp's 1½ length is drawn from quarter tiles: two wide and three long,
+  the middle row cut from the plain edge arrangement along the run or the
+  solid tile. There is no long tile, so every sheet keeps one square grid and
+  ramp art is ordinary tiles tagged for ramps, repeating at the half tile.
+
+Still open: whether strip slots keep corner tags; whether Side is a real
+slot. The `Slots.dc.html` and `Ramp.dc.html` boards predate the last three
+decisions above: they still show long ramp cells, Head and Foot, and the
+direction question.
