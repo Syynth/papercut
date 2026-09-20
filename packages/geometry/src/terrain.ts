@@ -71,7 +71,7 @@ import {
 } from '@papercut/document'
 
 import { FRINGE, PICKET } from './archetype'
-import type { CornerKeys } from './atlas'
+import type { AtlasTile, CornerKeys } from './atlas'
 import type { TerrainLook, TrimSettings } from './look'
 
 export interface MeshBuffers {
@@ -124,7 +124,8 @@ const AO_STRENGTH = 0.17
 const QUADRANT_OF_QUARTER = [3, 2, 1, 0]
 
 /** An atlas UV rectangle, [u0, v0, u1, v1]. */
-type Rect = readonly [number, number, number, number]
+/** A tile's rectangle in the atlas, u0 v0 u1 v1; extents may run backwards, which flips it, and a fifth element of 1 swaps the axes first, which with a flip is a quarter turn. */
+type Rect = readonly [number, number, number, number, number?]
 
 /** How many material layers a face stacks, and so how many atlas rects each vertex carries. */
 const STACK = 4
@@ -191,12 +192,12 @@ class BufferBuilder {
       this.positions.push(corners[i][0], corners[i][1], corners[i][2])
       this.normals.push(nx, ny, nz)
       const [s0, t0] = local[i]
-      const [u0, v0, u1, v1] = rects[0]
-      this.uvs.push(u0 + s0 * (u1 - u0), v0 + t0 * (v1 - v0))
+      const [u0, v0, u1, v1, turned0] = rects[0]
+      this.uvs.push(u0 + (turned0 ? t0 : s0) * (u1 - u0), v0 + (turned0 ? s0 : t0) * (v1 - v0))
       if (this.stacked) {
         for (let l = 1; l < STACK; l++) {
-          const [lu0, lv0, lu1, lv1] = rects[l]
-          this.stackUvs.push(lu0 + s0 * (lu1 - lu0), lv0 + t0 * (lv1 - lv0))
+          const [lu0, lv0, lu1, lv1, turned] = rects[l]
+          this.stackUvs.push(lu0 + (turned ? t0 : s0) * (lu1 - lu0), lv0 + (turned ? s0 : t0) * (lv1 - lv0))
         }
       }
       const s = shade[i]
@@ -586,7 +587,14 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
    * instead: quarter q is the tile's own quadrant q, not the opposite one of
    * a corner tile, and nothing auto-tiles onto it on that layer.
    */
-  const quarterRects = (face: FaceKeys, archetype: ArchetypeId, quarter: number, cornerOf: (layer: number) => CornerKeys, markAt: () => void, piece?: { quadrant: number; pasted: (tile: number) => Rect }): Rect[] => {
+  /** A tile's quadrant as a rect, laid the way the atlas says the tile goes on this face: another quadrant of it, flipped or turned, when it was drawn for another direction. */
+  const oriented = (answer: AtlasTile, quadrant: number): Rect => {
+    const orient = answer.orient
+    if (!orient) return atlas.uv(answer.tile, quadrant)
+    const [u0, v0, u1, v1] = atlas.uv(answer.tile, orient.corners[quadrant])
+    return [orient.flipU ? u1 : u0, orient.flipV ? v1 : v0, orient.flipU ? u0 : u1, orient.flipV ? v0 : v1, orient.transpose ? 1 : 0]
+  }
+  const quarterRects = (face: FaceKeys, archetype: ArchetypeId, quarter: number, cornerOf: (layer: number) => CornerKeys, markAt: () => void, piece?: { quadrant: number; pasted: (tile: number) => Rect; direction: number | null }): Rect[] => {
     const rects: Rect[] = []
     const quadrant = piece ? piece.quadrant : QUADRANT_OF_QUARTER[quarter]
     for (let layer = 0; layer < STACK; layer++) {
@@ -599,12 +607,12 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
         rects.push(pasted === -1 ? fallback : piece ? piece.pasted(pasted) : atlas.uv(pasted, quarter))
         continue
       }
-      const answer = atlas.tileFor(cornerOf(layer), archetype)
+      const answer = atlas.tileFor(cornerOf(layer), archetype, piece?.direction ?? null)
       if (answer.missing) {
         markAt()
         if (answer.combo) missing.add(answer.combo)
       }
-      rects.push(layer === 0 && face.empty ? fallback : atlas.uv(answer.tile, quadrant))
+      rects.push(layer === 0 && face.empty ? fallback : oriented(answer, quadrant))
     }
     return rects
   }
@@ -641,6 +649,8 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
         const hSW = cornerH[1]
         const hSE = cornerH[2]
         const hNE = cornerH[3]
+        /** The way a full ramp descends, in the map's direction order: what its art may be drawn for (ruling of 2026-09-19). */
+        const descends = (r: 'x' | 'y'): number => (r === 'y' ? (hNW > hSW ? 1 : 3) : hNW > hNE ? 0 : 2)
         const run: 'x' | 'y' | null = hNW === hNE && hSW === hSE && Math.abs(hNW - hSW) === 2 ? 'y' : hNW === hSW && hNE === hSE && Math.abs(hNW - hNE) === 2 ? 'x' : null
         const emit = (fx0: number, fy0: number, fx1: number, fy1: number, rects: Rect[]): void => {
           // Corner order c00, c01, c11, c10 within the piece. Sheets are authored top-down, so increasing map +Z walks down the sheet, which is decreasing v.
@@ -678,7 +688,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
           // The quarter at a corner, a third of the run long instead of a half.
           const along0 = (run === 'y' ? cy : cx) * (2 / 3)
           const [fx0, fy0, fx1, fy1] = run === 'y' ? [cx * 0.5, along0, cx * 0.5 + 0.5, along0 + 1 / 3] : [along0, cy * 0.5, along0 + 1 / 3, cy * 0.5 + 0.5]
-          emit(fx0, fy0, fx1, fy1, quarterRects(face, topArchetype, q, cornerOf, markAt, { quadrant: QUADRANT_OF_QUARTER[q], pasted: pastedPart(fx0, fy0, fx1, fy1) }))
+          emit(fx0, fy0, fx1, fy1, quarterRects(face, topArchetype, q, cornerOf, markAt, { quadrant: QUADRANT_OF_QUARTER[q], pasted: pastedPart(fx0, fy0, fx1, fy1), direction: descends(run) }))
         }
         if (run !== null) {
           // The middle row: one piece on each side of the run's centre line.
@@ -700,7 +710,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
             // The half of that tile on our side of the edge, and of that half the part nearer its start.
             const quadrant = run === 'y' ? (side === 0 ? 1 : 0) : side === 0 ? 2 : 0
             const markAt = (): void => mark((ax + bx) / 2, bilinear(cornerH, (ax + bx) / 2 - x, (ay + by) / 2 - y) * HALF, (ay + by) / 2)
-            emit(fx0, fy0, fx1, fy1, quarterRects(face, topArchetype, 0, cornerOf, markAt, { quadrant, pasted: pastedPart(fx0, fy0, fx1, fy1) }))
+            emit(fx0, fy0, fx1, fy1, quarterRects(face, topArchetype, 0, cornerOf, markAt, { quadrant, pasted: pastedPart(fx0, fy0, fx1, fy1), direction: descends(run) }))
           }
         }
       }

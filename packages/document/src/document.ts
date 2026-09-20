@@ -321,7 +321,17 @@ export interface MaterialDef {
   fringeAngle?: number
   /** How far its picket stands out from the wall, in pixels of art. Absent is `DEFAULT_PICKET_DISTANCE`. */
   picketDistance?: number
+  /**
+   * How many directions its art is drawn for, PER ARCHETYPE (rulings of 2026-09-19): four is a north, east, south
+   * and west version each drawn; two is one that runs down the sheet and one across, each mirrored for the
+   * opposite; one, which is what absent means, is a single version turned for the rest. It is what the artist
+   * INTENDS — which directions the editor offers and counts as owed — and never changes how a tile is found.
+   */
+  directions?: Partial<Record<ArchetypeId, DirectionCount>>
 }
+
+/** How many directions a material's art for one archetype is drawn for. */
+export type DirectionCount = 1 | 2 | 4
 
 /** What a material's fringe hangs at when it says nothing: halfway between jutting out and hanging flat. */
 export const DEFAULT_FRINGE_ANGLE = 45

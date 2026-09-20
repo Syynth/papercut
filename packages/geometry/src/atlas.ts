@@ -32,7 +32,7 @@
  * headless export can build one.
  */
 
-import { archetypeOfTag, materialOfTag, slotOfTag, tagOf, withArchetype, type ArchetypeId, type RgbaImage } from '@papercut/document'
+import { TAG_DIRECTIONS, archetypeOfTag, directionOfTag, materialOfTag, slotOfTag, tagOf, withArchetype, withDirection, type ArchetypeId, type RgbaImage } from '@papercut/document'
 
 import { FRINGE, PICKET } from './archetype'
 
@@ -54,7 +54,7 @@ export interface LoadedSet {
 /** A trim tag, read as the plain tag it also is — same material, same archetype, no slot; any other tag as it is. */
 const plainTrim = (tag: Tag): Tag => {
   const slot = slotOfTag(tag)
-  return slot === FRINGE || slot === PICKET ? tagOf(materialOfTag(tag) as number, null, archetypeOfTag(tag) ?? null) : tag
+  return slot === FRINGE || slot === PICKET ? tagOf(materialOfTag(tag) as number, null, archetypeOfTag(tag) ?? null, directionOfTag(tag) ?? null) : tag
 }
 
 /** An archetype as a small number for the corner cache's key: none is 0. */
@@ -69,8 +69,43 @@ export type TrimPart = 'edge' | 'from-left' | 'from-right'
 /** The four tags at a corner, in `CornerTags` order; `null` is nothing. */
 export type CornerKeys = CornerTags
 
+/**
+ * How a tile drawn for one direction is laid on a face that runs another (ruling of 2026-09-19).
+ *
+ * `corners[i]` is the corner of the ART that lands on corner `i` of the face, NW NE SW SE, which is also which
+ * quadrant of the tile a quarter of the face shows. The three flags say the same thing for the pixels: swap the
+ * tile's axes, then flip across, then flip down. Absent on a tile is the identity.
+ */
+export interface Orientation {
+  readonly corners: readonly [number, number, number, number]
+  readonly transpose: boolean
+  readonly flipU: boolean
+  readonly flipV: boolean
+}
+
+/**
+ * The orientation that lays art drawn for a direction onto a face that runs `turns` quarter turns on from it, in
+ * the map's direction order (east, south, west, north — clockwise on a sheet, which is drawn north up).
+ *
+ * The opposite direction is MIRRORED along the run, not turned half way round: a staircase seen from the other end
+ * is its mirror image, and a half turn would put its light on the wrong side as well. `alongY` says which way the
+ * art's run lies, which is what decides the mirror's axis.
+ */
+function orientationFor(turns: number, alongY: boolean): Orientation | undefined {
+  // Each as the art's coordinates (a, b) for a point (x, y) of the face, both with y down the sheet.
+  const map: ((x: number, y: number) => [number, number]) | null = turns === 0 ? null : turns === 2 ? (alongY ? (x, y) => [x, 1 - y] : (x, y) => [1 - x, y]) : turns === 1 ? (x, y) => [y, 1 - x] : (x, y) => [1 - y, x]
+  if (map === null) return undefined
+  const corners = [0, 1, 2, 3].map((i) => {
+    const [a, b] = map(i & 1, i >> 1)
+    return b * 2 + a
+  }) as [number, number, number, number]
+  return turns === 2 ? { corners, transpose: false, flipU: !alongY, flipV: alongY } : { corners, transpose: true, flipU: turns === 1, flipV: turns === 3 }
+}
+
 export interface AtlasTile {
   tile: number
+  /** How the tile is laid on the face, when it was drawn for another direction than the face runs. */
+  orient?: Orientation
   /** No tile is tagged for the combination, so this is the fallback. */
   missing: boolean
   /** The missing combination's name (`MissingReport.combo`), for the mesher to report per chunk. */
@@ -177,13 +212,17 @@ export class TerrainAtlas {
    * Specific before general (ruling of 2026-09-18): the tile whose corners name this archetype, then the tile whose
    * corners name none and so mean any. A join drawn across a fold, where the corners name two archetypes, waits on
    * the mesher reading across the fold; until it does, the far side of a fold is nothing, as it has been.
+   *
+   * `direction` is the way the face runs, as an index into the map's direction order, for a face that has one: a
+   * ramp, by the way it descends. Within an archetype the art for this direction comes first, then the opposite
+   * direction's mirrored, then another's turned, then art that names no direction (ruling of 2026-09-19).
    */
-  tileFor(keys: CornerKeys, archetype: ArchetypeId | null = null): AtlasTile {
-    // Four ids of at most 2^12 each pack into 48 bits, and the archetype into two more: one number, no string per corner on the meshing path.
-    const packed = (((this.id(keys[0]) * 4096 + this.id(keys[1])) * 4096 + this.id(keys[2])) * 4096 + this.id(keys[3])) * 4 + (archetype === null ? 0 : ARCHETYPE_INDEX[archetype])
+  tileFor(keys: CornerKeys, archetype: ArchetypeId | null = null, direction: number | null = null): AtlasTile {
+    // Four ids of at most 2^12 each pack into 48 bits; the archetype and the direction ride above them in one number, so there is no string per corner on the meshing path.
+    const packed = ((((this.id(keys[0]) * 4096 + this.id(keys[1])) * 4096 + this.id(keys[2])) * 4096 + this.id(keys[3])) * 4 + (archetype === null ? 0 : ARCHETYPE_INDEX[archetype])) * 5 + (direction === null ? 0 : direction + 1)
     const cached = this.byCorner.get(packed)
     if (cached) return cached
-    const answer = this.resolve(keys, archetype)
+    const answer = this.resolve(keys, archetype, direction)
     this.byCorner.set(packed, answer)
     return answer
   }
@@ -231,7 +270,7 @@ export class TerrainAtlas {
     if (material === null) return null
     // A trim is the material's FLOOR art hung or stood somewhere else, so the tile named for floors first, then for any.
     for (const archetype of ['floor', null] as const) {
-      const t = tagOf(material, slot, archetype)
+      const t = tagOf(material, slot, archetype, null)
       const corners: CornerTags = slot === PICKET ? [null, null, t, t] : part === 'from-left' ? [t, null, null, null] : part === 'from-right' ? [null, t, null, null] : [t, t, null, null]
       const found = this.authored.get(cornerKey(corners))
       if (found) return this.sheetTile(found.loaded, found.index)
@@ -260,14 +299,28 @@ export class TerrainAtlas {
     return [...this.missingCombos].map((combo) => ({ combo }))
   }
 
-  private resolve(keys: CornerKeys, archetype: ArchetypeId | null): AtlasTile {
+  private resolve(keys: CornerKeys, archetype: ArchetypeId | null, direction: number | null): AtlasTile {
     const tags = [...new Set(keys.filter((k): k is string => k !== null))]
     if (tags.length === 0) return { tile: this.blankTile(), missing: false }
     // Wherever it was drawn. A tag names a material, so nothing about a corner is local to a sheet.
-    // Art drawn for this kind of face first, then art drawn for any.
-    const specific = archetype === null ? undefined : this.authored.get(cornerKey(keys.map((k) => withArchetype(k, archetype)) as unknown as CornerKeys))
-    const found = specific ?? this.authored.get(cornerKey(keys))
-    if (found) return { tile: this.sheetTile(found.loaded, found.index), missing: false }
+    // Art drawn for this kind of face first, then art drawn for any; and within each, by direction.
+    for (const a of archetype === null ? [null] : [archetype, null]) {
+      const named = keys.map((k) => withArchetype(k, a)) as unknown as CornerKeys
+      if (direction !== null) {
+        // This direction, the opposite mirrored, then the two beside it turned.
+        for (const turns of [0, 2, 1, 3]) {
+          const from = (direction - turns + 4) % 4
+          const orient = orientationFor(turns, from % 2 === 1)
+          // The art's corners are the face's, carried back through the orientation.
+          const art: Tag[] = [null, null, null, null]
+          for (let i = 0; i < 4; i++) art[orient ? orient.corners[i] : i] = withDirection(named[i], TAG_DIRECTIONS[from])
+          const found = this.authored.get(cornerKey(art as unknown as CornerKeys))
+          if (found) return { tile: this.sheetTile(found.loaded, found.index), missing: false, ...(orient ? { orient } : {}) }
+        }
+      }
+      const found = this.authored.get(cornerKey(named))
+      if (found) return { tile: this.sheetTile(found.loaded, found.index), missing: false }
+    }
     // By name, so one transition is one entry however its corners are arranged.
     const names = tags.map((k) => this.nameOf(k)).sort()
     if (keys.includes(null)) names.push('edge')

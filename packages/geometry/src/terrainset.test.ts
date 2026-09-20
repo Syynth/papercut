@@ -253,6 +253,44 @@ describe('the runtime atlas', () => {
     expect(second.tileFor([PATH, PATH, null, null], 'floor').missing).toBe(true)
   })
 
+  describe('direction (ruling of 2026-09-19)', () => {
+    // One tile: grass on its north corners, drawn for a face that runs south — a ramp's head, say.
+    const south = tagOf(0, null, null, 's')
+    const only = (tags: [Tag, Tag, Tag, Tag]) => new TerrainAtlas([{ set: { ...createTerrainSet('runs.png', T, 8, 1), tiles: new Map([[0, tags]]) }, image: sheetImage(8, 1) }])
+    // East 0, south 1, west 2, north 3: the map's direction order.
+    it('answers a face that runs the way the art was drawn with the art as it is', () => {
+      const answer = only([south, south, null, null]).tileFor([GRASS, GRASS, null, null], null, 1)
+      expect(answer.missing).toBe(false)
+      expect(answer.orient).toBeUndefined()
+    })
+
+    it('mirrors the art along its run for a face that runs the opposite way', () => {
+      // The face has grass on its NORTH corners and runs north; the art that answers has it on its south ones.
+      const answer = only([null, null, south, south]).tileFor([GRASS, GRASS, null, null], null, 3)
+      expect(answer.missing).toBe(false)
+      expect(answer.orient).toMatchObject({ corners: [2, 3, 0, 1], transpose: false, flipU: false, flipV: true })
+    })
+
+    it('turns the art a quarter for a face that runs across it, keeping the high edge high', () => {
+      // A face that runs east is high along its west edge. South-running art is high along its north edge, so the
+      // face's west corners show the art's north ones.
+      const answer = only([south, south, null, null]).tileFor([GRASS, null, GRASS, null], null, 0)
+      expect(answer.missing).toBe(false)
+      expect(answer.orient?.transpose).toBe(true)
+      expect([answer.orient?.corners[0], answer.orient?.corners[2]].sort()).toEqual([0, 1])
+    })
+
+    it('falls back to art that names no direction, laid as it is', () => {
+      const answer = only([GRASS, GRASS, null, null]).tileFor([GRASS, GRASS, null, null], null, 2)
+      expect(answer.missing).toBe(false)
+      expect(answer.orient).toBeUndefined()
+    })
+
+    it('keeps art drawn for a direction from a face that has none', () => {
+      expect(only([south, south, null, null]).tileFor([GRASS, GRASS, null, null]).missing).toBe(true)
+    })
+  })
+
   it('holds every tagged tile from the start and answers an authored corner without growing', () => {
     const atlas = new TerrainAtlas([{ set: groundSet(), image: image() }])
     const before = atlas.version

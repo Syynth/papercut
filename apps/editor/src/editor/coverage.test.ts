@@ -40,6 +40,14 @@ describe('coverage', () => {
     expect(coverageOf(sets, { material: 0, other: null }, null).drawn).toBe(15)
   })
 
+  it('counts art drawn for the direction being worked in, and art for every direction, but not another direction\'s', () => {
+    const south = tagOf(0, null, 'ramp', 's')
+    const sets = [sheet('a.png', 12, 8, [[0, templateTags(3, null, south)], [1, templateTags(12, null, tagOf(0))]])]
+    expect(coverageOf(sets, { material: 0, other: null }, 'ramp', 's').drawn).toBe(2)
+    // East has only the art for every direction: what the map would mirror or turn is not something drawn for it.
+    expect(coverageOf(sets, { material: 0, other: null }, 'ramp', 'e').drawn).toBe(1)
+  })
+
   it("reads the faces a material has art for off the tags", () => {
     const sets = [sheet('a.png', 12, 8, [[0, templateTags(15, null, tagOf(0))], [1, templateTags(15, null, tagOf(1, null, 'wall'))]])]
     expect(facesOf(sets, 0)).toEqual({ floor: 'any', wall: 'any', ramp: 'any' })

@@ -17,7 +17,7 @@
 
 import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent, type ReactNode, type RefObject } from 'react'
 
-import { archetypeOfTag, materialOfTag, sheetName, slotOfTag, withArchetype, type ArchetypeId, type ReadonlyProjectDoc, type RgbaImage } from '@papercut/document'
+import { archetypeOfTag, directionOfTag, materialOfTag, sheetName, slotOfTag, withArchetype, type ArchetypeId, type ReadonlyProjectDoc, type RgbaImage, type TagDirection } from '@papercut/document'
 import { useHost, useProject } from '@papercut/editor-host'
 import { conventionOf, cornerAt, stampBlock, tagCorner, type BlockShape, type LoadedSet, type Tag, type TerrainSet } from '@papercut/geometry'
 import type { PickerOption } from '@papercut/ui'
@@ -70,10 +70,13 @@ interface Pending {
  * for another archetype are hidden; under Any, every archetype is lit. Tags of another slot than the one picked are
  * faint, so a material's fringes or seams can be found by picking them.
  */
-function shownAt(tag: Tag, context: ArchetypeId | null, slot: string | null): number {
+function shownAt(tag: Tag, context: ArchetypeId | null, slot: string | null, direction: TagDirection | null): number {
   const archetype = archetypeOfTag(tag)
   const byArchetype = context === null || archetype === context ? 1 : archetype === null ? 0.35 : 0
-  return byArchetype * (slotOfTag(tag) === slot ? 1 : 0.35)
+  // Under a direction, art for it is lit and art for every direction is faint, as with the archetype.
+  const drawnFor = directionOfTag(tag) ?? null
+  const byDirection = direction === null || drawnFor === direction ? 1 : drawnFor === null ? 0.35 : 0
+  return byArchetype * byDirection * (slotOfTag(tag) === slot ? 1 : 0.35)
 }
 
 /**
@@ -136,12 +139,13 @@ interface DrawState {
   /** The working context: which archetype's tags are lit, and the slot picked within it. */
   context: ArchetypeId | null
   slot: string | null
+  direction: TagDirection | null
   /** The material whose art stands out: every tile with no corner of it is dimmed. `null` dims nothing. */
   selected: number | null
 }
 
 /** Draw the sheet with its tags over it. Drawn whole on every change; a sheet is a few hundred tiles, which is nothing to a canvas. */
-function draw(canvas: HTMLCanvasElement, { image, set, colourOf, scale, hover, pending, context, slot, selected }: DrawState): void {
+function draw(canvas: HTMLCanvasElement, { image, set, colourOf, scale, hover, pending, context, slot, direction, selected }: DrawState): void {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   const width = Math.round(image.width * scale)
@@ -172,7 +176,7 @@ function draw(canvas: HTMLCanvasElement, { image, set, colourOf, scale, hover, p
     const y = Math.floor(index / set.columns) * t
     tags.forEach((tag, corner) => {
       if (tag === null) return
-      const strength = shownAt(tag, context, slot)
+      const strength = shownAt(tag, context, slot, direction)
       if (strength === 0) return
       const colour = colourOf(tag)
       const qx = x + (corner & 1) * half
@@ -261,9 +265,10 @@ export interface TaggerInput {
   /** Whether Place on the sheet has armed the pointer. A block is only ever placed while it has. */
   armed: boolean
   onPlaced: () => void
-  /** The working context and the slot picked in it: which tags the sheet lights. What the brush writes already carries both. */
+  /** The working context, and the slot and direction picked in it: which tags the sheet lights. What the brush writes already carries all three. */
   context: ArchetypeId | null
   slot: string | null
+  direction: TagDirection | null
   /** The material whose art stands out. */
   selected: number | null
   /** What a tag is called, for the tooltip and the foot. */
@@ -301,7 +306,7 @@ export interface Tagger {
 
 const imagesOf = (project: ReadonlyProjectDoc): ReadonlyProjectDoc['images'] => project.images
 
-export function useTagger({ session, sets, active, tool, brush, values, armed, onPlaced, context, slot, selected, nameOfTag, colourOf, preferred }: TaggerInput): Tagger {
+export function useTagger({ session, sets, active, tool, brush, values, armed, onPlaced, context, slot, direction, selected, nameOfTag, colourOf, preferred }: TaggerInput): Tagger {
   const host = useHost()
   const images = useProject(imagesOf)
   const [sheet, setSheetState] = useState<string | null>(null)
@@ -403,8 +408,8 @@ export function useTagger({ session, sets, active, tool, brush, values, armed, o
   }, [tool, armed, hover, set, shape, values])
 
   useEffect(() => {
-    if (canvas && loaded && set) draw(canvas, { image: loaded.image, set, colourOf, scale, hover, pending, context, slot, selected })
-  }, [canvas, loaded, set, colourOf, scale, hover, pending, context, slot, selected])
+    if (canvas && loaded && set) draw(canvas, { image: loaded.image, set, colourOf, scale, hover, pending, context, slot, direction, selected })
+  }, [canvas, loaded, set, colourOf, scale, hover, pending, context, slot, direction, selected])
 
   const cornerUnder = (event: ReactPointerEvent<HTMLCanvasElement>): Corner | null => {
     if (!set) return null
