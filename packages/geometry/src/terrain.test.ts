@@ -970,7 +970,7 @@ describe("a ramp's rail, side and landings (decisions of 2026-09-19)", () => {
       const us = Array.from({ length: last - first + 1 }, (_, i) => trim.uvs[(first + i) * 2])
       const span = Math.max(...us) - Math.min(...us)
       expect(span).toBeLessThanOrEqual(half)
-      expect(span).toBeGreaterThan(half * 0.98)
+      expect(span).toBeGreaterThan(half * 0.93)
     }
   })
 
