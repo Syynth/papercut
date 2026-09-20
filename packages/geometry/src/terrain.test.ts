@@ -30,7 +30,7 @@ import {
 import { type LoadedSet } from './atlas'
 import { createTerrainLook, type TerrainLook } from './look'
 import { meshTerrainChunk, type MeshBuffers, type TerrainChunkMesh } from './terrain'
-import { createTerrainSet, stampTemplate } from './terrainset'
+import { createTerrainSet, stampTemplate, tagCorner } from './terrainset'
 
 /** The root voxel volume a fresh level has, mutable for setup: `createMap` names it `ground`. */
 const ground = (doc: ReadonlyMapDoc | MapDoc): VoxelStructure => doc.structures.ground as VoxelStructure
@@ -899,5 +899,115 @@ describe("a ramp's surface is a tile and a half long, drawn from quarters (decis
     for (const t of triangles) expect(t.u > u0 && t.u < u1 && t.v > v0 && t.v < v1).toBe(true)
     expect(triangles.some((t) => t.v > v0 + ((v1 - v0) * 2) / 3)).toBe(true)
     expect(triangles.some((t) => t.v < v0 + (v1 - v0) / 3)).toBe(true)
+  })
+})
+
+describe("a ramp's rail, side and landings (decisions of 2026-09-19)", () => {
+  const RAIL = tagOf(0, 'rail')
+  const LANDING = tagOf(0, 'landing')
+  /** Every arrangement of grass's rail against nothing, which is what a rail's tiles are; red, so it can be told from the green placeholder. */
+  function railSet(bends = false): LoadedSet {
+    let set = stampTemplate(createTerrainSet('rails.png', TILE, 16, 8), 0, 0, null, RAIL)
+    if (bends) {
+      set = tagCorner(tagCorner(set, 64, 2, LANDING), 64, 3, RAIL)
+      set = tagCorner(tagCorner(set, 65, 2, RAIL), 65, 3, LANDING)
+    }
+    return { set, image: solid(16 * TILE, 8 * TILE, [200, 0, 0, 255]) }
+  }
+  const upright = (landings = false): typeof DEFAULT_MATERIALS => DEFAULT_MATERIALS.map((m) => (m.id === 0 ? { ...m, railStyle: 'upright' as const, ...(landings ? { landings: true } : {}) } : m))
+  /** A lone full ramp descending south from two tiles up, on ground one tile up: its west and east sides are open. */
+  function loneRamp(): MapDoc {
+    const doc = createMap(8, 8)
+    for (let y = 0; y < 8; y++) for (let x = 0; x < 8; x++) setHeight(doc, x, y, 2)
+    setHeight(doc, 3, 3, 4)
+    setRamp(doc, 3, 3, 1)
+    return doc
+  }
+  const corner = (buffers: MeshBuffers, vertex: number): [number, number, number] => [buffers.positions[vertex * 3], buffers.positions[vertex * 3 + 1], buffers.positions[vertex * 3 + 2]]
+
+  it('stands no rail where the material has no rail art', () => {
+    expect(mesh(loneRamp(), '0,0').trim).toBeNull()
+  })
+
+  it('lays a sloped rail along the slope in three pieces a side, each a rectangle a tile tall, turned and never skewed', () => {
+    const chunk = meshTerrainChunk(ground(loneRamp()), '0,0', createTerrainLook(DEFAULT_MATERIALS, [placeholderSet(), railSet()]))
+    const trim = chunk.trim as MeshBuffers
+    const pieces = polygons(trim)
+    expect(pieces).toHaveLength(6)
+    for (const { first } of pieces) {
+      const [a, b, , d] = [0, 1, 2, 3].map((i) => corner(trim, first + i))
+      const along = [b[0] - a[0], b[1] - a[1], b[2] - a[2]]
+      const up = [d[0] - a[0], d[1] - a[1], d[2] - a[2]]
+      // Square to the slope, a tile tall, and a third of the slope long.
+      expect(along[0] * up[0] + along[1] * up[1] + along[2] * up[2]).toBeCloseTo(0, 6)
+      expect(Math.hypot(...up)).toBeCloseTo(1, 6)
+      expect(Math.hypot(...along)).toBeCloseTo(Math.SQRT2 / 3, 6)
+    }
+  })
+
+  it('stands an upright rail in two columns a side, stepping down half a tile, with its body down to the ground', () => {
+    const chunk = meshTerrainChunk(ground(loneRamp()), '0,0', createTerrainLook(upright(), [placeholderSet(), railSet()]))
+    const trim = chunk.trim as MeshBuffers
+    // A side: two columns of the top row, and under them the body, half a tile a piece: two under the first, which
+    // stands a tile over the ground, and one under the second.
+    expect(polygons(trim)).toHaveLength(2 * (2 + 2 + 1))
+    // The top row's pieces are a tile tall; where they stand is the step. A side that runs the other way lists its corners the other way round.
+    const tops = polygons(trim).filter(({ first }) => Math.abs(Math.abs(corner(trim, first + 3)[1] - corner(trim, first)[1]) - 1) < 1e-6)
+    expect(tops.map(({ first }) => Math.min(corner(trim, first + 3)[1], corner(trim, first)[1])).sort()).toEqual([1.5, 1.5, 2, 2])
+    // Every piece is upright: it has no extent across the side it stands on.
+    for (const { first, last } of polygons(trim)) {
+      const xs = Array.from({ length: last - first + 1 }, (_, i) => corner(trim, first + i)[0])
+      expect(Math.max(...xs) - Math.min(...xs)).toBeCloseTo(0, 6)
+    }
+  })
+
+  it('caps a run at its head and foot only: the tile between two ramps of a run is the rail carrying on', () => {
+    // A fresh map's ground is a tile up: two ramps in a row, from three tiles up down to it.
+    const doc = createMap(8, 8)
+    setHeight(doc, 3, 3, 6)
+    setHeight(doc, 3, 4, 4)
+    setRamp(doc, 3, 3, 1)
+    setRamp(doc, 3, 4, 1)
+    const look = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet(), railSet()])
+    const trim = meshTerrainChunk(ground(doc), '0,0', look).trim as MeshBuffers
+    const tileOf = (l: string | null, r: string | null): number => (look.atlas.slotTile([null, null, l, r], 'ramp') as { tile: number }).tile
+    const count = (tile: number): number => {
+      const [u0, v0, u1, v1] = look.atlas.uv(tile, -1)
+      return polygons(trim).filter(({ first }) => {
+        const u = (trim.uvs[first * 2] + trim.uvs[(first + 2) * 2]) / 2
+        const v = (trim.uvs[first * 2 + 1] + trim.uvs[(first + 2) * 2 + 1]) / 2
+        return u > u0 && u < u1 && v > v0 && v < v1
+      }).length
+    }
+    // Two sides: a start cap and an end cap each, and everything between from the tile with rail on both sides.
+    expect(count(tileOf(null, RAIL as string))).toBe(2)
+    expect(count(tileOf(RAIL as string, null))).toBe(2)
+    expect(count(tileOf(RAIL as string, RAIL as string))).toBe(2 * 4)
+  })
+
+  it('runs an upright rail half a tile onto level ground at its head and foot when the material asks and the bends are drawn', () => {
+    const doc = loneRamp()
+    // Level ground at the height of its head, uphill of it; the ground at its foot is level already.
+    setHeight(doc, 3, 2, 4)
+    const pieces = (materials: typeof DEFAULT_MATERIALS, bends: boolean): number => polygons(meshTerrainChunk(ground(doc), '0,0', createTerrainLook(materials, [placeholderSet(), railSet(bends)])).trim as MeshBuffers).length
+    const without = pieces(upright(), true)
+    expect(pieces(upright(true), true)).toBe(without + 4)
+    // Not without the bends drawn, and never for a sloped rail.
+    expect(pieces(upright(true), false)).toBe(without)
+    expect(pieces(DEFAULT_MATERIALS.map((m) => (m.id === 0 ? { ...m, landings: true } : m)), true)).toBe(6)
+  })
+
+  it("draws the triangle under the slope from the ramp's side art, mirrored for a slope that falls the other way, and from wall art without it", () => {
+    // Side art for a slope that falls toward the side's end only: red. The placeholder's wall art is green.
+    const side = stampTemplate(createTerrainSet('sides.png', TILE, 16, 8), 0, 0, null, tagOf(0, 'side', 'ramp', 'e'))
+    const look = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet(), { set: side, image: solid(16 * TILE, 8 * TILE, [200, 0, 0, 255]) }])
+    const chunk = meshTerrainChunk(ground(loneRamp()), '0,0', look)
+    const reds = (dir: number): number => bandTexels(chunk, look, 3, 3, dir, 2).filter((rgba) => rgba[0] === 200).length
+    // The ramp descends south: its east side falls toward its end and its west side toward its start.
+    expect(reds(0)).toBeGreaterThan(0)
+    expect(reds(2)).toBeGreaterThan(0)
+    // Its foot is no slope, and a level cell's wall is no ramp's side.
+    const plain = mesh(loneRamp(), '0,0')
+    expect(bandTexels(plain, createTerrainLook(DEFAULT_MATERIALS, [placeholderSet()]), 3, 3, 0, 2).every((rgba) => rgba[0] !== 200)).toBe(true)
   })
 })

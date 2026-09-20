@@ -328,7 +328,20 @@ export interface MaterialDef {
    * INTENDS — which directions the editor offers and counts as owed — and never changes how a tile is found.
    */
   directions?: Partial<Record<ArchetypeId, DirectionCount>>
+  /**
+   * How its rail stands on a ramp's open side (rulings of 2026-09-19): `sloped` lays the art along the slope,
+   * turned and never skewed; `upright` stands it straight in columns that step down, with a body to the ground.
+   * Absent is `DEFAULT_RAIL_STYLE`. It means nothing until the material has rail art.
+   */
+  railStyle?: RailStyle
+  /** Whether its upright rail runs half a tile onto the level ground at its head and foot. Absent is off; a sloped rail never does. */
+  landings?: boolean
 }
+
+/** How a material's rail stands on a ramp. */
+export type RailStyle = 'sloped' | 'upright'
+export const RAIL_STYLES: readonly RailStyle[] = ['sloped', 'upright']
+export const DEFAULT_RAIL_STYLE: RailStyle = 'sloped'
 
 /** How many directions a material's art for one archetype is drawn for. */
 export type DirectionCount = 1 | 2 | 4
@@ -429,7 +442,8 @@ export const PLACEHOLDER_SHEET = 'ground.png'
 export const DEFAULT_MATERIALS: MaterialDef[] = [
   { id: 0, name: 'Grass', color: 0x6aa84f },
   { id: 1, name: 'Dirt', color: 0x8b6b45 },
-  { id: 2, name: 'Stone', color: 0x8e8e8e },
+  // Stone's rail is a banister: upright, and out onto the ground at its ends. Dirt's is the default, laid along the slope.
+  { id: 2, name: 'Stone', color: 0x8e8e8e, railStyle: 'upright', landings: true },
   { id: 3, name: 'Sand', color: 0xd9c27e },
   { id: 4, name: 'Path', color: 0xb08f5e },
 ]

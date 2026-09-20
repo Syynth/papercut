@@ -102,7 +102,7 @@ export interface SceneStats {
 
 /** Whether two material lists draw the same: same ids in the same order, each with the same colour and trim settings. */
 export function sameLook(a: readonly MaterialDef[], b: readonly MaterialDef[]): boolean {
-  return a.length === b.length && a.every((m, i) => m.id === b[i].id && m.color === b[i].color && m.fringeAngle === b[i].fringeAngle && m.picketDistance === b[i].picketDistance)
+  return a.length === b.length && a.every((m, i) => m.id === b[i].id && m.color === b[i].color && m.fringeAngle === b[i].fringeAngle && m.picketDistance === b[i].picketDistance && m.railStyle === b[i].railStyle && m.landings === b[i].landings)
 }
 
 export interface SceneAssets {

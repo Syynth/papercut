@@ -99,6 +99,21 @@ const TRIM_SLOTS: readonly Slot[] = [
   { id: PICKET, name: 'Picket', optional: true, note: 'tag its top edge: stands at the foot of every wall it borders' },
 ]
 
+/**
+ * The slots only a ramp has (rulings of 2026-09-19). Its SIDE is the triangle under the slope, tiled like a wall and
+ * cut along the slope. Its RAIL stands along an open side, tagged as a patch seen from the side: the corners below
+ * its top edge carry the slot, so its tiles are the arrangements any material has. A LANDING is the rail on the level
+ * ground at its head and foot, joined to it by the two bends.
+ */
+export const SIDE = 'side'
+export const RAIL = 'rail'
+export const LANDING = 'landing'
+const RAMP_SLOTS: readonly Slot[] = [
+  { id: SIDE, name: 'Side', optional: true, note: 'the triangle under the slope: tiled like a wall, cut along the slope; wall art when undrawn' },
+  { id: RAIL, name: 'Rail', optional: true, note: 'tag below its top edge: top edge, two caps, and a body for an upright rail' },
+  { id: LANDING, name: 'Landing', optional: true, note: 'an upright rail on level ground: the two bends where it meets the rail' },
+]
+
 /** √2, because a ramp's surface spans the diagonal of the cell it descends through. */
 export const RAMP_RISE = Math.SQRT2
 
@@ -127,7 +142,7 @@ const ARCHETYPES: readonly Archetype[] = [
     title: 'Ramp',
     note: 'Sloped top faces. Taller tiles, because the slope is longer than its run.',
     aspect: { width: 1, height: RAMP_RISE },
-    slots: [{ id: ORDINARY, name: 'Surface', ordinary: true, note: 'the slope itself' }, ...TRIM_SLOTS],
+    slots: [{ id: ORDINARY, name: 'Surface', ordinary: true, note: 'the slope itself' }, ...RAMP_SLOTS, ...TRIM_SLOTS],
   },
 ]
 

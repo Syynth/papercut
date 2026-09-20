@@ -11,7 +11,7 @@
 import { readFile, writeFile } from 'node:fs/promises'
 
 import { createProject, deserialize, sheetName } from '@papercut/document'
-import { generatePlaceholderTerrainSet } from '@papercut/fixtures'
+import { generatePlaceholderTerrainSet, generateRailSet } from '@papercut/fixtures'
 import { openProject } from '@papercut/project'
 import { projectSprites } from '@papercut/geometry'
 import { exportGltf } from '@papercut/runtime/export'
@@ -64,7 +64,9 @@ export async function exportMapFile(
   const generated = generatePlaceholderTerrainSet(project.resolution.texelDensity)
   const usable = opened.sets.filter((s) => s.set.tile === project.resolution.texelDensity)
   const listed = project.images.some((i) => sheetName(i.path) === sheetName(generated.set.sheet))
-  const terrain = [...(listed && !usable.some((s) => s.set.sheet === sheetName(generated.set.sheet)) ? [generated] : []), ...usable]
+  // The placeholder's rails go where the placeholder goes: they are tagged for the same default materials.
+  const rails = generateRailSet(project.resolution.texelDensity)
+  const terrain = [...(listed && !usable.some((s) => s.set.sheet === sheetName(generated.set.sheet)) ? [generated] : []), ...(listed && !usable.some((s) => s.set.sheet === rails.set.sheet) ? [rails] : []), ...usable]
 
   // The project's own sprites stand in for the baked ones of the same name (ruling of 2026-09-18).
   const own = projectSprites(project.sprites, opened.sets)

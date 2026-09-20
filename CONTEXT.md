@@ -200,6 +200,18 @@ direction serves the others too — the opposite mirrored along its run, the
 rest turned a quarter — and a material says, per archetype, whether its art
 is drawn for one, two or four.
 
+A ramp has three slots of its own (rulings of 2026-09-19). Its **side** is the
+triangle under the slope, `3@ramp/e:side`: tiled like a wall, cut along the
+slope, and drawn from the material's wall art when it has none. Its **rail**
+stands along a side nothing stands against, and is tagged as a patch seen
+from the side — the corners BELOW its top edge carry `3:rail` — so its tiles
+are the arrangements any material has: a top edge, two caps, and a body. A
+material says how its rail stands: **sloped**, laid along the slope, turned
+and never sheared; or **upright**, in columns that step down, with the body
+to the ground. A **landing** is an upright rail run half a tile onto the
+level ground at its head and foot, a setting on the material; `3:landing`
+tags the two bends that join it to the rail.
+
 Terrain sets live in the project file, never in sidecars beside the images
 (decision of 2026-09-17).
 

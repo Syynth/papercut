@@ -13,7 +13,7 @@
  * between caches a stale answer.
  */
 
-import { DEFAULT_FRINGE_ANGLE, DEFAULT_PICKET_DISTANCE, tagOf, type MaterialDef, type Tag } from '@papercut/document'
+import { DEFAULT_FRINGE_ANGLE, DEFAULT_PICKET_DISTANCE, DEFAULT_RAIL_STYLE, tagOf, type MaterialDef, type RailStyle, type Tag } from '@papercut/document'
 
 import { TerrainAtlas, type LoadedSet } from './atlas'
 
@@ -30,12 +30,16 @@ export interface TrimSettings {
   readonly fringeAngle: number
   /** Pixels of art the picket stands out from its wall. */
   readonly picketDistance: number
+  /** How its rail stands on a ramp's open side. */
+  readonly railStyle: RailStyle
+  /** Whether its upright rail runs onto the level ground at its ends. */
+  readonly landings: boolean
 }
 
 export function createTerrainLook(materials: readonly MaterialDef[], sets: readonly LoadedSet[], fallback?: number): TerrainLook {
   const names = new Map(materials.map((m) => [tagOf(m.id), m.name]))
-  const trims = new Map(materials.map((m) => [tagOf(m.id), { fringeAngle: m.fringeAngle ?? DEFAULT_FRINGE_ANGLE, picketDistance: m.picketDistance ?? DEFAULT_PICKET_DISTANCE }]))
-  const plain: TrimSettings = { fringeAngle: DEFAULT_FRINGE_ANGLE, picketDistance: DEFAULT_PICKET_DISTANCE }
+  const trims = new Map(materials.map((m) => [tagOf(m.id), { fringeAngle: m.fringeAngle ?? DEFAULT_FRINGE_ANGLE, picketDistance: m.picketDistance ?? DEFAULT_PICKET_DISTANCE, railStyle: m.railStyle ?? DEFAULT_RAIL_STYLE, landings: m.landings === true }]))
+  const plain: TrimSettings = { fringeAngle: DEFAULT_FRINGE_ANGLE, picketDistance: DEFAULT_PICKET_DISTANCE, railStyle: DEFAULT_RAIL_STYLE, landings: false }
   return {
     atlas: new TerrainAtlas(sets, { nameOf: (key) => names.get(key) ?? String(key), fallback }),
     keyOf: (material) => (material === null ? null : tagOf(material)),
