@@ -19,7 +19,7 @@ import { useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointer
 
 import { archetypeOfTag, materialOfTag, sheetName, slotOfTag, withArchetype, type ArchetypeId, type ReadonlyProjectDoc, type RgbaImage } from '@papercut/document'
 import { useHost, useProject } from '@papercut/editor-host'
-import { FRINGE, PICKET, conventionOf, cornerAt, stampBlock, tagCorner, type BlockShape, type LoadedSet, type Tag, type TerrainSet } from '@papercut/geometry'
+import { conventionOf, cornerAt, stampBlock, tagCorner, type BlockShape, type LoadedSet, type Tag, type TerrainSet } from '@papercut/geometry'
 import type { PickerOption } from '@papercut/ui'
 
 import { run } from './commands'
@@ -33,8 +33,6 @@ const ZOOMS = [0.25, 0.5, 1, 2, 3, 4, 6, 8] as const
 
 const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error))
 
-/** Which tags the sheet draws: all of them, one slot's, or one kind of face's (decision of 2026-09-19). */
-export type ShowFilter = 'all' | 'surface' | typeof FRINGE | typeof PICKET | ArchetypeId
 export type TagTool = 'corners' | 'erase' | 'block'
 
 /** The sheet's pixels on a canvas, once per image. */
@@ -66,13 +64,16 @@ interface Pending {
   fits: boolean
 }
 
-/** How strongly a tag is drawn under a filter: 1 shown, a fraction for art for any face under a face filter, 0 hidden. */
-function shownAt(tag: Tag, show: ShowFilter): number {
-  if (show === 'all') return 1
-  if (show === 'surface') return slotOfTag(tag) === null ? 1 : 0
-  if (show === FRINGE || show === PICKET) return slotOfTag(tag) === show ? 1 : 0
+/**
+ * How strongly a tag is drawn in a working context (decision of 2026-09-19): what is lit is what the brush would
+ * write. Under an archetype, tags for it are lit, tags for any face are faint because they draw there too, and tags
+ * for another archetype are hidden; under Any, every archetype is lit. Tags of another slot than the one picked are
+ * faint, so a material's fringes or seams can be found by picking them.
+ */
+function shownAt(tag: Tag, context: ArchetypeId | null, slot: string | null): number {
   const archetype = archetypeOfTag(tag)
-  return archetype === show ? 1 : archetype === null ? 0.35 : 0
+  const byArchetype = context === null || archetype === context ? 1 : archetype === null ? 0.35 : 0
+  return byArchetype * (slotOfTag(tag) === slot ? 1 : 0.35)
 }
 
 /**
@@ -132,13 +133,15 @@ interface DrawState {
   scale: number
   hover: Corner | null
   pending: Pending | null
-  show: ShowFilter
+  /** The working context: which archetype's tags are lit, and the slot picked within it. */
+  context: ArchetypeId | null
+  slot: string | null
   /** The material whose art stands out: every tile with no corner of it is dimmed. `null` dims nothing. */
   selected: number | null
 }
 
 /** Draw the sheet with its tags over it. Drawn whole on every change; a sheet is a few hundred tiles, which is nothing to a canvas. */
-function draw(canvas: HTMLCanvasElement, { image, set, colourOf, scale, hover, pending, show, selected }: DrawState): void {
+function draw(canvas: HTMLCanvasElement, { image, set, colourOf, scale, hover, pending, context, slot, selected }: DrawState): void {
   const ctx = canvas.getContext('2d')
   if (!ctx) return
   const width = Math.round(image.width * scale)
@@ -169,7 +172,7 @@ function draw(canvas: HTMLCanvasElement, { image, set, colourOf, scale, hover, p
     const y = Math.floor(index / set.columns) * t
     tags.forEach((tag, corner) => {
       if (tag === null) return
-      const strength = shownAt(tag, show)
+      const strength = shownAt(tag, context, slot)
       if (strength === 0) return
       const colour = colourOf(tag)
       const qx = x + (corner & 1) * half
@@ -258,7 +261,9 @@ export interface TaggerInput {
   /** Whether Place on the sheet has armed the pointer. A block is only ever placed while it has. */
   armed: boolean
   onPlaced: () => void
-  show: ShowFilter
+  /** The working context and the slot picked in it: which tags the sheet lights. What the brush writes already carries both. */
+  context: ArchetypeId | null
+  slot: string | null
   /** The material whose art stands out. */
   selected: number | null
   /** What a tag is called, for the tooltip and the foot. */
@@ -296,7 +301,7 @@ export interface Tagger {
 
 const imagesOf = (project: ReadonlyProjectDoc): ReadonlyProjectDoc['images'] => project.images
 
-export function useTagger({ session, sets, active, tool, brush, values, armed, onPlaced, show, selected, nameOfTag, colourOf, preferred }: TaggerInput): Tagger {
+export function useTagger({ session, sets, active, tool, brush, values, armed, onPlaced, context, slot, selected, nameOfTag, colourOf, preferred }: TaggerInput): Tagger {
   const host = useHost()
   const images = useProject(imagesOf)
   const [sheet, setSheetState] = useState<string | null>(null)
@@ -398,8 +403,8 @@ export function useTagger({ session, sets, active, tool, brush, values, armed, o
   }, [tool, armed, hover, set, shape, values])
 
   useEffect(() => {
-    if (canvas && loaded && set) draw(canvas, { image: loaded.image, set, colourOf, scale, hover, pending, show, selected })
-  }, [canvas, loaded, set, colourOf, scale, hover, pending, show, selected])
+    if (canvas && loaded && set) draw(canvas, { image: loaded.image, set, colourOf, scale, hover, pending, context, slot, selected })
+  }, [canvas, loaded, set, colourOf, scale, hover, pending, context, slot, selected])
 
   const cornerUnder = (event: ReactPointerEvent<HTMLCanvasElement>): Corner | null => {
     if (!set) return null

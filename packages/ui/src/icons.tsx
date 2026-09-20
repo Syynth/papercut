@@ -296,6 +296,7 @@ const GLYPHS = {
   ),
   plus: <path d="M12 5v14M5 12h14" />,
   chevronDown: <path d="M6 9l6 6 6-6" />,
+  chevronRight: <path d="M9 6l6 6-6 6" />,
   folder: <path d="M3 7h6l2 2h10v10H3z" />,
   map: (
     <>

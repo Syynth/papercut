@@ -141,12 +141,32 @@ describe('the materials section', () => {
 
   it('swaps every view to the two materials together when a pairing is picked, and back', () => {
     mount(section(ground([[0, null], [0, 1]])))
-    expect(text()).toContain('how it draws on a floor')
+    expect(text()).toContain('how it draws on any face')
     act(() => subject('meets Dirt')?.click())
     expect(text()).toContain('how the two draw where they meet')
     expect(text()).toContain('Meeting Dirt')
     act(() => subject('On its own')?.click())
-    expect(text()).toContain('how it draws on a floor')
+    expect(text()).toContain('how it draws on any face')
+  })
+
+  it('takes the archetype in the bar as the context, and offers only its slots on the stage', () => {
+    mount(section(ground([[0, null]])))
+    const radio = (value: string): HTMLInputElement | undefined => [...window.document.querySelectorAll<HTMLInputElement>('input[type="radio"]')].find((r) => r.value === value)
+    const slots = (): string[] => [...(window.document.querySelector<HTMLSelectElement>('.ui-stage-float select')?.options ?? [])].map((o) => (o.textContent ?? '').replace(/^Slot: /, '').split(' — ')[0])
+    act(() => radio('tag')?.click())
+    // Any offers what every archetype has; the form no longer has a Slot or a For field.
+    expect(slots()).toEqual(['Surface', 'Fringe', 'Picket'])
+    expect(text()).toContain('for any face')
+    expect(window.document.querySelector('.ui-library-form')?.textContent).not.toContain('Slot')
+
+    act(() => radio('wall')?.click())
+    expect(slots()).toEqual(['Surface', 'Convex seam', 'Concave seam', 'Fringe', 'Picket'])
+    expect(text()).toContain('for walls')
+    // Tagging is left where it is: the context changes what the sheet lights and the brush writes, not the view.
+    expect(radio('tag')?.checked).toBe(true)
+    // The small preview rides along, and starts on its 3D side for a wall.
+    expect(window.document.querySelector('.ui-stage-panel')).not.toBeNull()
+    expect([...window.document.querySelectorAll<HTMLInputElement>('.ui-stage-panel input[type="radio"]')].some((r) => r.value === '3d' && r.checked)).toBe(true)
   })
 
   it('opens walls and ramps in 3D, and floors flat', () => {
@@ -206,7 +226,8 @@ describe('the materials section', () => {
     expect(toolbar).not.toBeNull()
     expect(window.document.querySelector('[role="dialog"]')).toBeNull()
     const values = (): Array<string | null | undefined> => [...window.document.querySelectorAll<HTMLSelectElement>('.ui-stage-toolbar select')].map((s) => s.selectedOptions[0]?.textContent)
-    expect(values()).toEqual(['Grass', 'Stone', 'none', 'Any face'])
+    expect(values()).toEqual(['Grass', 'Stone', 'none'])
+    expect(toolbar?.textContent).toContain('for any face')
     expect(toolbar?.textContent).toContain('5 × 3')
     // The form says the mode is on, and offers no tool to switch to while it is.
     expect(text()).toContain('Placing a transition')
