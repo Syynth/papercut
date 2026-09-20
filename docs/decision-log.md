@@ -1030,3 +1030,35 @@ Each entry:
 - **SCOPE:** architectural (revises "A ramp's surface is a tile 1 × 1½ that keeps the surface's corner tags", same day: the length and the corner tags stand, the long tile goes)
 - **WHAT:** A ramp's surface is one tile wide and one and a half long along its run, and there is NO LONG TILE. The mesher already draws a face as quarters, each a half-tile square cut from the corner tile it belongs to; a ramp cell is two quarters wide and three long. The rows at its head and foot come from the corner tiles as on any face. The middle row is cut from the tile whose left and right corners match the cell's and whose top and bottom are the same — the plain edge arrangement along the run, or the solid tile where the ramp is one material — which every pair block already has and whose art repeats along the run by construction. Ramp art is therefore ordinary square tiles, tagged for ramps; every sheet keeps one square grid. Art meant for ramps repeats at the half tile.
 - **WHY:** A 1 × 1½ cell does not fit a grid of whole tiles, and every way of making it fit — regions with their own cell, sheets of their own — added a second kind of grid to import, tag and crop. The quarters were already there. Drawing the extra half from them keeps one grid, one tagger and one block shape, and blends, coverage and the preview work on a slope with nothing new. The cost is that a ramp cannot carry a single picture a tile and a half long, which is the same constraint the rest of the terrain already lives under.
+
+## A rail along the slope is turned, never sheared, and the style is called sloped
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-rails
+- **SCOPE:** moderate
+- **WHAT:** The rail style that follows the slope lays its art turned to lie along the slope, each piece a rectangle square to it, three half-tile pieces to a cell. Art is never skewed. The style is named "sloped"; this supersedes the name "sheared" in the earlier ruling on rail styles. The other style stays "upright".
+- **WHY:** Sheared pixel art is hideous: skewing distorts posts and line weights. Turning keeps every piece the shape it was drawn.
+
+## A rail is tagged as a patch seen from the side, capped at both ends, and an upright rail has a body down to the ground
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-rails
+- **SCOPE:** architectural
+- **WHAT:** A rail's tiles carry the rail slot on the corners below its top edge, so they are the arrangements a material already has: top edge, the two top corners as start and end caps, solid body, left and right edges. The mesher walks the ramp's open side in half-tile pieces and picks each by whether the rail carries on, so both styles get a cap at head and foot. An upright rail is two columns to a cell, each standing on the high side of its half tile and stepping down half a tile; below the top row the body repeats to the ground, overlapping the ramp's triangular side. A rail with no body art is one row.
+- **WHY:** The owner wants end caps on both styles. Upright art will in practice overlap the triangular slice, so it needs more tiles vertically. Reusing the material arrangements means Place block writes a whole rail and no new tagging vocabulary is needed; staying on the half-tile grid means nothing is cut.
+
+## A ramp's triangular side is a slot of its own, tiled like a wall and cut along the slope
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-tags
+- **SCOPE:** moderate
+- **WHAT:** The ramp archetype has a "side" slot for the triangle under the slope. It is tiled like a wall, with corner tags on the half-tile grid so it blends with the wall beside it and the material under it, and the mesher cuts each tile along the slope. With no side art it takes the material's wall art. Direction applies, so art for one way is mirrored for the other. This settles the open question of whether Side is a real slot.
+- **WHY:** The triangular slice needs surface-tiling rules of its own rather than being an afterthought of the wall; a slot lets art be drawn for it while the wall fallback keeps undrawn materials working.
+
+## Landings are a setting on the material, for upright rails only
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-rails
+- **SCOPE:** moderate
+- **WHAT:** A material's upright rail can run half a tile onto the level ground at its head and foot. This is a setting on the material (Landings: off or on, off by default), not inferred from the art. The art is tagged with a "landing" slot: the caps carry it, and two bend tiles, `[ –, –, landing, rail ]` and `[ –, –, rail, landing ]`, join it to the rail. Where the ground at an end is taken or not level, the rail caps at the ramp. A sloped rail never has landings.
+- **WHY:** Handrails that extend onto the ground at the top or bottom are a capability the model should account for. They do not suit the sloped style, and the owner wants it chosen per material rather than switched on by which tiles happen to exist.
