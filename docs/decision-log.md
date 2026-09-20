@@ -1062,3 +1062,19 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** A material's upright rail can run half a tile onto the level ground at its head and foot. This is a setting on the material (Landings: off or on, off by default), not inferred from the art. The art is tagged with a "landing" slot: the caps carry it, and two bend tiles, `[ –, –, landing, rail ]` and `[ –, –, rail, landing ]`, join it to the rail. Where the ground at an end is taken or not level, the rail caps at the ramp. A sloped rail never has landings.
 - **WHY:** Handrails that extend onto the ground at the top or bottom are a capability the model should account for. They do not suit the sloped style, and the owner wants it chosen per material rather than switched on by which tiles happen to exist.
+
+## The sculpt rework keeps the surface verbs and adds block editing
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** feature-terrain
+- **SCOPE:** architectural
+- **WHAT:** The terrain tools are reworked for the voxel model by keeping the surface verbs (Raise/Lower, Flatten, Smooth, Ramp) for landscape and adding block editing beside them, rather than replacing one with the other or staying a heightfield in practice. The rework must also cover: extruding in directions other than up and down, a range of shape fills, better stroke feel, direct tools for ramps and other voxel shapes, and one unified tool for fringes and the other edge trims.
+- **WHY:** The map has been voxels since 2026-09-13 but every verb still sets a column solid from the floor up, so overhangs, tunnels and bridges cannot be made. Hills are still best made by moving a surface, so those verbs stay; what they cannot make needs tools of its own.
+
+## What a face made by sculpting starts as is a choice on the tool
+- **WHEN:** 2026-09-19
+- **PROJECT:** papercut
+- **SYSTEM:** feature-terrain / terrain-model
+- **SCOPE:** moderate
+- **WHAT:** A face that sculpting or building creates starts as one of two things, chosen by a switch on the tool: Inherit, where the surface keeps its paint as it moves and an exposed side takes the paint of the side it grew from; or Active, where every new face takes the palette's material. This answers the question left open on 2026-09-18 and replaces the stopgap that copies a neighbour's stack.
+- **WHY:** Neither is right alone. Shaping land that is already painted wants the paint to follow; blocking out something new wants to paint as it goes. Never guessing silently was the point of the 2026-09-18 ruling, and a visible switch keeps that.
