@@ -212,6 +212,39 @@ const GLYPHS = {
       <path d="M13 17h8" />
     </>
   ),
+  intersect: (
+    <>
+      <rect x="3" y="3" width="12" height="12" rx="1" />
+      <rect x="9" y="9" width="12" height="12" rx="1" />
+      <rect x="9" y="9" width="6" height="6" fill="currentColor" stroke="none" />
+    </>
+  ),
+  // what a region is of (ruling of 2026-09-20), and how deep a press reaches
+  voxel: <path d="M12 3 20 7.5v9L12 21 4 16.5v-9zM4 7.5 12 12l8-4.5M12 12v9" />,
+  faceOf: (
+    <>
+      <path d="M12 3 20 7.5v9L12 21 4 16.5v-9z" />
+      <path d="M12 3 20 7.5 12 12 4 7.5z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  edgeOf: (
+    <>
+      <path d="M12 3 20 7.5v9L12 21 4 16.5v-9z" strokeOpacity=".45" />
+      <path d="M4 7.5 12 12" strokeWidth="3.2" />
+    </>
+  ),
+  depthSurface: (
+    <>
+      <path d="M4 9h16" strokeWidth="3.2" />
+      <path d="M4 9v10h16V9" strokeOpacity=".45" />
+    </>
+  ),
+  depthThrough: (
+    <>
+      <rect x="4" y="7" width="16" height="12" fill="currentColor" fillOpacity=".35" />
+      <path d="M12 2v9M9 8l3 3 3-3" />
+    </>
+  ),
   place: (
     <>
       <path d="M12 21s-6-6-6-11a6 6 0 0 1 12 0c0 5-6 11-6 11z" />

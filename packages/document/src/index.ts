@@ -169,6 +169,8 @@ export {
   updateSketchPoint,
 } from './ops'
 export type { Brush, BrushShape, Cell, EdgeRef, FaceRef, RampEdge, RampStep, SketchChanges } from './ops'
+export { REGION_ELEMENTS, combineRegions, contractRegion, describeRegion, elementsUnder, expandRegion, invertRegion, parseEdgeKey, parseVoxelKey, pruneRegion, regionOf, voxelKey } from './region'
+export type { LayerSpan, Region, RegionCombine, RegionDepth, RegionElement } from './region'
 export { FACE_BOTTOM, FACE_TOP, edgeKey, edgeOff, faceKey, faceLayers, parseFaceKey, tintKey, tintPaint } from './paint'
 export type { DocumentReader } from './store'
 export { applyPatches, inversePatch, patchAddress } from './edits'

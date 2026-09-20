@@ -1276,6 +1276,31 @@ describe('deleting objects', () => {
     expect(host.input.carrying()).toEqual(new Set())
   })
 
+  it('selection.region grows, shrinks and inverts a region, and is unavailable without a selection (ruling of 2026-09-12)', () => {
+    const { host, dispatch } = makeHost()
+    const selected = (): readonly string[] => {
+      const selection = host.children.view.getSnapshot().context.selection
+      return selection?.kind === 'region' ? selection.keys : []
+    }
+    expect(dispatch('selection.region', { op: 'expand' })).toMatchObject({ ok: false, kind: 'unavailable' })
+
+    // One top face of level ground grows to it and the four beside it, and shrinks back to itself.
+    dispatch('selection.select', { selection: { kind: 'region', structure: 'ground', element: 'face', keys: ['3,3,0,4'] } })
+    expect(dispatch('selection.region', { op: 'expand' })).toEqual({ ok: true })
+    expect(selected()).toEqual(['2,3,0,4', '3,2,0,4', '3,3,0,4', '3,4,0,4', '4,3,0,4'])
+    expect(dispatch('selection.region', { op: 'contract' })).toEqual({ ok: true })
+    expect(selected()).toEqual(['3,3,0,4'])
+
+    // Inverted, it is every other face the ground has; a region of another kind than the selection does nothing.
+    const { width, height } = host.reader.doc.structures.ground.kind === 'voxel' ? host.reader.doc.structures.ground.size : { width: 0, height: 0 }
+    expect(dispatch('selection.region', { op: 'invert' })).toEqual({ ok: true })
+    expect(selected()).not.toContain('3,3,0,4')
+    expect(selected().filter((key) => key.endsWith(',0,4'))).toHaveLength(width * height - 1)
+    dispatch('selection.select', { selection: { kind: 'structure', id: 'ground' } })
+    expect(dispatch('selection.region', { op: 'expand' })).toEqual({ ok: true })
+    expect(host.children.view.getSnapshot().context.selection).toEqual({ kind: 'structure', id: 'ground' })
+  })
+
   it('selection.nudge moves the selection a cell along the world axes, by its kind', () => {
     const { host, dispatch } = makeHost()
     apply(host, 'Add', addObject(host.reader.doc, { ...OBJECT, position: [2, 0, 2], anchorCell: [2, 2] }))

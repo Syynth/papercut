@@ -302,6 +302,19 @@ tool sculpts and paints. Each voxel is air or a material with a
 [Shape](#shape); every height is derived from the column. Resizable at its
 edges.
 
+## Region
+
+Some of a voxel volume's **edges**, **faces** or **voxels**, selected (rulings
+of 2026-09-12 and 2026-09-20). One element at a time, as a 3D modeller's
+selection is: voxels are what Move, Fill and Carve act on, faces what paint
+and extrusion act on, edges what fringes, pickets and rails act on. It is made
+with the Region half of Select — a footprint (brush, rectangle, fill) on the
+face pressed, a depth (surface, or through the volume within the layer view),
+and a way of meeting what is selected already — and it **drives the terrain
+tools**: a verb acts on the selection. It lives on the view actor, never in
+the map, and holds its elements by the keys the document already addresses
+them with.
+
 ## Sketch
 
 A [Structure](#structure) drawn rather than sculpted: a closed

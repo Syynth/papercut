@@ -66,9 +66,12 @@
 
 import {
   DOCUMENT_OWNER,
+  contractRegion,
   documentKeys,
+  expandRegion,
   frameOf,
   groundedPosition,
+  invertRegion,
   structureOf,
   toLocal,
   createProject,
@@ -77,6 +80,7 @@ import {
   type DocumentReader,
   type DocumentSource,
   type Frame,
+  type LayerSpan,
   type Patch,
   type ProjectDoc,
   type ReadonlyMapDoc,
@@ -196,6 +200,21 @@ commands.declare(HOST_OWNER, {
   title: 'Nudge Selection',
   category: 'Selection',
   args: nudgeArgs,
+  when: and(viewKeys.hasSelection.is(true), gestureKeys.stroking.is(false)),
+})
+
+/**
+ * A region grown, shrunk or turned inside out (ruling of 2026-09-12, "App frame": region verbs). Like the two above it
+ * expands, outside every actor, to the one command that sets a selection, with the region worked out from the
+ * document as it stands at the dispatch.
+ */
+const regionOpArgs = z.object({ op: z.enum(['expand', 'contract', 'invert']) }).strict()
+export type RegionOpArgs = z.infer<typeof regionOpArgs>
+commands.declare(HOST_OWNER, {
+  id: 'selection.region',
+  title: 'Change Region',
+  category: 'Selection',
+  args: regionOpArgs,
   when: and(viewKeys.hasSelection.is(true), gestureKeys.stroking.is(false)),
 })
 
@@ -356,6 +375,11 @@ function hostLogic(source: DocumentSource, project: ProjectDoc, features: readon
         tools: () => tools.getSnapshot().context,
         setTools: (settings) => tools.send({ type: 'settings', settings }),
         select: (selection) => view.send({ type: 'select', selection }),
+        // The layer view is kept in half-tiles and a voxel is two of them: the layers a region may reach through.
+        layerSpan: () => {
+          const range = view.getSnapshot().context.layers
+          return range === null ? null : { lo: Math.floor(range.lo / 2), hi: Math.ceil(range.hi / 2) }
+        },
         // Read per press, never captured: a feature installed by a hot
         // re-import replaces its instance wholesale, and the next stroke must
         // run the new contract rather than one closed over at spawn.
@@ -493,6 +517,14 @@ function toLocalDelta(frame: Frame, dx: number, dz: number): [number, number] {
   const [x0, z0] = toLocal(frame, frame.x, frame.z)
   const [x1, z1] = toLocal(frame, frame.x + dx, frame.z + dz)
   return [x1 - x0, z1 - z0]
+}
+
+function regionSteps(doc: ReadonlyMapDoc, selection: Selection | null, args: RegionOpArgs, span: LayerSpan | null): readonly { readonly id: string; readonly args?: unknown }[] {
+  if (selection?.kind !== 'region') return []
+  const voxel = structureOf(doc, selection.structure, 'voxel')
+  if (!voxel) return []
+  const next = args.op === 'expand' ? expandRegion(voxel, selection) : args.op === 'contract' ? contractRegion(voxel, selection) : invertRegion(voxel, selection, span)
+  return [{ id: 'selection.select', args: { selection: next ? { kind: 'region', ...next } : null } }]
 }
 
 function deleteSteps(selection: Selection | null): readonly { readonly id: string; readonly args?: unknown }[] {
@@ -695,6 +727,10 @@ export function createHost({ document: source, project = createProject(), clock,
   function expand(id: string, args: unknown): readonly { readonly id: string; readonly args?: unknown }[] | null {
     if (id === 'commands.run') return (args as { commands: { id: string; args?: unknown }[] }).commands
     if (id === 'selection.nudge') return nudgeSteps(reader.doc, children.view.getSnapshot().context.selection, args as NudgeArgs)
+    if (id === 'selection.region') {
+      const range = children.view.getSnapshot().context.layers
+      return regionSteps(reader.doc, children.view.getSnapshot().context.selection, args as RegionOpArgs, range === null ? null : { lo: Math.floor(range.lo / 2), hi: Math.ceil(range.hi / 2) })
+    }
     if (id !== 'selection.delete') return null
     return deleteSteps(children.view.getSnapshot().context.selection)
   }

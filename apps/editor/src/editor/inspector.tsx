@@ -11,7 +11,7 @@
 
 import { useMemo } from 'react'
 
-import { type Atmosphere, type CameraRig, type DeepReadonly, type MapObject, type MaterialDef, type Placement, type ReadonlyMapDoc, type ReadonlyProjectDoc } from '@papercut/document'
+import { describeRegion, type Atmosphere, type CameraRig, type DeepReadonly, type MapObject, type MaterialDef, type Placement, type ReadonlyMapDoc, type ReadonlyProjectDoc } from '@papercut/document'
 import { useDocument, useHost, useProject, useToolsSelector, useViewSelector, type Selection } from '@papercut/editor-host'
 import { mergeParams, type EditorParams } from './params'
 import { chordFor, type Platform } from '@papercut/registry'
@@ -152,19 +152,24 @@ export function Inspector({
 }) {
   const flags = useCoverageFlags(levelOpen)
   const structure = selection?.kind === 'structure' ? doc.structures[selection.id] ?? null : null
+  const region = selection?.kind === 'region' ? selection : null
   const isTerrain = params.tool === 'terrain'
 
   return (
     <>
       <InspectorHead>{TITLES[params.tool] ?? params.tool}</InspectorHead>
 
-      <Section title="Selection" summary={selected ? selected.name : structure ? structure.name : 'empty'} accent={selected !== null || structure !== null} defaultOpen>
+      <Section title="Selection" summary={selected ? selected.name : structure ? structure.name : region ? describeRegion(region) : 'empty'} accent={selected !== null || structure !== null || region !== null} defaultOpen>
         {selected ? (
           <ObjectProperties object={selected} deleteKbd={deleteKbd} onChange={onObject} onDelete={onDelete} />
         ) : structure ? (
           <StructureProperties doc={doc} structure={structure} deleteKbd={deleteKbd} onChange={(changes) => onStructure(structure.id, changes)} onDelete={onDelete} />
+        ) : region ? (
+          <Note>
+            {describeRegion(region)} of {doc.structures[region.structure]?.name ?? 'the terrain'}. Shift adds to it and alt takes from it; Grow, Shrink and Invert are in the bar. The terrain tools will act on it as each is redone.
+          </Note>
         ) : (
-          <Note>Nothing selected. Click anything with Select: an object, a sketch, the ground.</Note>
+          <Note>Nothing selected. Click anything with Select: an object, a sketch, the ground — or switch Select to Region to take voxels, faces or edges of the terrain.</Note>
         )}
       </Section>
 

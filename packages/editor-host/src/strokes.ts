@@ -40,19 +40,30 @@
 
 import {
   addObject,
+  brushCells,
+  combineRegions,
   defaultFacing,
   descendantsOf,
+  elementsUnder,
+  fillCells,
   frameOf,
   groundedPosition,
   newId,
   placeStructureOnto,
+  rectCells,
+  regionOf,
   snapTo,
   structureAt,
+  structureOf,
   toWorld,
   updateObject,
+  type Cell,
   type DocumentReader,
+  type LayerSpan,
   type MapObject,
   type Patch,
+  type Region,
+  type RegionCombine,
   type SnapMode,
   type SurfaceAddress,
 } from '@papercut/document'
@@ -114,6 +125,8 @@ export interface StrokeDeps {
   setTools(settings: ToolSettings): void
   /** The object tool's output. The host turns it into a `select` event to the view actor. */
   select(selection: Selection | null): void
+  /** The voxel layers the layer view leaves drawn, or `null` for all of them: what a region reaches through. Absent from a test that has no view. */
+  layerSpan?(): LayerSpan | null
   /**
    * The contract behind a declared tool, or `undefined` when nobody declared
    * it or its owner contributed none — `Host.toolContract`, handed in rather
@@ -165,6 +178,7 @@ function selectedTarget(selection: Selection | null): DragTarget | null {
  * because the document reads it before `begin` runs.
  */
 function selectStroke(deps: StrokeDeps, sample: StrokeSample, selection: Selection | null): EditorStrokeHandler {
+  if (deps.tools().selectMode === 'region') return regionStroke(deps, selection)
   const drag = new Drag(deps)
   const { pick } = sample
   const label = pick.objectId ? 'Move object' : pick.surface ? 'Move structure' : 'Select'
@@ -192,6 +206,59 @@ function selectStroke(deps: StrokeDeps, sample: StrokeSample, selection: Selecti
       return []
     },
     move: (sample) => drag.move(sample),
+    end: () => [],
+  }
+}
+
+/**
+ * Select's region half (rulings of 2026-09-12 and 2026-09-20): a press and a drag select some of a voxel volume's
+ * edges, faces or voxels. The face pressed says what is taken — a top's cells, or one side of them — the footprint
+ * says which cells, and the stroke meets the region already there as the bar says: shift adds and alt subtracts,
+ * whatever it says. It writes nothing to the map, so it is no undo step; the selection it makes is the view's.
+ *
+ * A brush gathers along the drag; a rectangle runs from the press to the pointer; a fill is the connected flat under
+ * the press. The pressed face stays the reference for the whole stroke, so dragging off a cliff top onto the ground
+ * keeps taking tops, and along a wall keeps taking that side.
+ */
+function regionStroke(deps: StrokeDeps, selection: Selection | null): EditorStrokeHandler {
+  const before: Region | null = selection?.kind === 'region' ? selection : null
+  let press: SurfaceAddress | null = null
+  let mode: RegionCombine = 'replace'
+  const gathered = new Set<string>()
+
+  const take = (sample: StrokeSample): void => {
+    if (!press) return
+    const voxel = structureOf(deps.reader.doc, press.structure, 'voxel')
+    const at = sample.pick.surface?.structure === press.structure ? sample.pick.surface : null
+    if (!voxel || !at) return
+    const tools = deps.tools()
+    const cells: Cell[] = tools.selectFootprint === 'rect' ? rectCells(voxel, press.x, press.y, at.x, at.y) : tools.selectFootprint === 'fill' ? fillCells(voxel, press.x, press.y) : brushCells(voxel, at.x, at.y, { size: tools.selectSize, shape: 'square' })
+    // A rectangle is redrawn from the press each tick; a brush keeps what it has passed over.
+    if (tools.selectFootprint === 'rect') gathered.clear()
+    for (const key of elementsUnder(voxel, press, cells, tools.selectElement, tools.selectDepth, deps.layerSpan?.() ?? null)) gathered.add(key)
+    const next = regionOf(press.structure, tools.selectElement, gathered)
+    const region = combineRegions(before, next, mode)
+    deps.select(region ? { kind: 'region', ...region } : null)
+  }
+
+  return {
+    label: 'Select region',
+    begin(sample) {
+      const { pick, modifiers } = sample
+      mode = modifiers.shift ? 'add' : modifiers.alt ? 'subtract' : deps.tools().selectCombine
+      if (!pick.surface || !structureOf(deps.reader.doc, pick.surface.structure, 'voxel')) {
+        // A press on nothing clears, unless it was reaching to add or take away.
+        if (mode === 'replace') deps.select(null)
+        return []
+      }
+      press = pick.surface
+      take(sample)
+      return []
+    },
+    move(sample) {
+      take(sample)
+      return []
+    },
     end: () => [],
   }
 }

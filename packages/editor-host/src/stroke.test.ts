@@ -22,6 +22,8 @@ import { describe, expect, it } from 'vitest'
 import { createActor, type InspectionEvent } from 'xstate'
 
 import { strokeLogic, type DocumentRef } from './stroke'
+import { SELECT_DEFAULTS } from './tools'
+import type { Selection } from './view'
 import { createStrokeHandler, type StrokeDeps, type StrokeSample, type ToolsSnapshot } from './strokes'
 
 /** The root voxel volume a fresh level has, mutable for setup: `createMap` names it `ground`. */
@@ -46,7 +48,7 @@ const ground = (doc: ReadonlyMapDoc | MapDoc): VoxelStructure => doc.structures.
 
 /** The terrain feature's slice as this package sees it: opaque, except the brush the stub contract reads. */
 const BRUSH = { size: 3, shape: 'square' as const }
-const SCULPT: ToolsSnapshot = { tool: 'terrain', spriteName: 'tree', snap: 'grid', features: { terrain: { brush: BRUSH } } }
+const SCULPT: ToolsSnapshot = { tool: 'terrain', spriteName: 'tree', snap: 'grid', ...SELECT_DEFAULTS, features: { terrain: { brush: BRUSH } } }
 const brushOf = (tools: ToolsSnapshot) => (tools.features.terrain as { brush: { size: number; shape: 'square' | 'circle' } }).brush
 /** The same snapshot with a one-cell brush. */
 const withBrush = (size: number): ToolsSnapshot => ({ ...SCULPT, features: { terrain: { brush: { size, shape: 'square' } } } })
@@ -299,5 +301,70 @@ describe('the stroke actor', () => {
     // A half-tile up from a cube: the new top voxel's shape comes first, then the paint that follows it.
     const patch: Patch | undefined = patchEvents()[0]?.patches[0]
     expect(patch).toMatchObject({ t: 'voxel', id: 'ground', field: 'shape' })
+  })
+})
+
+describe("Select's region half (rulings of 2026-09-12 and 2026-09-20)", () => {
+  const REGION: ToolsSnapshot = { ...SCULPT, tool: 'select', selectMode: 'region' }
+  /** A stroke's handler driven by hand: what it selects, tick by tick. A region stroke writes nothing, so there is no document actor to watch. */
+  function selecting(tools: ToolsSnapshot, before: Selection | null = null) {
+    const { reader } = createDocument(createMap(16, 16))
+    const seen: Array<Selection | null> = []
+    const deps: StrokeDeps = { reader, tools: () => tools, setTools: () => undefined, select: (selection) => void seen.push(selection), contract: () => undefined }
+    const press = (at: StrokeSample) => {
+      const handler = createStrokeHandler(deps, at, before)
+      if (!handler) throw new Error('Select declined the press')
+      expect(handler.begin(at)).toEqual([])
+      return handler
+    }
+    const last = () => seen[seen.length - 1]
+    return { press, last, seen }
+  }
+  const keysOf = (selection: Selection | null | undefined): readonly string[] => (selection?.kind === 'region' ? selection.keys : [])
+
+  it('selects the voxel under a press, and gathers along a drag with a brush', () => {
+    const { press, last } = selecting(REGION)
+    const handler = press(sample(3, 3))
+    expect(last()).toEqual({ kind: 'region', structure: 'ground', element: 'voxel', keys: ['3,3,0'] })
+    expect(handler.move(sample(4, 3))).toEqual([])
+    expect(keysOf(last())).toEqual(['3,3,0', '4,3,0'])
+  })
+
+  it('selects faces or edges when the bar says so, and a rectangle from the press', () => {
+    const faces = selecting({ ...REGION, selectElement: 'face', selectFootprint: 'rect' })
+    const handler = faces.press(sample(2, 2))
+    handler.move(sample(4, 3))
+    // Six cells' tops, and back to two when the pointer comes back: a rectangle is redrawn, not gathered.
+    expect(keysOf(faces.last())).toHaveLength(6)
+    handler.move(sample(3, 2))
+    expect(keysOf(faces.last())).toEqual(['2,2,0,4', '3,2,0,4'])
+    // Level ground stands no walls, so it has no edges to take.
+    const edges = selecting({ ...REGION, selectElement: 'edge' })
+    edges.press(sample(2, 2))
+    expect(edges.last()).toBeNull()
+  })
+
+  it('adds with shift and takes away with alt, whatever the bar says, and clears on a press on nothing', () => {
+    const held: Selection = { kind: 'region', structure: 'ground', element: 'voxel', keys: ['1,1,0', '2,1,0'] }
+    const adding = selecting(REGION, held)
+    adding.press(sample(5, 5, { shift: true }))
+    expect(keysOf(adding.last())).toEqual(['1,1,0', '2,1,0', '5,5,0'])
+    const taking = selecting(REGION, held)
+    taking.press(sample(2, 1, { alt: true }))
+    expect(keysOf(taking.last())).toEqual(['1,1,0'])
+    const nothing: StrokeSample = { pick: { surface: null, point: null, objectId: null }, modifiers: { shift: false, alt: false, ctrl: false } }
+    const clearing = selecting(REGION, held)
+    clearing.press(nothing)
+    expect(clearing.last()).toBeNull()
+    // Reaching to add and missing leaves the selection alone.
+    const missed = selecting(REGION, held)
+    missed.press({ ...nothing, modifiers: { shift: true, alt: false, ctrl: false } })
+    expect(missed.seen).toEqual([])
+  })
+
+  it('leaves objects and structures to the other half of Select', () => {
+    const { press, last } = selecting({ ...REGION, selectMode: 'objects' })
+    press(sample(3, 3))
+    expect(last()).toEqual({ kind: 'structure', id: 'ground' })
   })
 })
