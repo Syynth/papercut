@@ -18,6 +18,7 @@ a wall or a ramp in it.
 | `Wall.dc.html` | **Round two:** the Tag view working on walls — the archetype switch in the bar as the context, the dropdown on the stage as that archetype's slot picker, shown open |
 | `Ramp.dc.html` | **Round two:** the same working on ramps, with ramp tiles longer than they are wide and the slots a ramp might have |
 | `Slots.dc.html` | **Round two:** every archetype's slots with the shape of each one's tile, what was decided, and what is still open |
+| `Rails.dc.html` | **Proposed, not decided:** how a ramp's rail tiles. Three tiles tagged like a fringe (start cap, middle, end cap), walked along the ramp's open side in half-tile pieces; sheared is three pieces a cell along the slope, upright is two a cell stepping down half a tile; caps at head and foot in both |
 | `canvas.json` | Canvas layout, and the proposal and open questions as notes |
 
 Published copy: https://claude.ai/artifact/AsSJRC2UoYhVzzBzyrB3yY

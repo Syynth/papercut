@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>How a ramp's rail tiles, with end caps</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&amp;family=IBM+Plex+Mono:wght@400;500&amp;display=swap">
+<style>
+body{margin:0;background:#15171c;color:#e8eaf0;font:13px/1.45 'IBM Plex Sans',system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+.k{font-size:10.5px;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:#7b8294}
+.mono{font-family:'IBM Plex Mono',ui-monospace,Menlo,monospace}
+.hint{font-size:12px;color:#aab0c0;line-height:1.5}
+.card{background:#1b1e25;border:1px solid #353b4a;border-radius:6px;padding:14px;display:grid;gap:10px;align-content:start}
+.card h3{margin:0;font-size:14px;font-weight:600}
+.tile{display:grid;grid-template-columns:72px minmax(0,1fr);gap:12px;align-items:center}
+.tile b{font-weight:600;display:block}
+.tile small{display:block;color:#7b8294;font-size:11.5px;line-height:1.4}
+.tg{display:block;font-size:11px;color:#e9a23b;margin:2px 0}
+.leg{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:#aab0c0;margin-right:14px}
+.leg i{width:12px;height:0;border-top:2px dashed;display:inline-block}
+.q{background:#242833;border:1px solid #353b4a;border-left:3px solid #e9a23b;border-radius:4px;padding:10px 12px;font-size:12px;color:#aab0c0;line-height:1.5}
+.q b{color:#e8eaf0;font-weight:600}
+</style>
+</helmet>
+<div style="width: 1440px; height: 800px; box-sizing: border-box; padding: 28px 32px; background: #15171c; display: grid; grid-template-rows: auto minmax(0, 1fr); gap: 16px;">
+  <div style="display: grid; gap: 4px;">
+    <div style="font-size: 18px; font-weight: 600;">How a ramp's rail tiles, with end caps</div>
+    <div class="hint" style="max-width: 1040px;">Proposed. A rail is tagged the way a fringe already is: three tiles, told apart by which of their two top corners carry the rail slot. The mesher walks the ramp's open side in half-tile pieces and picks each piece's tile by whether the rail carries on past that point, so a run of any length gets a cap at its head and a cap at its foot. Seen here from the side.</div>
+  </div>
+  <div style="display: grid; grid-template-columns: 330px minmax(0, 1fr) minmax(0, 1fr); gap: 14px; min-height: 0;">
+    <div class="card">
+      <h3>The three tiles</h3>
+      <div class="tile"><svg viewBox="0 0 48 48" width="72" height="72" style="background:#0f1115;border:1px solid #353b4a"><defs>
+  <symbol id="mid" viewBox="0 0 48 48"><rect x="0" y="8" width="48" height="6" fill="#c8a36a"></rect><rect x="10" y="14" width="4" height="34" fill="#9a7a4a"></rect><rect x="34" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+  <symbol id="start" viewBox="0 0 48 48"><rect x="30" y="8" width="18" height="6" fill="#c8a36a"></rect><rect x="26" y="4" width="8" height="44" fill="#7a5c34"></rect><circle cx="30" cy="4" r="5" fill="#c8a36a"></circle><rect x="40" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+  <symbol id="end" viewBox="0 0 48 48"><rect x="0" y="8" width="18" height="6" fill="#c8a36a"></rect><rect x="14" y="4" width="8" height="44" fill="#7a5c34"></rect><circle cx="18" cy="4" r="5" fill="#c8a36a"></circle><rect x="4" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+</defs><use href="#start" width="48" height="48"></use><path d="M24 0v48M0 24h48" stroke="rgba(255,255,255,.18)" stroke-dasharray="2 3"></path></svg><span><b>Start cap</b><span class="mono tg">[ –, rail, –, – ]</span><small>The rail begins here and carries on to the right: the newel at the head of the ramp.</small></span></div>
+      <div class="tile"><svg viewBox="0 0 48 48" width="72" height="72" style="background:#0f1115;border:1px solid #353b4a"><defs>
+  <symbol id="mid" viewBox="0 0 48 48"><rect x="0" y="8" width="48" height="6" fill="#c8a36a"></rect><rect x="10" y="14" width="4" height="34" fill="#9a7a4a"></rect><rect x="34" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+  <symbol id="start" viewBox="0 0 48 48"><rect x="30" y="8" width="18" height="6" fill="#c8a36a"></rect><rect x="26" y="4" width="8" height="44" fill="#7a5c34"></rect><circle cx="30" cy="4" r="5" fill="#c8a36a"></circle><rect x="40" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+  <symbol id="end" viewBox="0 0 48 48"><rect x="0" y="8" width="18" height="6" fill="#c8a36a"></rect><rect x="14" y="4" width="8" height="44" fill="#7a5c34"></rect><circle cx="18" cy="4" r="5" fill="#c8a36a"></circle><rect x="4" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+</defs><use href="#mid" width="48" height="48"></use><path d="M24 0v48M0 24h48" stroke="rgba(255,255,255,.18)" stroke-dasharray="2 3"></path></svg><span><b>Middle</b><span class="mono tg">[ rail, rail, –, – ]</span><small>Rail on both sides. Its art repeats at the half tile, so either half can follow either.</small></span></div>
+      <div class="tile"><svg viewBox="0 0 48 48" width="72" height="72" style="background:#0f1115;border:1px solid #353b4a"><defs>
+  <symbol id="mid" viewBox="0 0 48 48"><rect x="0" y="8" width="48" height="6" fill="#c8a36a"></rect><rect x="10" y="14" width="4" height="34" fill="#9a7a4a"></rect><rect x="34" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+  <symbol id="start" viewBox="0 0 48 48"><rect x="30" y="8" width="18" height="6" fill="#c8a36a"></rect><rect x="26" y="4" width="8" height="44" fill="#7a5c34"></rect><circle cx="30" cy="4" r="5" fill="#c8a36a"></circle><rect x="40" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+  <symbol id="end" viewBox="0 0 48 48"><rect x="0" y="8" width="18" height="6" fill="#c8a36a"></rect><rect x="14" y="4" width="8" height="44" fill="#7a5c34"></rect><circle cx="18" cy="4" r="5" fill="#c8a36a"></circle><rect x="4" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+</defs><use href="#end" width="48" height="48"></use><path d="M24 0v48M0 24h48" stroke="rgba(255,255,255,.18)" stroke-dasharray="2 3"></path></svg><span><b>End cap</b><span class="mono tg">[ rail, –, –, – ]</span><small>The rail comes in from the left and stops: the newel at the foot.</small></span></div>
+      <div class="hint" style="font-size: 11.5px;">The same three shapes a fringe has today (straight, runs in from the left, runs in from the right). Each tile is a whole tile tall; how tall the rail stands is whatever the art draws, so a kerb is low and a banister is high with no setting for it.</div>
+    </div>
+    <div class="card">
+      <h3>Sheared <span style="font-weight: 400; color: #7b8294;">— the strip runs parallel to the slope</span></h3>
+      <svg viewBox="0 0 560 250" width="100%" role="img" style="display: block; max-width: 100%; height: auto;" aria-label="A sheared rail on a two-cell ramp and on a one-cell ramp, seen from the side"><defs>
+  <symbol id="mid" viewBox="0 0 48 48"><rect x="0" y="8" width="48" height="6" fill="#c8a36a"></rect><rect x="10" y="14" width="4" height="34" fill="#9a7a4a"></rect><rect x="34" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+  <symbol id="start" viewBox="0 0 48 48"><rect x="30" y="8" width="18" height="6" fill="#c8a36a"></rect><rect x="26" y="4" width="8" height="44" fill="#7a5c34"></rect><circle cx="30" cy="4" r="5" fill="#c8a36a"></circle><rect x="40" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+  <symbol id="end" viewBox="0 0 48 48"><rect x="0" y="8" width="18" height="6" fill="#c8a36a"></rect><rect x="14" y="4" width="8" height="44" fill="#7a5c34"></rect><circle cx="18" cy="4" r="5" fill="#c8a36a"></circle><rect x="4" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+</defs><polygon points="20,70 90,70 90,192 20,192" fill="#2c3140" stroke="#414859"></polygon>
+<polygon points="90,70 186,166 90,166" fill="#3a4152" stroke="#414859"></polygon>
+<polygon points="90,166 276,166 276,192 90,192" fill="#242833" stroke="#414859"></polygon>
+<line x1="138" y1="48" x2="138" y2="192" stroke="#414859" stroke-dasharray="2 4"></line>
+<g transform="matrix(0.6667 0.6667 0 1 90 22)"><svg x="0" y="0" width="24" height="48" viewBox="24 0 24 48" overflow="hidden"><use href="#start" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#7bc47f" stroke-width="1" stroke-dasharray="3 2"></rect></g>
+<g transform="matrix(0.6667 0.6667 0 1 106 38)"><svg x="0" y="0" width="24" height="48" viewBox="0 0 24 48" overflow="hidden"><use href="#mid" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#e9a23b" stroke-width="1" stroke-dasharray="3 2"></rect></g>
+<g transform="matrix(0.6667 0.6667 0 1 122 54)"><svg x="0" y="0" width="24" height="48" viewBox="0 0 24 48" overflow="hidden"><use href="#mid" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#7b8294" stroke-width="1" stroke-dasharray="3 2"></rect></g>
+<g transform="matrix(0.6667 0.6667 0 1 138 70)"><svg x="0" y="0" width="24" height="48" viewBox="24 0 24 48" overflow="hidden"><use href="#mid" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#7b8294" stroke-width="1" stroke-dasharray="3 2"></rect></g>
+<g transform="matrix(0.6667 0.6667 0 1 154 86)"><svg x="0" y="0" width="24" height="48" viewBox="0 0 24 48" overflow="hidden"><use href="#mid" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#e9a23b" stroke-width="1" stroke-dasharray="3 2"></rect></g>
+<g transform="matrix(0.6667 0.6667 0 1 170 102)"><svg x="0" y="0" width="24" height="48" viewBox="0 0 24 48" overflow="hidden"><use href="#end" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#e5636f" stroke-width="1" stroke-dasharray="3 2"></rect></g><polygon points="330,118 400,118 400,192 330,192" fill="#2c3140" stroke="#414859"></polygon>
+<polygon points="400,118 448,166 400,166" fill="#3a4152" stroke="#414859"></polygon>
+<polygon points="400,166 538,166 538,192 400,192" fill="#242833" stroke="#414859"></polygon>
+<g transform="matrix(0.6667 0.6667 0 1 400 70)"><svg x="0" y="0" width="24" height="48" viewBox="24 0 24 48" overflow="hidden"><use href="#start" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#7bc47f" stroke-width="1" stroke-dasharray="3 2"></rect></g>
+<g transform="matrix(0.6667 0.6667 0 1 416 86)"><svg x="0" y="0" width="24" height="48" viewBox="0 0 24 48" overflow="hidden"><use href="#mid" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#e9a23b" stroke-width="1" stroke-dasharray="3 2"></rect></g>
+<g transform="matrix(0.6667 0.6667 0 1 432 102)"><svg x="0" y="0" width="24" height="48" viewBox="0 0 24 48" overflow="hidden"><use href="#end" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#e5636f" stroke-width="1" stroke-dasharray="3 2"></rect></g><text x="90" y="238" font-size="11" fill="#7b8294">a run of two cells</text><text x="400" y="238" font-size="11" fill="#7b8294">a single cell</text></svg>
+      <div class="hint">Three pieces to a cell, like the ramp's surface: the slope is a tile and a half long, and each piece is half a tile of art laid along it. The extra middle piece comes from the middle tile. Posts lean with the slope, which suits kerbs, ropes and low walls.</div>
+    </div>
+    <div class="card">
+      <h3>Upright <span style="font-weight: 400; color: #7b8294;">— the art stands straight and steps down</span></h3>
+      <svg viewBox="0 0 560 250" width="100%" role="img" style="display: block; max-width: 100%; height: auto;" aria-label="A upright rail on a two-cell ramp and on a one-cell ramp, seen from the side"><defs>
+  <symbol id="mid" viewBox="0 0 48 48"><rect x="0" y="8" width="48" height="6" fill="#c8a36a"></rect><rect x="10" y="14" width="4" height="34" fill="#9a7a4a"></rect><rect x="34" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+  <symbol id="start" viewBox="0 0 48 48"><rect x="30" y="8" width="18" height="6" fill="#c8a36a"></rect><rect x="26" y="4" width="8" height="44" fill="#7a5c34"></rect><circle cx="30" cy="4" r="5" fill="#c8a36a"></circle><rect x="40" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+  <symbol id="end" viewBox="0 0 48 48"><rect x="0" y="8" width="18" height="6" fill="#c8a36a"></rect><rect x="14" y="4" width="8" height="44" fill="#7a5c34"></rect><circle cx="18" cy="4" r="5" fill="#c8a36a"></circle><rect x="4" y="14" width="4" height="34" fill="#9a7a4a"></rect></symbol>
+</defs><polygon points="20,70 90,70 90,192 20,192" fill="#2c3140" stroke="#414859"></polygon>
+<polygon points="90,70 186,166 90,166" fill="#3a4152" stroke="#414859"></polygon>
+<polygon points="90,166 276,166 276,192 90,192" fill="#242833" stroke="#414859"></polygon>
+<line x1="138" y1="48" x2="138" y2="192" stroke="#414859" stroke-dasharray="2 4"></line>
+<g transform="translate(90 34)"><svg x="0" y="0" width="24" height="48" viewBox="24 0 24 48" overflow="hidden"><use href="#start" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#7bc47f" stroke-width="1" stroke-dasharray="3 2"></rect></g>
+<g transform="translate(114 58)"><svg x="0" y="0" width="24" height="48" viewBox="0 0 24 48" overflow="hidden"><use href="#mid" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#7b8294" stroke-width="1" stroke-dasharray="3 2"></rect></g>
+<g transform="translate(138 82)"><svg x="0" y="0" width="24" height="48" viewBox="24 0 24 48" overflow="hidden"><use href="#mid" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#7b8294" stroke-width="1" stroke-dasharray="3 2"></rect></g>
+<g transform="translate(162 106)"><svg x="0" y="0" width="24" height="48" viewBox="0 0 24 48" overflow="hidden"><use href="#end" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#e5636f" stroke-width="1" stroke-dasharray="3 2"></rect></g><polygon points="330,118 400,118 400,192 330,192" fill="#2c3140" stroke="#414859"></polygon>
+<polygon points="400,118 448,166 400,166" fill="#3a4152" stroke="#414859"></polygon>
+<polygon points="400,166 538,166 538,192 400,192" fill="#242833" stroke="#414859"></polygon>
+<g transform="translate(400 82)"><svg x="0" y="0" width="24" height="48" viewBox="24 0 24 48" overflow="hidden"><use href="#start" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#7bc47f" stroke-width="1" stroke-dasharray="3 2"></rect></g>
+<g transform="translate(424 106)"><svg x="0" y="0" width="24" height="48" viewBox="0 0 24 48" overflow="hidden"><use href="#end" x="0" y="0" width="48" height="48"></use></svg><rect x="0" y="0" width="24" height="48" fill="none" stroke="#e5636f" stroke-width="1" stroke-dasharray="3 2"></rect></g><text x="90" y="238" font-size="11" fill="#7b8294">a run of two cells</text><text x="400" y="238" font-size="11" fill="#7b8294">a single cell</text></svg>
+      <div class="hint">Two pieces to a cell, because an upright rail is as long as the ramp's footprint, not its slope: no squeeze. Each piece drops half a tile from the last, which is one step of a stair drawn at the half tile. Posts stay vertical, which suits banisters.</div>
+    </div>
+  </div>
+  <div style="display: flex; align-items: start; gap: 14px;">
+    <div style="flex: none; padding-top: 10px;"><span class="leg"><i style="border-color:#7bc47f"></i>start cap</span><span class="leg"><i style="border-color:#7b8294"></i>middle</span><span class="leg"><i style="border-color:#e9a23b"></i>the extra middle piece</span><span class="leg"><i style="border-color:#e5636f"></i>end cap</span></div>
+    <div class="q" style="flex: 1;"><b>To decide.</b> Caps at both ends for both styles, as drawn? On a single cell the sheared rail is cap, middle, cap and the upright one is cap against cap. Should a rail that reaches a plateau with a fence or fringe on it still cap, or carry on into it? And does the rail stand on the ramp's edge, or out from it by a distance per material, the way a picket does?</div>
+  </div>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1440,"height":800}}'>
+class Component extends DCLogic {
+  renderVals() { return {}; }
+}
+</script>
+</body>
+</html>

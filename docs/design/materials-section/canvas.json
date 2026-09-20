@@ -50,6 +50,13 @@
       "w": 1440,
       "h": 900,
       "title": "Archetypes, their slots, and the shape of a slot’s tile"
+    },
+    "Rails.dc.html": {
+      "x": 0,
+      "y": 4960,
+      "w": 1440,
+      "h": 800,
+      "title": "How a ramp’s rail tiles, with end caps"
     }
   },
   "createdOnFiles": {
@@ -131,6 +138,13 @@
       "x": 1900,
       "y": 3940,
       "text": "DECIDED: a ramp's surface is 1 × 1½ and keeps the surface's corner tags; a rail is the ramp's trim with a style per material, sheared or upright; stairs are ramp art for now (tentative). STILL OPEN, on the board to the left: two runs or four; long cells on a square sheet or sheets of their own; whether strips keep corner tags; whether Head, Foot and Side are real slots."
+    },
+    "rails": {
+      "color": "orange",
+      "w": 340,
+      "x": 1520,
+      "y": 4960,
+      "text": "PROPOSED 2026-09-19, for the owner's call. A rail is tagged like a fringe: three tiles told apart by which of the two TOP corners carry the rail slot — start cap, middle, end cap. The mesher walks the ramp's open side in half-tile pieces and picks each piece's tile by whether the rail carries on past it. Sheared: three pieces per cell along the slope. Upright: two pieces per cell, each stepping down half a tile. Caps at head and foot in both."
     }
   },
   "order": [
@@ -140,7 +154,8 @@
     "Placing.dc.html",
     "Wall.dc.html",
     "Ramp.dc.html",
-    "Slots.dc.html"
+    "Slots.dc.html",
+    "Rails.dc.html"
   ],
   "pages": [],
   "title": "Materials Section"
