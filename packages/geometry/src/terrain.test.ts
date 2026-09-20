@@ -961,6 +961,19 @@ describe("a ramp's rail, side and landings (decisions of 2026-09-19)", () => {
     }
   })
 
+  it('shows every piece of a rail exactly half a tile of texels, so a line drawn across two pieces keeps its thickness (found 2026-09-19)', () => {
+    const look = createTerrainLook(upright(), [placeholderSet(), railSet()])
+    const trim = meshTerrainChunk(ground(loneRamp()), '0,0', look).trim as MeshBuffers
+    // The atlas is 64 tiles across: a tile is a sixty-fourth of it, and a piece half of that, but for a sliver at each edge.
+    const half = 1 / 64 / 2
+    for (const { first, last } of polygons(trim)) {
+      const us = Array.from({ length: last - first + 1 }, (_, i) => trim.uvs[(first + i) * 2])
+      const span = Math.max(...us) - Math.min(...us)
+      expect(span).toBeLessThanOrEqual(half)
+      expect(span).toBeGreaterThan(half * 0.98)
+    }
+  })
+
   it('caps a run at its head and foot only: the tile between two ramps of a run is the rail carrying on', () => {
     // A fresh map's ground is a tile up: two ramps in a row, from three tiles up down to it.
     const doc = createMap(8, 8)

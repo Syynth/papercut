@@ -32,7 +32,8 @@
  * An upright rail's BODY is a stringer: its upper half is cut along the
  * slope, which crosses each half tile corner to corner, with the baluster
  * carried down to it; its lower half is plain board, which the map repeats
- * to the ground.
+ * to the ground. Its edge strip stands ABOVE the slope line, so the corner
+ * of it that leaves the body at every step lands in the rail's own tile.
  *
  * Beside each rail block is the material's SIDE block: the triangle under a
  * slope, tiled like a wall and cut along the slope, drawn as boards that run
@@ -80,6 +81,8 @@ const RAIL_Y = 2 * U
 const RAIL_THICK = 2 * U
 const BALUSTER_WIDE = 2 * U
 const NEWEL_WIDE = 3 * U
+/** How far the stringer's edge strip stands above the slope, measured straight up. */
+const STRIP = 2 * U
 
 type Point = readonly [number, number]
 
@@ -133,6 +136,8 @@ function topHalf(half: Half, falls: boolean, post: Post, path: readonly Point[])
     const cx = x0 + 0.25
     shapes.push({ points: rect(cx - BALUSTER_WIDE / 2, railAt(cx), cx + BALUSTER_WIDE / 2, 1), fill: BALUSTER, clip })
   }
+  // Where the half falls, a stringer under it has an edge strip standing above the slope; the strip's first corner is up here, in this tile's foot.
+  if (falls) shapes.push({ points: [[x0, 1 - STRIP - U / 2], [x0 + STRIP + U / 2, 1], [x0 + U / 2, 1], [x0, 1 - U / 2]], fill: SEAM, clip })
   shapes.push({ points: stroke(path, RAIL_THICK), fill: HANDRAIL, clip })
   if (post === 'newel-near' || post === 'newel-far') {
     const atMiddle = post === 'newel-near'
@@ -182,12 +187,18 @@ function stringer(mask: number, cut: boolean): RailShape[] {
     const ends = mask === 10 || mask === 5
     const postAt = half === 1 ? x0 : x0 + 0.5 - BALUSTER_WIDE
     if (upper) {
-      shapes.push({ points: cut ? [[x0, 0], [x0 + 0.5, 0.5], [x0, 0.5]] : rect(x0, 0, x0 + 0.5, 0.5), fill: BOARD, clip })
+      // Under a cut the board runs up behind the strip, so no pixel between the two is left open.
+      shapes.push({ points: cut ? [[x0, -STRIP], [x0 + 0.5, 0.5 - STRIP], [x0 + 0.5, 0.5], [x0, 0.5]] : rect(x0, 0, x0 + 0.5, 0.5), fill: BOARD, clip })
       if (cut) {
-        // The baluster carried down to the slope, and the stringer's edge along it.
+        // The baluster carried down to the slope, and the stringer's edge strip along it. The strip stands ABOVE the
+        // slope line, not under it: a strip has thickness, so at every step its corner spills out of this piece, and
+        // above the line the piece it spills into is always the rail's own tile, which draws it (`topHalf`). Under
+        // the line it spilled into the plain board that repeats to the ground, which cannot draw it once and not again.
         const cx = x0 + 0.25
-        shapes.push({ points: rect(cx - BALUSTER_WIDE / 2, 0, cx + BALUSTER_WIDE / 2, 0.25 + BALUSTER_WIDE / 2), fill: BALUSTER, clip })
-        shapes.push({ points: stroke([[x0 - 0.25, -0.25 + U], [x0 + 0.75, 0.75 + U]], U * Math.SQRT2), fill: SEAM, clip })
+        // Its foot is cut along the strip it stands on, so nothing of it shows under the strip.
+        const [l, r] = [cx - BALUSTER_WIDE / 2, cx + BALUSTER_WIDE / 2]
+        shapes.push({ points: [[l, 0], [r, 0], [r, r - x0 - U / 2], [l, l - x0 - U / 2]], fill: BALUSTER, clip })
+        shapes.push({ points: [[x0, -STRIP - U / 2], [x0 + 0.5, 0.5 - STRIP - U / 2], [x0 + 0.5, 0.5 - U / 2], [x0, -U / 2]], fill: SEAM, clip })
       } else shapes.push({ points: rect(x0, 0.5 - U, x0 + 0.5, 0.5), fill: SEAM, clip })
     }
     if (lower) {
@@ -195,6 +206,8 @@ function stringer(mask: number, cut: boolean): RailShape[] {
       shapes.push({ points: rect(x0, 1 - U, x0 + 0.5, 1), fill: SEAM, clip })
     }
     if (ends && lower) shapes.push({ points: rect(postAt, cut && upper ? 0.5 : upper ? 0 : 0.5, postAt + BALUSTER_WIDE, 1), fill: NEWEL, clip })
+    // Under a cut, the head's post runs on up to the slope. The foot's would be a stub two texels tall, where the cut meets the ground, so it has none.
+    if (mask === 10 && cut && upper) shapes.push({ points: [[postAt, postAt - x0], [postAt + BALUSTER_WIDE, postAt - x0 + BALUSTER_WIDE], [postAt + BALUSTER_WIDE, 0.5], [postAt, 0.5]], fill: NEWEL, clip })
   }
   return shapes
 }
