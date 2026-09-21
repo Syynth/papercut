@@ -41,8 +41,10 @@
 import {
   DEFAULT_MATCH,
   DIR_VECTORS,
+  SURFACE_CLIFF,
   addObject,
   brushCells,
+  clampOffset,
   combineRegions,
   defaultFacing,
   descendantsOf,
@@ -54,6 +56,10 @@ import {
   newId,
   matchApplies,
   matchRegion,
+  movePatches,
+  offsetKeys,
+  snapshotObjects,
+  snapshotVolume,
   widerMatch,
   placeStructureOnto,
   rectCells,
@@ -69,12 +75,15 @@ import {
   type DocumentReader,
   type LayerSpan,
   type MapObject,
+  type ObjectsSnapshot,
   type Patch,
   type ReadonlyMapDoc,
   type ReadonlyVoxel,
   type Region,
   type RegionCombine,
   type SnapMode,
+  type VolumeSnapshot,
+  type VoxelOffset,
   type SurfaceAddress,
 } from '@papercut/document'
 import type { StrokeHandler, ToolContract } from '@papercut/registry'
@@ -190,7 +199,8 @@ function selectedTarget(selection: Selection | null): DragTarget | null {
  * because the document reads it before `begin` runs.
  */
 function selectStroke(deps: StrokeDeps, sample: StrokeSample, selection: Selection | null): EditorStrokeHandler {
-  if (deps.tools().selectMode === 'region') return regionStroke(deps, selection)
+  const tools = deps.tools()
+  if (tools.selectMode === 'region') return tools.selectVerb === 'move' && selection?.kind === 'region' && selection.element === 'voxel' ? moveStroke(deps, selection) : regionStroke(deps, selection)
   const drag = new Drag(deps)
   const { pick } = sample
   const label = pick.objectId ? 'Move object' : pick.surface ? 'Move structure' : 'Select'
@@ -325,6 +335,87 @@ function regionStroke(deps: StrokeDeps, selection: Selection | null): EditorStro
       if (!whole) take(sample)
       return []
     },
+    end: () => [],
+  }
+}
+
+/**
+ * Move (design round of 2026-09-19): the selected voxels, dragged. The face pressed says which way they can go: a top,
+ * and they slide over the ground, east and south; a cliff, and they slide along that wall and up and down it. Shift
+ * holds the drag to whichever of its two ways it has gone further; alt at the press leaves a copy behind.
+ *
+ * Every tick is worked out from the volume and the objects AS THEY WERE AT THE PRESS (`movePatches`), so dragging out
+ * and back puts everything back, and the stroke's compaction makes the whole drag one undo step. The selection goes
+ * with the voxels. Whole voxels each way: a voxel is a cube, and a half-tile step up would be a change of shape.
+ */
+function moveStroke(deps: StrokeDeps, selection: Extract<Selection, { kind: 'region' }>): EditorStrokeHandler {
+  const keys = selection.keys
+  let volume: VolumeSnapshot | null = null
+  let objects: ObjectsSnapshot = {}
+  let pressed: { x: number; y: number; z: number } | null = null
+  /** The side pressed, 0 to 3, or `null` for a top: which plane the drag is read on. */
+  let wall: number | null = null
+  let copy = false
+  let last = ''
+
+  const offsetAt = (sample: StrokeSample): VoxelOffset => {
+    if (!pressed) return { dx: 0, dz: 0, dy: 0 }
+    const voxel = structureOf(deps.reader.doc, selection.structure, 'voxel')
+    if (!voxel) return { dx: 0, dz: 0, dy: 0 }
+    const frame = frameOf(deps.reader.doc, voxel.id)
+    const local = (x: number, z: number): [number, number] => toLocal(frame, x, z)
+    const [px, pz] = local(pressed.x, pressed.z)
+    let moved = { dx: 0, dz: 0, dy: 0 }
+    if (wall === null) {
+      const at = sample.pick.plane ?? sample.pick.point
+      if (at) {
+        const [ax, az] = local(at.x, at.z)
+        moved = { dx: Math.round(ax - px), dz: Math.round(az - pz), dy: 0 }
+      }
+    } else if (sample.pick.ray) {
+      // Where the pointer's ray meets the upright plane of the wall that was pressed: along it, and up it.
+      const { origin, direction } = sample.pick.ray
+      const [nx, nz] = DIR_VECTORS[wall]
+      const facing = direction.x * nx + direction.z * nz
+      if (Math.abs(facing) > 1e-6) {
+        const t = ((pressed.x - origin.x) * nx + (pressed.z - origin.z) * nz) / facing
+        const [hx, hz] = local(origin.x + direction.x * t, origin.z + direction.z * t)
+        moved = { dx: nx === 0 ? Math.round(hx - px) : 0, dz: nz === 0 ? Math.round(hz - pz) : 0, dy: Math.round(origin.y + direction.y * t - pressed.y) }
+      }
+    }
+    if (sample.modifiers.shift) {
+      const flat = Math.max(Math.abs(moved.dx), Math.abs(moved.dz))
+      moved = wall === null ? (Math.abs(moved.dx) >= Math.abs(moved.dz) ? { ...moved, dz: 0 } : { ...moved, dx: 0 }) : flat >= Math.abs(moved.dy) ? { ...moved, dy: 0 } : { dx: 0, dz: 0, dy: moved.dy }
+    }
+    return clampOffset(voxel, keys, moved)
+  }
+
+  const move = (sample: StrokeSample): readonly Patch[] => {
+    const voxel = structureOf(deps.reader.doc, selection.structure, 'voxel')
+    if (!voxel || !volume) return []
+    const offset = offsetAt(sample)
+    const id = `${offset.dx},${offset.dz},${offset.dy}`
+    if (id === last) return []
+    last = id
+    deps.select({ kind: 'region', ...regionOf(selection.structure, 'voxel', offsetKeys(keys, offset)) })
+    return movePatches(deps.reader.doc, voxel, volume, objects, keys, offset, copy)
+  }
+
+  return {
+    label: 'Move voxels',
+    begin(sample) {
+      const { pick, modifiers } = sample
+      const voxel = structureOf(deps.reader.doc, selection.structure, 'voxel')
+      if (!voxel || !pick.surface || pick.surface.structure !== selection.structure || !pick.point) return []
+      volume = snapshotVolume(voxel)
+      objects = snapshotObjects(deps.reader.doc)
+      pressed = { x: pick.point.x, y: pick.point.y ?? 0, z: pick.point.z }
+      wall = pick.surface.kind === SURFACE_CLIFF ? pick.surface.dir : null
+      copy = modifiers.alt
+      last = '0,0,0'
+      return []
+    },
+    move,
     end: () => [],
   }
 }

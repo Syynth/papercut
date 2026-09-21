@@ -176,6 +176,7 @@ export function SelectBar({
   const region = params.selectMode === 'region'
   const held = selection?.kind === 'region'
   const rule = params.selectMatch[params.selectElement]
+  const moving = params.selectVerb === 'move' && params.selectElement === 'voxel'
   return (
     <>
       {/* The mode first, as every tool's bar has it (ruling of 2026-09-12): things that stand on the map, or a region of the terrain itself. */}
@@ -243,8 +244,14 @@ export function SelectBar({
             <Verb icon="contract" title="Shrink the region by its rim" disabled={!held} onClick={() => onRegion('contract')} />
             <Verb icon="invert" title="Select everything else of the same kind, within the layer view" disabled={!held} onClick={() => onRegion('invert')} />
             {params.selectElement === 'edge' ? <Verb icon="pair" title="Pair: every top also takes its wall's foot, and every foot its top" disabled={!held} onClick={() => onRegion('pair')} /> : null}
-            {/* Move is designed (docs/design/terrain-tools-round) and is the next piece of the selection work. */}
-            <Verb icon="move" title="Move the region — not built yet" disabled onClick={() => undefined} />
+            {/* Move is a way of dragging, so it is a toggle: on, a drag carries the selected voxels instead of taking a region. */}
+            <Verb
+              icon="move"
+              active={moving}
+              title={params.selectElement === 'voxel' ? 'Move: drag the selected voxels. Press a top to slide them over the ground, a cliff to slide them along and up it. Shift holds one way; alt leaves a copy' : 'Move carries voxels: switch the selection to voxels to use it'}
+              disabled={params.selectElement !== 'voxel'}
+              onClick={() => set({ selectVerb: moving ? 'select' : 'move' })}
+            />
           </BarGroup>
           <BarDivider />
           <Verb icon="clear" title="Clear the selection" disabled={named === null} onClick={onClear} />
