@@ -238,8 +238,9 @@ function saveRecents(list: readonly RecentProject[]): void {
   void desktopShell()?.menu?.setRecents(list.map((r) => ({ name: r.name, folder: r.folder }))).catch(() => undefined)
 }
 
+/** Whether a launch goes straight back into the last project. On unless someone has switched it off (the owner, 2026-09-21): what was in hand comes back. */
 export function reopenLast(): boolean {
-  return storage()?.getItem(REOPEN_KEY) === '1'
+  return storage()?.getItem(REOPEN_KEY) !== '0'
 }
 
 export function setReopenLast(on: boolean): void {
