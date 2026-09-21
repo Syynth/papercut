@@ -14,7 +14,7 @@
       "y": 980,
       "w": 1440,
       "h": 860,
-      "title": "Four modes, one footprint, and the pressed face sets the direction"
+      "title": "Select, then act: verbs on the selection"
     },
     "Sculpt.dc.html": {
       "x": 1520,
@@ -49,7 +49,7 @@
       "y": 3920,
       "w": 1440,
       "h": 860,
-      "title": "Open questions, and a build order"
+      "title": "Open questions, and a build order (redrawn)"
     },
     "Regions.dc.html": {
       "x": 1520,
@@ -133,7 +133,7 @@
       "w": 340,
       "x": 3040,
       "y": 0,
-      "text": "PROPOSED, not decided, except: surface verbs stay and block editing is added; a new face's paint is a choice on the tool (both logged 2026-09-19); and the selection drives the terrain tools (the owner, 2026-09-20). Boards read left to right, top to bottom. Comment on any board and send it to Claude."
+      "text": "PROPOSED, not decided, except: surface verbs stay and block editing is added; a new face's paint is a choice on the tool (both logged 2026-09-19); the selection drives the terrain tools, and the selection tools come first (the owner, 2026-09-20). REDRAWN 2026-09-21 around the selection: the Rule board and the Questions board. The other boards are as first drawn, to draw on one verb at a time. Comment on any board and send it to Claude."
     },
     "selTitle": {
       "kind": "title1",
