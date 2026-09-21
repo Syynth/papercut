@@ -42,6 +42,7 @@ export { CORE_KEYMAP_OWNER } from './keys'
 export { ORBIT_DRAG_THRESHOLD } from './gesture'
 export type { Gesture, PointerMotion, PointerPress, PointerRelease } from './gesture'
 
+export { regionUnder } from './strokes'
 export type { PickSample, PointerModifiers, StrokeSample, ToolsSnapshot } from './strokes'
 
 export { SELECT_DEFAULTS, TOOLS_OWNER, toolKeys } from './tools'

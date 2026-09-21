@@ -36,7 +36,7 @@ const toolSettings = z
     selectMode: z.enum(['objects', 'region']).exactOptional(),
     /** What a region is of (ruling of 2026-09-20). */
     selectElement: z.enum(['voxel', 'face', 'edge']).exactOptional(),
-    selectFootprint: z.enum(['brush', 'rect', 'fill']).exactOptional(),
+    selectFootprint: z.enum(['brush', 'rect']).exactOptional(),
     selectSize: z.int().min(1).max(12).exactOptional(),
     selectDepth: z.enum(['surface', 'through']).exactOptional(),
     selectCombine: z.enum(['replace', 'add', 'subtract', 'intersect']).exactOptional(),
@@ -48,7 +48,8 @@ export type ToolSettings = z.infer<typeof toolSettings>
 /** One feature's parameters, as the host holds them: shaped by the feature, opaque here. */
 export type FeatureParams = Record<string, unknown>
 
-export type SelectFootprint = 'brush' | 'rect' | 'fill'
+/** Fill was one until 2026-09-21: it was a double-click all along (design pass of 2026-09-20). */
+export type SelectFootprint = 'brush' | 'rect'
 
 export interface ToolsContext {
   readonly tool: ToolId
@@ -57,7 +58,7 @@ export interface ToolsContext {
   readonly snap: SnapMode
   readonly selectMode: 'objects' | 'region'
   readonly selectElement: RegionElement
-  /** How a press becomes a set of cells: under a brush, in a rectangle from the press, or the connected flat. */
+  /** How a drag becomes a set of cells: under a brush, or in a rectangle from the press. */
   readonly selectFootprint: SelectFootprint
   readonly selectSize: number
   readonly selectDepth: RegionDepth

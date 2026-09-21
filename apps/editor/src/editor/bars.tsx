@@ -12,7 +12,7 @@
 import type { Selection } from '@papercut/editor-host'
 import { mergeParams, type EditorParams } from './params'
 import { useDocument, useHost, useProject, useToolsSelector, useViewSelector } from '@papercut/editor-host'
-import { describeRegion, type MaterialDef, type ReadonlyMapDoc, type ReadonlyProjectDoc, type SnapMode } from '@papercut/document'
+import { DEFAULT_MATCH, describeRegion, type MaterialDef, type RegionElement, type RegionMatch, type ReadonlyMapDoc, type ReadonlyProjectDoc, type SnapMode } from '@papercut/document'
 import { SPRITE_NAMES } from '@papercut/fixtures/textures'
 import type { TerrainPanelProps } from '@papercut/feature-terrain'
 import { always, chordFor, evaluate, panels, tools, type PanelSlot, type Platform } from '@papercut/registry'
@@ -134,6 +134,13 @@ export function SnapControl({ value, onChange }: { value: SnapMode; onChange: (s
   )
 }
 
+const MATCH_NAME: Record<RegionMatch, string> = { run: 'Run', flat: 'Flat', island: 'Island' }
+const MATCH_HINT: Record<RegionElement, string> = {
+  edge: 'Double-click an edge for its run: the full straight edge, to where it turns or changes height',
+  face: 'Double-click a face for its flat: every connected face in the same plane',
+  voxel: 'Double-click a voxel for its island: everything connected to it, without going below its layer',
+}
+
 export function SelectBar({
   doc,
   selection,
@@ -189,10 +196,13 @@ export function SelectBar({
             options={[
               { value: 'brush', icon: 'brush', title: 'Brush: takes what the drag passes over' },
               { value: 'rect', icon: 'rect', title: 'Rectangle: from the press to the pointer' },
-              { value: 'fill', icon: 'fill', title: 'Fill: the connected flat under the press' },
             ]}
           />
           {params.selectFootprint === 'brush' ? <BarScrub label="Size" title="Brush size: drag to change, click to type" value={params.selectSize} min={1} max={12} onChange={(selectSize) => set({ selectSize })} /> : null}
+          <BarDivider />
+          {/* What a double-click takes: the element's default rule (design pass of 2026-09-20). The other rules join it here as they are built. */}
+          <BarLabel>Match</BarLabel>
+          <BarValue title={MATCH_HINT[params.selectElement]}>{MATCH_NAME[DEFAULT_MATCH[params.selectElement]]}</BarValue>
           <BarDivider />
           <IconSegmented
             value={params.selectDepth}

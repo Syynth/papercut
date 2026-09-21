@@ -99,6 +99,8 @@ export interface PointerPress {
    * is what makes the replay land on the cell that was actually pressed.
    */
   pick: EditorPick | null
+  /** Which press of a run of quick presses in one place this is: 2 for a double-click. */
+  clicks: number
 }
 
 export interface PointerMotion {
@@ -195,6 +197,8 @@ export interface ViewportOptions {
   selection: DocumentTarget | null
   /** The region selected: some of a voxel volume's edges, faces or voxels, drawn as themselves (rulings of 2026-09-12 and 2026-09-20). */
   region: Region | null
+  /** What a click where the pointer is would take, drawn lighter than the selection: see it before you take it (design pass of 2026-09-20). */
+  regionPreview: Region | null
   /** The height range drawn, in half-tiles, or `null` for all of it — the layer view. */
   layers: LayerRange | null
   /** The sketch being drawn or edited: its points in world space, whether its outline closes, and which point is selected. */
@@ -223,6 +227,7 @@ const DEFAULT_OPTIONS: ViewportOptions = {
   hover: null,
   selection: null,
   region: null,
+  regionPreview: null,
   layers: null,
   sketch: null,
 }
@@ -285,8 +290,13 @@ export class Viewport {
   private options: ViewportOptions = { ...DEFAULT_OPTIONS }
   private handlers: ViewportHandlers
 
+  private lastPress: { at: number; x: number; y: number; button: number; clicks: number } | null = null
   private regionMesh: THREE.Mesh
   private regionLines: THREE.LineSegments
+  private previewMesh: THREE.Mesh
+  private previewLines: THREE.LineSegments
+  private drawnPreview: Region | null = null
+  private drawnPreviewRevision = -1
   private drawnRegion: Region | null = null
   private drawnRegionRevision = -1
   private overlay = new THREE.Group()
@@ -421,6 +431,13 @@ export class Viewport {
     // Its outline, so a region reads at a glance over busy art: every selected element's own border.
     this.regionLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false }))
     this.regionLines.renderOrder = 899
+    this.previewLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.75, depthTest: true, depthWrite: false }))
+    this.previewLines.renderOrder = 898
+    this.previewMesh = new THREE.Mesh(
+      new THREE.BufferGeometry(),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.16, depthTest: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+    )
+    this.previewMesh.renderOrder = 898
     this.selectionBox = new THREE.Box3Helper(new THREE.Box3(), new THREE.Color(0x7fd4ff))
     this.selectionBox.visible = false
     // The sketch under the Sketch tool: its outline, its points, the selected point. Drawn on top of everything.
@@ -431,7 +448,7 @@ export class Viewport {
     this.sketchSelected = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color: 0xffffff, size: 13, sizeAttenuation: false, depthTest: false }))
     this.sketchSelected.renderOrder = 952
 
-    this.overlay.add(this.regionMesh, this.regionLines, this.brushMesh, this.hoverMesh, this.selectionBox, this.sketchLine, this.sketchPoints, this.sketchSelected)
+    this.overlay.add(this.previewMesh, this.previewLines, this.regionMesh, this.regionLines, this.brushMesh, this.hoverMesh, this.selectionBox, this.sketchLine, this.sketchPoints, this.sketchSelected)
     this.overlay.add(this.grid.group)
     // Grid lines above the ceiling go with the terrain they outline.
     this.grid.clipWith(this.scene.section.plane)
@@ -825,12 +842,25 @@ export class Viewport {
    */
   private updateRegion(): void {
     const region = this.options.region
+    const preview = this.options.regionPreview
     const revision = this.reader.revision
     this.regionMesh.visible = region !== null && !this.playing
     this.regionLines.visible = this.regionMesh.visible
-    if (region === this.drawnRegion && revision === this.drawnRegionRevision) return
-    this.drawnRegion = region
-    this.drawnRegionRevision = revision
+    this.previewMesh.visible = preview !== null && !this.playing
+    this.previewLines.visible = this.previewMesh.visible
+    if (region !== this.drawnRegion || revision !== this.drawnRegionRevision) {
+      this.drawnRegion = region
+      this.drawnRegionRevision = revision
+      this.drawRegion(region, this.regionMesh, this.regionLines)
+    }
+    if (preview !== this.drawnPreview || revision !== this.drawnPreviewRevision) {
+      this.drawnPreview = preview
+      this.drawnPreviewRevision = revision
+      this.drawRegion(preview, this.previewMesh, this.previewLines)
+    }
+  }
+
+  private drawRegion(region: Region | null, mesh: THREE.Mesh, outline: THREE.LineSegments): void {
     const points: number[] = []
     const lines: number[] = []
     const voxel = region ? structureOf(this.reader.doc, region.structure, 'voxel') : undefined
@@ -892,11 +922,10 @@ export class Viewport {
         }
       }
     }
-    const geometry = this.regionMesh.geometry
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
-    geometry.computeBoundingSphere()
-    this.regionLines.geometry.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3))
-    this.regionLines.geometry.computeBoundingSphere()
+    mesh.geometry.setAttribute('position', new THREE.Float32BufferAttribute(points, 3))
+    mesh.geometry.computeBoundingSphere()
+    outline.geometry.setAttribute('position', new THREE.Float32BufferAttribute(lines, 3))
+    outline.geometry.computeBoundingSphere()
   }
 
   private updateSelection(): void {
@@ -1007,12 +1036,19 @@ export class Viewport {
     const handleY = pick?.handle ? this.options.sketch?.points[pick.handle.index]?.[1] : undefined
     this.strokePlaneY = handleY ?? pick?.point?.y ?? null
     this.panGrab = event.button === 2 ? this.grabAt(event) : null
+    // Which press of a run of quick presses in one place this is. A `pointerdown` carries no click count of its own
+    // (`detail` is a `click`'s), so it is counted here: within the usual double-click time, and a few pixels.
+    const now = performance.now()
+    const last = this.lastPress
+    const again = last !== null && event.button === last.button && now - last.at < 450 && Math.hypot(event.clientX - last.x, event.clientY - last.y) < 6
+    this.lastPress = { at: now, x: event.clientX, y: event.clientY, button: event.button, clicks: again ? last.clicks + 1 : 1 }
     this.handlers.onPointerDown({
       x: event.clientX,
       y: event.clientY,
       button: event.button,
       modifiers: this.modifiers(event),
       pick,
+      clicks: this.lastPress.clicks,
     })
   }
 

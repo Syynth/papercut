@@ -218,8 +218,12 @@ export function BarDivider() {
   return <span className="ui-bar-divider" />
 }
 
-export function BarValue({ children }: { children: ReactNode }) {
-  return <span className="ui-bar-value">{children}</span>
+export function BarValue({ children, title }: { children: ReactNode; title?: string }) {
+  return (
+    <span className="ui-bar-value" title={title}>
+      {children}
+    </span>
+  )
 }
 
 /** A verb: one icon button in the bar. `active` is for a verb that is a selected mode of its own. */

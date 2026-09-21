@@ -21,7 +21,9 @@ proposals to draw on rather than a plan. The boards are generated; their source 
 
 ## The selection tools, mapped out: design pass of 2026-09-20
 
-Proposed. What is built already is Region mode, the three elements, brush, rectangle and fill, surface and
+Proposed, except step 1 of its build order, built on 2026-09-21: double-click takes the whole by each element's
+default rule (Run, Flat, Island), a one-cell brush takes one element, hover shows what a click would take and
+ctrl-hover what a double-click would, and Fill is retired. What was built before that is Region mode, the three elements, brush, rectangle and fill, surface and
 through, combine, and grow, shrink and invert. This pass maps the rest, with the aim that it stays simple: three
 gestures and one Match menu, and everything specialised is what a double-click means.
 

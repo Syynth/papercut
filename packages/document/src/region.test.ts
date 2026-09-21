@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import { createMap, type MapDoc } from './document'
 import { FACE_TOP, edgeKey, faceKey } from './paint'
-import { combineRegions, contractRegion, describeRegion, elementsUnder, expandRegion, invertRegion, pruneRegion, regionOf, voxelKey } from './region'
+import { combineRegions, contractRegion, describeRegion, elementAt, elementsUnder, matchRegion, expandRegion, invertRegion, pruneRegion, regionOf, voxelKey } from './region'
 import type { VoxelStructure } from './structure'
 import { SURFACE_CLIFF, SURFACE_TOP, type SurfaceAddress } from './surface'
 import { fillColumn } from './voxels'
@@ -102,5 +102,50 @@ describe('regions', () => {
     expect(pruneRegion(voxel, region)?.keys).toEqual([voxelKey(4, 3, 2)])
     fillColumn(voxel, 4, 3, 2)
     expect(pruneRegion(voxel, region)).toBeNull()
+  })
+})
+
+describe('the whole an element belongs to (design pass of 2026-09-20)', () => {
+  it("is an edge's run: the straight line of its kind at its height, stopping where it turns", () => {
+    const { voxel } = plateau()
+    // The plateau's north side is two cells long; its east side is another run, and the foot below is its own.
+    expect(matchRegion(voxel, 'edge', edgeKey(3, 3, 3, 'top')).sort()).toEqual([edgeKey(3, 3, 3, 'top'), edgeKey(4, 3, 3, 'top')])
+    expect(matchRegion(voxel, 'edge', edgeKey(4, 3, 3, 'foot')).sort()).toEqual([edgeKey(3, 3, 3, 'foot'), edgeKey(4, 3, 3, 'foot')])
+    // A taller cell in the line ends the run: its lip is at another height.
+    fillColumn(voxel, 4, 3, 8)
+    expect(matchRegion(voxel, 'edge', edgeKey(3, 3, 3, 'top'))).toEqual([edgeKey(3, 3, 3, 'top')])
+    expect(matchRegion(voxel, 'edge', edgeKey(0, 0, 0, 'top'))).toEqual([])
+  })
+
+  it("is a face's flat: the connected faces in its plane, whatever they are painted with", () => {
+    const { voxel } = plateau()
+    expect(matchRegion(voxel, 'face', faceKey(3, 3, 2, FACE_TOP))).toHaveLength(4)
+    // The ground's top is another flat: every cell of it but the four the plateau stands on.
+    expect(matchRegion(voxel, 'face', faceKey(0, 0, 0, FACE_TOP))).toHaveLength(60)
+    // A wall in its own plane, every layer of it: two cells wide, two layers clear of the ground.
+    expect(matchRegion(voxel, 'face', faceKey(4, 3, 1, 0)).sort()).toEqual([faceKey(4, 3, 1, 0), faceKey(4, 3, 2, 0), faceKey(4, 4, 1, 0), faceKey(4, 4, 2, 0)])
+    // A slab's top is not a cube's, though both are tops of the same layer.
+    fillColumn(voxel, 3, 3, 5)
+    expect(matchRegion(voxel, 'face', faceKey(4, 3, 2, FACE_TOP))).toHaveLength(3)
+  })
+
+  it("is a voxel's island: what is connected without going below its layer, so a hill leaves its ground behind", () => {
+    const { voxel } = plateau()
+    expect(matchRegion(voxel, 'voxel', voxelKey(3, 3, 2))).toHaveLength(4)
+    expect(matchRegion(voxel, 'voxel', voxelKey(3, 3, 1))).toHaveLength(8)
+    // From the ground's own layer it is everything, which is what connected means there.
+    expect(matchRegion(voxel, 'voxel', voxelKey(0, 0, 0))).toHaveLength(64 + 8)
+    expect(matchRegion(voxel, 'voxel', voxelKey(3, 3, 1), { lo: 0, hi: 2 })).toHaveLength(4)
+  })
+
+  it('takes one edge for a press, the nearest of those round the cell, and the nearer end of a wall', () => {
+    const { voxel } = plateau()
+    // (4, 3) is the plateau's north-east corner: a wall to the east and one to the north.
+    expect(elementAt(voxel, top(4, 3), 'edge', { fx: 0.9, fz: 0.5, upper: true })).toBe(edgeKey(4, 3, 0, 'top'))
+    expect(elementAt(voxel, top(4, 3), 'edge', { fx: 0.5, fz: 0.1, upper: true })).toBe(edgeKey(4, 3, 3, 'top'))
+    expect(elementAt(voxel, cliff(4, 3, 0, 3), 'edge', { fx: 0, fz: 0, upper: false })).toBe(edgeKey(4, 3, 0, 'foot'))
+    expect(elementAt(voxel, top(3, 3), 'voxel', { fx: 0.5, fz: 0.5, upper: true })).toBe(voxelKey(3, 3, 2))
+    // Level ground away from the map's rim stands no wall, so it has no edge to take.
+    expect(elementAt(voxel, top(1, 1), 'edge', { fx: 0.5, fz: 0.5, upper: true })).toBeNull()
   })
 })

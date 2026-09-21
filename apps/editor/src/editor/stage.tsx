@@ -36,6 +36,7 @@ import {
   slotMaterial,
 } from '@papercut/document'
 import {
+  regionUnder,
   selectionSubject,
   useDocument,
   useDocumentSelector,
@@ -132,7 +133,14 @@ export function Stage({ platform }: { platform: Platform }) {
       onStrokeMove: (pick, modifiers) => host.input.strokeMove(pick, modifiers),
       carrying: () => host.input.carrying(),
       heldKeys: () => host.input.heldKeys(),
-      onHover: (pick) => observed.send({ type: 'hover', surface: pick.surface, cells: brushCellsAt(host, pick.surface) }),
+      onHover: (pick) => {
+        observed.send({ type: 'hover', surface: pick.surface, cells: brushCellsAt(host, pick.surface) })
+        // What a click here would take, under Select's region half; with ctrl held, what a double-click would.
+        const range = host.children.view.getSnapshot().context.layers
+        const span = range === null ? null : { lo: Math.floor(range.lo / 2), hi: Math.ceil(range.hi / 2) }
+        const editing = !isPlaying(host.actor.getSnapshot()) && host.input.gesture() === 'none'
+        viewportRef.current?.setOptions({ regionPreview: editing ? regionUnder(host.reader.doc, host.children.tools.getSnapshot().context, pick, span, host.input.heldKeys().has('control')) : null })
+      },
       onCameraChange: (camera) => observed.send({ type: 'camera', camera }),
       onStats: (stats) => observed.send({ type: 'stats', stats }),
       // The view cube's second click on the view the camera is already at: a view setting, not a document edit.

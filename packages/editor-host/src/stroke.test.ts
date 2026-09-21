@@ -362,6 +362,26 @@ describe("Select's region half (rulings of 2026-09-12 and 2026-09-20)", () => {
     expect(missed.seen).toEqual([])
   })
 
+  it('takes the whole an element belongs to on a double-click, and nothing more from the drag after it (design pass of 2026-09-20)', () => {
+    // Level ground: the flat is every top the map has.
+    const faces = selecting({ ...REGION, selectElement: 'face' })
+    const handler = faces.press({ ...sample(3, 3), clicks: 2 })
+    expect(keysOf(faces.last())).toHaveLength(16 * 16)
+    handler.move(sample(9, 9))
+    expect(keysOf(faces.last())).toHaveLength(16 * 16)
+    // A voxel of level ground is part of one island: the whole layer.
+    const voxels = selecting(REGION)
+    voxels.press({ ...sample(3, 3), clicks: 2 })
+    expect(keysOf(voxels.last())).toHaveLength(16 * 16)
+  })
+
+  it('meets the selection as any press does: alt-double-click takes the whole away', () => {
+    const all: Selection = { kind: 'region', structure: 'ground', element: 'face', keys: ['1,1,0,4', '2,1,0,4'] }
+    const taking = selecting({ ...REGION, selectElement: 'face' }, all)
+    taking.press({ ...sample(1, 1, { alt: true }), clicks: 2 })
+    expect(taking.last()).toBeNull()
+  })
+
   it('leaves objects and structures to the other half of Select', () => {
     const { press, last } = selecting({ ...REGION, selectMode: 'objects' })
     press(sample(3, 3))
