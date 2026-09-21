@@ -729,6 +729,26 @@ describe('the foot of a cliff', () => {
   })
 })
 
+describe('a wall at the map’s rim', () => {
+  it('keeps its top and foot as edges out to the corner, rather than reading the air off the map as more wall', () => {
+    // Found 2026-09-21: ground raised to the map's edge asked for an inside corner at each end of every rim wall — the
+    // course above and below off the map counted as wall — and drew whatever answered that, a floor's inside corner.
+    const doc = createMap(4, 4)
+    for (let z = 0; z < 4; z++) for (let x = 0; x < 4; x++) setHeight(doc, x, z, 2)
+    const look = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet()])
+    const asked: (string | null)[][] = []
+    const tileFor = look.atlas.tileFor.bind(look.atlas)
+    look.atlas.tileFor = (keys, archetype, direction) => {
+      if (archetype === 'wall') asked.push([...keys])
+      return tileFor(keys, archetype, direction)
+    }
+    meshTerrainChunk(ground(doc), '0,0', look)
+    expect(asked.length).toBeGreaterThan(0)
+    // A wall one course tall is all top band and foot: nothing above it, nothing below it, at every corner it has.
+    for (const [nw, ne, sw, se] of asked) expect((nw === null && ne === null) || (sw === null && se === null)).toBe(true)
+  })
+})
+
 describe('texel scale', () => {
   it('draws a wall with as many texels per world unit, up it, as a floor has across it', () => {
     const doc = createMap(8, 8)
