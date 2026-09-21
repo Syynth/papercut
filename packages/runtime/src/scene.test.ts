@@ -39,6 +39,19 @@ function scene(width: number, height: number): RuntimeScene {
   return new RuntimeScene(createMap(width, height), { terrain: [terrainSet()], sprites, textures: {}, materials: DEFAULT_MATERIALS, filtering: 'nearest' })
 }
 
+describe('terrain shadows', () => {
+  it('casts from both sides of the terrain, since it is an open surface and not a closed solid', () => {
+    const runtime = scene(8, 8)
+    runtime.rebuildAll()
+    const meshes = runtime.terrainMeshes()
+    expect(meshes.length).toBeGreaterThan(0)
+    for (const mesh of meshes) {
+      if (!mesh.castShadow) continue
+      expect((mesh.material as THREE.Material).shadowSide).toBe(THREE.DoubleSide)
+    }
+  })
+})
+
 describe('full rebuild reconciles chunks', () => {
   it('drops chunks the replaced map had and the new one does not', () => {
     const runtime = scene(36, 36)

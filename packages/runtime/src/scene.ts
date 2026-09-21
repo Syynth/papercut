@@ -217,6 +217,11 @@ export class RuntimeScene {
       roughness: 1,
       metalness: 0,
       alphaTest: 0.5,
+      // Both sides of the terrain cast. By default three draws only the faces turned away from the light into the
+      // shadow map, which assumes a closed solid; terrain is an open surface, and with only its shaded side casting,
+      // a strip of ground along every wall came out lit — widest to the eye under a high sun (found 2026-09-21,
+      // "Clear noon"). Measured at 12°, 35° and 55°: the extra shadow lands only where the sun is blocked.
+      shadowSide: THREE.DoubleSide,
     })
     this.waterMaterial = new THREE.MeshStandardMaterial({
       color: 0x3f7fb0,
