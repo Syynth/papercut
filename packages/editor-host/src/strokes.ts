@@ -41,7 +41,6 @@
 import {
   DEFAULT_MATCH,
   DIR_VECTORS,
-  SURFACE_CLIFF,
   addObject,
   brushCells,
   clampOffset,
@@ -203,7 +202,8 @@ function selectedTarget(selection: Selection | null): DragTarget | null {
  */
 function selectStroke(deps: StrokeDeps, sample: StrokeSample, selection: Selection | null): EditorStrokeHandler {
   const tools = deps.tools()
-  if (tools.selectMode === 'region') return tools.selectVerb === 'move' && selection?.kind === 'region' && selection.element === 'voxel' ? moveStroke(deps, selection) : regionStroke(deps, selection)
+  // Move is a manipulator on the selection (decision of 2026-09-21): a press on one of its handles moves the voxels, and a press anywhere else selects.
+  if (tools.selectMode === 'region') return sample.pick.axis && selection?.kind === 'region' && selection.element === 'voxel' ? moveStroke(deps, selection) : regionStroke(deps, selection)
   const drag = new Drag(deps)
   const { pick } = sample
   const label = pick.objectId ? 'Move object' : pick.surface ? 'Move structure' : 'Select'
@@ -356,10 +356,7 @@ function moveStroke(deps: StrokeDeps, selection: Extract<Selection, { kind: 'reg
   const keys = selection.keys
   let volume: VolumeSnapshot | null = null
   let objects: ObjectsSnapshot = {}
-  let pressed: { x: number; y: number; z: number } | null = null
-  /** The side pressed, 0 to 3, or `null` for a top: which plane the drag is read on. */
-  let wall: number | null = null
-  /** A handle pressed: the drag goes along that one axis, read off the line the handle stands on. */
+  /** The handle pressed: the drag goes along that one axis, read off the line the handle stands on. */
   let axis: { id: 'x' | 'y' | 'z'; origin: readonly [number, number, number]; from: number } | null = null
   let copy = false
   let last = ''
@@ -376,47 +373,15 @@ function moveStroke(deps: StrokeDeps, selection: Extract<Selection, { kind: 'reg
   }
 
   const offsetAt = (sample: StrokeSample): VoxelOffset => {
-    if (!pressed && !axis) return { dx: 0, dz: 0, dy: 0 }
     const voxel = structureOf(deps.reader.doc, selection.structure, 'voxel')
-    if (!voxel) return { dx: 0, dz: 0, dy: 0 }
+    if (!axis || !voxel || !sample.pick.ray) return { dx: 0, dz: 0, dy: 0 }
+    const travelled = alongAxis(axis.id, axis.origin, sample.pick.ray) - axis.from
+    if (axis.id === 'y') return clampOffset(voxel, keys, { dx: 0, dz: 0, dy: Math.round(travelled) })
+    // A world step along the handle, as the volume's own cells see it.
     const frame = frameOf(deps.reader.doc, voxel.id)
-    const local = (x: number, z: number): [number, number] => toLocal(frame, x, z)
-    const [px, pz] = pressed ? local(pressed.x, pressed.z) : [0, 0]
-    let moved = { dx: 0, dz: 0, dy: 0 }
-    if (axis) {
-      if (!sample.pick.ray) return { dx: 0, dz: 0, dy: 0 }
-      const travelled = alongAxis(axis.id, axis.origin, sample.pick.ray) - axis.from
-      if (axis.id === 'y') moved = { dx: 0, dz: 0, dy: Math.round(travelled) }
-      else {
-        // A world step along the handle, as the volume's own cells see it.
-        const [ox, oz] = local(axis.origin[0], axis.origin[2])
-        const [tx, tz] = local(axis.origin[0] + (axis.id === 'x' ? travelled : 0), axis.origin[2] + (axis.id === 'z' ? travelled : 0))
-        moved = { dx: Math.round(tx - ox), dz: Math.round(tz - oz), dy: 0 }
-      }
-      return clampOffset(voxel, keys, moved)
-    }
-    if (wall === null) {
-      const at = sample.pick.plane ?? sample.pick.point
-      if (at) {
-        const [ax, az] = local(at.x, at.z)
-        moved = { dx: Math.round(ax - px), dz: Math.round(az - pz), dy: 0 }
-      }
-    } else if (sample.pick.ray && pressed) {
-      // Where the pointer's ray meets the upright plane of the wall that was pressed: along it, and up it.
-      const { origin, direction } = sample.pick.ray
-      const [nx, nz] = DIR_VECTORS[wall]
-      const facing = direction.x * nx + direction.z * nz
-      if (Math.abs(facing) > 1e-6) {
-        const t = ((pressed.x - origin.x) * nx + (pressed.z - origin.z) * nz) / facing
-        const [hx, hz] = local(origin.x + direction.x * t, origin.z + direction.z * t)
-        moved = { dx: nx === 0 ? Math.round(hx - px) : 0, dz: nz === 0 ? Math.round(hz - pz) : 0, dy: Math.round(origin.y + direction.y * t - pressed.y) }
-      }
-    }
-    if (sample.modifiers.shift) {
-      const flat = Math.max(Math.abs(moved.dx), Math.abs(moved.dz))
-      moved = wall === null ? (Math.abs(moved.dx) >= Math.abs(moved.dz) ? { ...moved, dz: 0 } : { ...moved, dx: 0 }) : flat >= Math.abs(moved.dy) ? { ...moved, dy: 0 } : { dx: 0, dz: 0, dy: moved.dy }
-    }
-    return clampOffset(voxel, keys, moved)
+    const [ox, oz] = toLocal(frame, axis.origin[0], axis.origin[2])
+    const [tx, tz] = toLocal(frame, axis.origin[0] + (axis.id === 'x' ? travelled : 0), axis.origin[2] + (axis.id === 'z' ? travelled : 0))
+    return clampOffset(voxel, keys, { dx: Math.round(tx - ox), dz: Math.round(tz - oz), dy: 0 })
   }
 
   const move = (sample: StrokeSample): readonly Patch[] => {
@@ -435,19 +400,15 @@ function moveStroke(deps: StrokeDeps, selection: Extract<Selection, { kind: 'reg
     begin(sample) {
       const { pick, modifiers } = sample
       const voxel = structureOf(deps.reader.doc, selection.structure, 'voxel')
-      if (!voxel) return []
       const anchor = regionAnchor(keys)
-      if (pick.axis && pick.ray && anchor) {
-        // A handle: the line it stands on, as it is at the press, and how far along it the press was.
-        const frame = frameOf(deps.reader.doc, voxel.id)
-        const [wx, wz] = toWorld(frame, anchor[0], anchor[2])
-        const origin = [wx, frame.y + anchor[1], wz] as const
-        axis = { id: pick.axis, origin, from: alongAxis(pick.axis, origin, pick.ray) }
-      } else if (!pick.surface || pick.surface.structure !== selection.structure || !pick.point) return []
+      if (!voxel || !pick.axis || !pick.ray || !anchor) return []
+      // The line the handle stands on, as it is at the press, and how far along it the press was.
+      const frame = frameOf(deps.reader.doc, voxel.id)
+      const [wx, wz] = toWorld(frame, anchor[0], anchor[2])
+      const origin = [wx, frame.y + anchor[1], wz] as const
+      axis = { id: pick.axis, origin, from: alongAxis(pick.axis, origin, pick.ray) }
       volume = snapshotVolume(voxel)
       objects = snapshotObjects(deps.reader.doc)
-      pressed = pick.point ? { x: pick.point.x, y: pick.point.y ?? 0, z: pick.point.z } : null
-      wall = !axis && pick.surface?.kind === SURFACE_CLIFF ? pick.surface.dir : null
       copy = modifiers.alt
       last = '0,0,0'
       return []

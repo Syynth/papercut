@@ -1143,3 +1143,19 @@ Each entry:
 - **SCOPE:** moderate (carries out the deferred bend in terrain-spec §207 and the wall's seam slots)
 - **WHAT:** Where a wall turns a corner, the tile centred on the corner is folded across it, half on each face. The editor uses the material's convex seam art at an outside corner and its concave seam art at an inside corner. That art is tagged like the wall's own, as cap, body and foot, with the seam slot. Where no seam art is drawn, each face takes its ordinary wall art as if the wall ran straight on. A wall's end edges are drawn only where it really stops, never at a turn.
 - **WHY:** A kit that draws no corner art, like RPG Maker's cliffs, should still get walls that wrap unbroken round a plateau. A kit that does draw corners should be able to use them. Today every turn ends both faces with their edge art, which makes rounded ends at outside corners and wrong ones inside creases, and the seam slots are tagged but never read.
+
+## Move is a manipulator on the selection, not a mode
+- **WHEN:** 2026-09-21
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui / selection
+- **SCOPE:** moderate
+- **WHAT:** A voxel selection shows its move handles at once. Dragging a handle moves; dragging anywhere else keeps selecting. The Move toggle on the Select bar goes away.
+- **WHY:** Switching the bar to Move and back for every adjustment was the clunkiest part of the tool, and the toggle hid in the More menu at narrow widths. Handles on the selection are what other editors do, and what the redrawn Rule board assumes for every dragged verb.
+
+## Manipulator handles are flat, understated arrows
+- **WHEN:** 2026-09-21
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui / viewport
+- **SCOPE:** minor/local
+- **WHAT:** The move handles are flat arrows lying in a plane, drawn quietly, rather than solid 3D cylinders and cones.
+- **WHY:** Handles that are always showing on a selection must not shout over the pixel-art terrain; solid 3D gizmos read as objects in the scene, flat arrows read as interface.
