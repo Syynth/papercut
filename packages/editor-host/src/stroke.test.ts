@@ -425,3 +425,59 @@ describe("Select's region half (rulings of 2026-09-12 and 2026-09-20)", () => {
     expect(last()).toEqual({ kind: 'structure', id: 'ground' })
   })
 })
+
+describe('Move (design round of 2026-09-19)', () => {
+  const MOVE: ToolsSnapshot = { ...SCULPT, tool: 'select', selectMode: 'region', selectVerb: 'move' }
+  const PILLAR: Selection = { kind: 'region', structure: 'ground', element: 'voxel', keys: ['5,5,1', '5,5,2'] }
+  /** A drag under Move, through the real stroke actor: the document it leaves, the selection, and the one edit it records. */
+  function dragging() {
+    const { reader, logic } = createDocument(createMap(16, 16))
+    const document = createActor(logic).start()
+    fillColumn(ground(reader.doc), 5, 5, 6)
+    const seen: Array<Selection | null> = []
+    const deps: StrokeDeps = { reader, tools: () => MOVE, setTools: () => undefined, select: (selection) => void seen.push(selection), contract: () => undefined }
+    const at = (x: number, z: number, modifiers: Partial<StrokeSample['modifiers']> = {}): StrokeSample => ({ pick: { surface: top(Math.floor(x), Math.floor(z)), point: { x, y: 3, z }, plane: { x, z }, objectId: null }, modifiers: { shift: false, alt: false, ctrl: false, ...modifiers } })
+    const start = (press: StrokeSample) => {
+      const handler = createStrokeHandler(deps, press, PILLAR)
+      if (!handler) throw new Error('Select declined the press')
+      const stroke = createActor(strokeLogic(handler, reader, document as DocumentRef)).start()
+      stroke.send({ type: 'begin', sample: press })
+      return stroke
+    }
+    const solid = (x: number, z: number): boolean[] => [0, 1, 2].map((y) => ground(reader.doc).voxels.shape[(y * 16 + z) * 16 + x] !== -1)
+    return { reader, at, start, solid, seen }
+  }
+
+  it('carries the selected voxels with the drag, takes the selection along, and puts everything back when the drag comes back', () => {
+    const { at, start, solid, seen } = dragging()
+    const stroke = start(at(5.5, 5.5))
+    stroke.send({ type: 'move', sample: at(8.5, 5.5) })
+    expect(solid(5, 5)).toEqual([true, false, false])
+    expect(solid(8, 5)).toEqual([true, true, true])
+    expect(seen[seen.length - 1]).toEqual({ kind: 'region', structure: 'ground', element: 'voxel', keys: ['8,5,1', '8,5,2'] })
+    stroke.send({ type: 'move', sample: at(5.6, 5.4) })
+    expect(solid(5, 5)).toEqual([true, true, true])
+    expect(solid(8, 5)).toEqual([true, false, false])
+  })
+
+  it('holds to one way with shift, and leaves a copy with alt held at the press', () => {
+    const held = dragging()
+    const stroke = held.start(held.at(5.5, 5.5))
+    stroke.send({ type: 'move', sample: held.at(8.5, 6.6, { shift: true }) })
+    expect(held.solid(8, 5)).toEqual([true, true, true])
+    expect(held.solid(8, 6)).toEqual([true, false, false])
+    const copying = dragging()
+    const copy = copying.start(copying.at(5.5, 5.5, { alt: true }))
+    copy.send({ type: 'move', sample: copying.at(5.5, 9.5) })
+    expect(copying.solid(5, 5)).toEqual([true, true, true])
+    expect(copying.solid(5, 9)).toEqual([true, true, true])
+  })
+
+  it('takes a region as usual when nothing that can move is selected', () => {
+    const { reader } = createDocument(createMap(16, 16))
+    const seen: Array<Selection | null> = []
+    const deps: StrokeDeps = { reader, tools: () => MOVE, setTools: () => undefined, select: (selection) => void seen.push(selection), contract: () => undefined }
+    createStrokeHandler(deps, sample(3, 3), null)?.begin(sample(3, 3))
+    expect(seen[seen.length - 1]).toEqual({ kind: 'region', structure: 'ground', element: 'voxel', keys: ['3,3,0'] })
+  })
+})
