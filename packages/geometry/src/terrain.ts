@@ -42,8 +42,9 @@
  *
  * What a course sees: the courses above, below and beside it on the same side
  * of the same or adjacent cell. The top surface above and the ground below
- * are nothing; so is a bend in the face for now, which the spec means to
- * connect through the corner later.
+ * are nothing. A bend in the face is connected through the corner (decision of
+ * 2026-09-21): the course round it is what is beside, and the tile at the
+ * corner, folded across it, is the material's seam art where it has some.
  */
 
 import {
@@ -64,6 +65,7 @@ import {
   faceLayers,
   inBounds,
   materialOfTag,
+  slotOfTag,
   slotMaterial,
   slotTile,
   tagOf,
@@ -72,7 +74,7 @@ import {
   type Tag,
 } from '@papercut/document'
 
-import { FRINGE, LANDING, PICKET, RAIL, SIDE } from './archetype'
+import { CONCAVE, CONVEX, FRINGE, LANDING, PICKET, RAIL, SIDE } from './archetype'
 import type { AtlasTile, CornerKeys } from './atlas'
 import type { TerrainLook, TrimSettings } from './look'
 
@@ -521,13 +523,44 @@ function slopesAlong(cells: Cells, x: number, y: number, dir: number): boolean {
   return corners[start] !== corners[end]
 }
 
+/** The side whose outward normal is (dx, dy). */
+const sideFacing = (dx: number, dy: number): number => DIR_VECTORS.findIndex(([vx, vy]) => vx === dx && vy === dy)
+
+/** Where a wall goes on past a turn: the face it carries on as, and which kind of turn it is. */
+interface Turn {
+  x: number
+  y: number
+  dir: number
+  seam: typeof CONVEX | typeof CONCAVE
+}
+
+/**
+ * Where cell (x, y)'s wall on side `dir` carries on round a corner in course `course`, one cell `along` its side (1
+ * toward its end, -1 toward its start), when the cell there has no wall on that side to carry on as (decision of
+ * 2026-09-21; terrain-spec: a bend counts as connected through the corner). An OUTSIDE turn carries on as this cell's
+ * own side facing that way; an INSIDE one as the side, facing back, of the cell diagonally out in front. `null` where
+ * the wall stops.
+ */
+function turnOf(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, along: number, course: number): Turn | null {
+  const [ux, uy] = SIDE_GEOMETRY[dir].u
+  const ahead = sideFacing(along * ux, along * uy)
+  if (courseExists(cells, voxel, x, y, ahead, course)) return { x, y, dir: ahead, seam: CONVEX }
+  const [nx, ny] = DIR_VECTORS[dir]
+  const [cx, cy] = [x + along * ux + nx, y + along * uy + ny]
+  const back = sideFacing(-along * ux, -along * uy)
+  if (courseExists(cells, voxel, cx, cy, back, course)) return { x: cx, y: cy, dir: back, seam: CONCAVE }
+  return null
+}
+
 /**
  * The four terrains around a corner of a course on material layer `layer`, in face space: `atEnd` picks
  * the corner at the side's end (u = 1) rather than its start, `atTop` the
  * corner at the course's top rather than its bottom. Courses beside are on the
- * cell before or after this one along the side; off the volume continues.
+ * cell before or after this one along the side, or round the corner where the
+ * wall turns; off the volume continues. With `seam`, every corner names that
+ * seam slot: the lookup for the tile folded across a turn.
  */
-function courseCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, course: number, atEnd: boolean, atTop: boolean, layer: number, asSide = false): CornerKeys {
+function courseCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, course: number, atEnd: boolean, atTop: boolean, layer: number, asSide = false, seam: string | null = null): CornerKeys {
   const [ux, uy] = SIDE_GEOMETRY[dir].u
   // Read as a ramp's side (ruling of 2026-09-19), a course under a slope is that material's SIDE, and one under a
   // level edge stays the wall it is: so side art meets the wall beside it as two things, and can blend with it.
@@ -542,11 +575,20 @@ function courseCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, 
     // Off the volume the column continues as this one: a course there only where this cell has one, so the wall's top
     // and foot stay edges out to the map's rim rather than reading the air above and the ground below as more wall.
     if (!inBounds(voxel.size, cx, cy)) return c === course ? own : courseExists(cells, voxel, x, y, dir, c) ? slotted(cells.course(x, y, dir, c).keys[layer], x, y) : null
-    return courseExists(cells, voxel, cx, cy, dir, c) ? slotted(cells.course(cx, cy, dir, c).keys[layer], cx, cy) : null
+    if (courseExists(cells, voxel, cx, cy, dir, c)) return slotted(cells.course(cx, cy, dir, c).keys[layer], cx, cy)
+    // No wall of its own there: the wall may turn, and carries on as the face round the corner.
+    const turn = along === 0 ? null : turnOf(cells, voxel, x, y, dir, along, c)
+    return turn === null ? null : cells.course(turn.x, turn.y, turn.dir, c).keys[layer]
   }
   const before = atEnd ? 0 : -1
   const upper = atTop ? course + 1 : course
-  return [at(before, upper), at(before + 1, upper), at(before, upper - 1), at(before + 1, upper - 1)]
+  const keys: CornerKeys = [at(before, upper), at(before + 1, upper), at(before, upper - 1), at(before + 1, upper - 1)]
+  if (seam === null) return keys
+  const named = (tag: Tag): Tag => {
+    const material = materialOfTag(tag)
+    return material === null || slotOfTag(tag) !== null ? tag : tagOf(material, seam)
+  }
+  return keys.map(named) as unknown as CornerKeys
 }
 
 // --- the chunk ------------------------------------------------------------------
@@ -958,6 +1000,10 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
             // The wall region cut to this quarter, exactly: a slope crossing it is followed, not approximated.
             const piece = clipToRect(region, t0, t0 + 0.5, level, level + 1)
             if (piece.length === 0) continue
+            // At a turn the quarter is half of the tile folded across the corner: the material's seam art when it has
+            // some (decision of 2026-09-21), and otherwise the wall carrying on, which `courseCorner` already reads.
+            const along = atEnd ? 1 : -1
+            const turn = inBounds(voxel.size, x + along * u[0], y + along * u[1]) && !courseExists(cells, voxel, x + along * u[0], y + along * u[1], dir, course) ? turnOf(cells, voxel, x, y, dir, along, course) : null
             const rects = quarterRects(
               cells.course(x, y, dir, course),
               'wall',
@@ -965,10 +1011,12 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
               (layer) => courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer),
               () => mark(ox + u[0] * (atEnd ? 1 : 0), (atTop ? course + 1 : course) * 2 * HALF, oz + u[1] * (atEnd ? 1 : 0)),
               undefined,
-              // Under a slope the face is the ramp's SIDE: its own art when the material has some, drawn for the way
-              // the slope runs across the face — east when it falls toward the side's end, west toward its start — so
-              // art for one is mirrored for the other; the wall art above when it has none.
-              sloped ? (layer) => atlas.slotTile(courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer, true), 'ramp', topStart > topEnd ? 0 : 2) : undefined,
+              (layer) =>
+                // Under a slope the face is the ramp's SIDE: its own art when the material has some, drawn for the way
+                // the slope runs across the face — east when it falls toward the side's end, west toward its start — so
+                // art for one is mirrored for the other; the wall art above when it has none.
+                (sloped ? atlas.slotTile(courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer, true), 'ramp', topStart > topEnd ? 0 : 2) : null) ??
+                (turn ? atlas.slotTile(courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer, false, turn.seam), 'wall') : null),
             )
             solid.polygon(
               piece.map(([t, h]) => [ox + u[0] * t, h * HALF, oz + u[1] * t] as const),

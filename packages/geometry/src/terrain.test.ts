@@ -123,9 +123,9 @@ describe('what a face is drawn with', () => {
     const look = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet()])
     const magenta = (rgba: number[]): boolean => rgba[0] === 0xff && rgba[1] === 0 && rgba[2] === 0xff && rgba[3] === 255
 
-    // The whole east side of the column in stone, so the band at level 6 (layer 3's lower band) meets
-    // only stone and nothing: a stone band beside a grass one is a pair nobody drew, which is the fallback too.
-    for (let y = 0; y < 4; y++) ground(doc).paint.faces[faceKey(3, 3, y, 0)] = layersOf(2)
+    // Every side of the column in stone, so the band at level 6 (layer 3's lower band) meets only stone and
+    // nothing, round the corners too: a stone band beside a grass one is a pair nobody drew, which is the fallback.
+    for (let y = 0; y < 4; y++) for (let dir = 0; dir < 4; dir++) ground(doc).paint.faces[faceKey(3, 3, y, dir)] = layersOf(2)
     const painted = bandTexels(meshTerrainChunk(ground(doc), '0,0', look), look, 3, 3, 0, 6)
     expect(painted.length).toBeGreaterThan(0)
     expect(painted.some(magenta)).toBe(false)
@@ -746,6 +746,59 @@ describe('a wall at the map’s rim', () => {
     expect(asked.length).toBeGreaterThan(0)
     // A wall one course tall is all top band and foot: nothing above it, nothing below it, at every corner it has.
     for (const [nw, ne, sw, se] of asked) expect((nw === null && ne === null) || (sw === null && se === null)).toBe(true)
+  })
+})
+
+describe('a wall turning a corner (decision of 2026-09-21)', () => {
+  /** Every corner a wall asks the atlas for while `doc` is meshed through `look`. */
+  const wallCorners = (doc: MapDoc, look: TerrainLook): (string | null)[][] => {
+    const asked: (string | null)[][] = []
+    const tileFor = look.atlas.tileFor.bind(look.atlas)
+    look.atlas.tileFor = (keys, archetype, direction) => {
+      if (archetype === 'wall') asked.push([...keys])
+      return tileFor(keys, archetype, direction)
+    }
+    meshTerrainChunk(ground(doc), '0,0', look)
+    return asked
+  }
+  /** Whether a corner is a wall ending: something on one side of it and nothing on the other, in a row. */
+  const ends = ([nw, ne, sw, se]: (string | null)[]): boolean => (nw === null) !== (ne === null) || (sw === null) !== (se === null)
+
+  it('carries a wall on round an outside corner and an inside one, with no end drawn at either', () => {
+    // An L of columns a course above the ground: five outside corners, and the inside one in the crook of the L.
+    const doc = createMap(8, 8)
+    for (const [x, z] of [[2, 2], [3, 2], [2, 3]]) setHeight(doc, x, z, 4)
+    const asked = wallCorners(doc, createTerrainLook(DEFAULT_MATERIALS, [placeholderSet()]))
+    expect(asked.length).toBeGreaterThan(0)
+    expect(asked.filter(ends)).toEqual([])
+  })
+
+  it('folds the material’s seam art across a turn, and draws its ordinary wall there without it', () => {
+    // A pillar a course above the ground: each end of each face is at an outside corner. Grass's convex seam is a cap
+    // and a foot, in red.
+    const doc = createMap(8, 8)
+    setHeight(doc, 3, 3, 4)
+    const seam = tagOf(DEFAULT_MATERIALS[0].id, 'convex')
+    let set = placeholderSet().set
+    const image = solid(16 * TILE, 8 * TILE, [0, 255, 0, 255])
+    const paint = (column: number, row: number): void => {
+      for (let y = 0; y < TILE; y++) for (let x = 0; x < TILE; x++) image.data.set([255, 0, 0, 255], ((row * TILE + y) * 16 * TILE + column * TILE + x) * 4)
+    }
+    const tag = (column: number, row: number, corners: (string | null)[]): void => {
+      corners.forEach((corner, i) => (set = tagCorner(set, row * 16 + column, i, corner)))
+      paint(column, row)
+    }
+    tag(15, 6, [null, null, seam, seam])
+    tag(15, 7, [seam, seam, null, null])
+    const red = (rgba: number[]): boolean => rgba[0] === 255 && rgba[1] === 0
+    const withSeam = createTerrainLook(DEFAULT_MATERIALS, [{ set, image }])
+    const seamed = [2, 3].flatMap((level) => bandTexels(meshTerrainChunk(ground(doc), '0,0', withSeam), withSeam, 3, 3, 1, level))
+    expect(seamed.length).toBeGreaterThan(0)
+    expect(seamed.every(red)).toBe(true)
+    const plain = createTerrainLook(DEFAULT_MATERIALS, [placeholderSet()])
+    const unseamed = [2, 3].flatMap((level) => bandTexels(meshTerrainChunk(ground(doc), '0,0', plain), plain, 3, 3, 1, level))
+    expect(unseamed.length).toBe(seamed.length)
+    expect(unseamed.some(red)).toBe(false)
   })
 })
 

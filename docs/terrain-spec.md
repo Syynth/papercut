@@ -205,7 +205,7 @@ From a side face's point of view the four bands around a corner are the
 bands above, below and beside it on the same side of the same or adjacent
 cell; the top surface above the top band and the ground below the bottom
 one are nothing; a bend in the face counts as connected through the corner
-(deferred: the mesher treats a bend as an edge for now).
+(decision of 2026-09-21: the tile at the corner is folded across it, the material's convex or concave seam art where drawn).
 
 ### The lookup
 
