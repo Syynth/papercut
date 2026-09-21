@@ -39,29 +39,36 @@
  */
 
 import {
+  DIR_VECTORS,
   addObject,
   brushCells,
   combineRegions,
   defaultFacing,
   descendantsOf,
+  elementAt,
   elementsUnder,
-  fillCells,
   frameOf,
   groundedPosition,
+  inBounds,
   newId,
+  matchRegion,
   placeStructureOnto,
   rectCells,
   regionOf,
   snapTo,
   structureAt,
   structureOf,
+  toLocal,
   toWorld,
+  topHeight,
   updateObject,
   type Cell,
   type DocumentReader,
   type LayerSpan,
   type MapObject,
   type Patch,
+  type ReadonlyMapDoc,
+  type ReadonlyVoxel,
   type Region,
   type RegionCombine,
   type SnapMode,
@@ -111,6 +118,8 @@ export const NO_PICK: PickSample = { surface: null, point: null, objectId: null 
 export interface StrokeSample {
   readonly pick: PickSample
   readonly modifiers: PointerModifiers
+  /** On a press, which of a run of quick presses in one place it is: 2 for a double-click. Absent is 1. */
+  readonly clicks?: number
 }
 
 /** The tools actor's snapshot, flattened: its state (`terrainMode`) beside its context. */
@@ -210,32 +219,75 @@ function selectStroke(deps: StrokeDeps, sample: StrokeSample, selection: Selecti
   }
 }
 
+/** Where in a cell the pointer is, and whether it is in the upper half of the wall it is on: what picks one edge among several. */
+function placeIn(doc: ReadonlyMapDoc, pick: PickSample, cell: SurfaceAddress, voxel: ReadonlyVoxel): { fx: number; fz: number; upper: boolean } {
+  const frame = frameOf(doc, voxel.id)
+  const [lx, lz] = pick.point ? toLocal(frame, pick.point.x, pick.point.z) : [cell.x + 0.5, cell.y + 0.5]
+  const clamp = (v: number): number => Math.min(1, Math.max(0, v))
+  // A wall's middle, in world units: half way between the ground its foot is on and its own top.
+  const [dx, dz] = DIR_VECTORS[cell.dir] ?? [0, 0]
+  const foot = inBounds(voxel.size, cell.x + dx, cell.y + dz) ? topHeight(voxel, cell.x + dx, cell.y + dz) : 0
+  const middle = frame.y + ((topHeight(voxel, cell.x, cell.y) + foot) / 2) * 0.5
+  return { fx: clamp(lx - cell.x), fz: clamp(lz - cell.y), upper: pick.point?.y === undefined || pick.point.y >= middle }
+}
+
+/**
+ * What a press at `at` takes, read against the face first pressed, `press`: the whole the element under it belongs to
+ * for a double-click; one element under a one-cell brush; else what the footprint covers. The ONE answer to "what
+ * would selecting here take", so the hover preview and the stroke cannot disagree.
+ */
+export function regionKeysAt(doc: ReadonlyMapDoc, tools: ToolsSnapshot, press: SurfaceAddress, at: SurfaceAddress, pick: PickSample, span: LayerSpan | null, whole: boolean): string[] {
+  const voxel = structureOf(doc, press.structure, 'voxel')
+  if (!voxel) return []
+  if (whole) {
+    const key = elementAt(voxel, press, tools.selectElement, placeIn(doc, pick, press, voxel))
+    return key === null ? [] : matchRegion(voxel, tools.selectElement, key, span)
+  }
+  if (tools.selectFootprint === 'brush' && tools.selectSize === 1 && tools.selectDepth === 'surface') {
+    // The element under the pointer, read against the face pressed but at the cell the pointer is over now.
+    const key = elementAt(voxel, { ...press, x: at.x, y: at.y }, tools.selectElement, placeIn(doc, pick, at, voxel))
+    return key === null ? [] : [key]
+  }
+  const cells: Cell[] = tools.selectFootprint === 'rect' ? rectCells(voxel, press.x, press.y, at.x, at.y) : brushCells(voxel, at.x, at.y, { size: tools.selectSize, shape: 'square' })
+  return elementsUnder(voxel, press, cells, tools.selectElement, tools.selectDepth, span)
+}
+
+/** What a click where the pointer is would take, or with `whole` a double-click: the hover preview's region. `null` off the terrain, or when Select is not on regions. */
+export function regionUnder(doc: ReadonlyMapDoc, tools: ToolsSnapshot, pick: PickSample, span: LayerSpan | null, whole: boolean): Region | null {
+  if (tools.tool !== 'select' || tools.selectMode !== 'region' || !pick.surface) return null
+  const keys = regionKeysAt(doc, tools, pick.surface, pick.surface, pick, span, whole)
+  return keys.length ? regionOf(pick.surface.structure, tools.selectElement, keys) : null
+}
+
 /**
  * Select's region half (rulings of 2026-09-12 and 2026-09-20): a press and a drag select some of a voxel volume's
  * edges, faces or voxels. The face pressed says what is taken — a top's cells, or one side of them — the footprint
  * says which cells, and the stroke meets the region already there as the bar says: shift adds and alt subtracts,
  * whatever it says. It writes nothing to the map, so it is no undo step; the selection it makes is the view's.
  *
- * A brush gathers along the drag; a rectangle runs from the press to the pointer; a fill is the connected flat under
- * the press. The pressed face stays the reference for the whole stroke, so dragging off a cliff top onto the ground
+ * A brush gathers along the drag; a rectangle runs from the press to the pointer. A one-cell brush takes ONE element,
+ * so a click on a cell with several edges round it takes the edge nearest the pointer. A DOUBLE-CLICK takes the whole
+ * the element belongs to (design pass of 2026-09-20): an edge's run, a face's flat, a voxel's island. It meets the
+ * selection as any press does, and by then the first click of the pair has already taken the element itself, so
+ * shift-double-click adds the whole and alt-double-click takes it away. The pressed face stays the reference for the whole stroke, so dragging off a cliff top onto the ground
  * keeps taking tops, and along a wall keeps taking that side.
  */
 function regionStroke(deps: StrokeDeps, selection: Selection | null): EditorStrokeHandler {
   const before: Region | null = selection?.kind === 'region' ? selection : null
   let press: SurfaceAddress | null = null
   let mode: RegionCombine = 'replace'
+  /** A double-click: the press takes the whole its element belongs to, and the drag after it takes nothing more. */
+  let whole = false
   const gathered = new Set<string>()
 
   const take = (sample: StrokeSample): void => {
     if (!press) return
-    const voxel = structureOf(deps.reader.doc, press.structure, 'voxel')
     const at = sample.pick.surface?.structure === press.structure ? sample.pick.surface : null
-    if (!voxel || !at) return
+    if (!at) return
     const tools = deps.tools()
-    const cells: Cell[] = tools.selectFootprint === 'rect' ? rectCells(voxel, press.x, press.y, at.x, at.y) : tools.selectFootprint === 'fill' ? fillCells(voxel, press.x, press.y) : brushCells(voxel, at.x, at.y, { size: tools.selectSize, shape: 'square' })
     // A rectangle is redrawn from the press each tick; a brush keeps what it has passed over.
-    if (tools.selectFootprint === 'rect') gathered.clear()
-    for (const key of elementsUnder(voxel, press, cells, tools.selectElement, tools.selectDepth, deps.layerSpan?.() ?? null)) gathered.add(key)
+    if (tools.selectFootprint === 'rect' && !whole) gathered.clear()
+    for (const key of regionKeysAt(deps.reader.doc, tools, press, at, sample.pick, deps.layerSpan?.() ?? null, whole)) gathered.add(key)
     const next = regionOf(press.structure, tools.selectElement, gathered)
     const region = combineRegions(before, next, mode)
     deps.select(region ? { kind: 'region', ...region } : null)
@@ -252,11 +304,12 @@ function regionStroke(deps: StrokeDeps, selection: Selection | null): EditorStro
         return []
       }
       press = pick.surface
+      whole = (sample.clicks ?? 1) >= 2
       take(sample)
       return []
     },
     move(sample) {
-      take(sample)
+      if (!whole) take(sample)
       return []
     },
     end: () => [],

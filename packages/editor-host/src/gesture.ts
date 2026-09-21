@@ -67,6 +67,8 @@ export interface PointerPress {
   readonly button: number
   readonly modifiers: PointerModifiers
   readonly pick: PickSample | null
+  /** Which press of a run of quick presses in one place this is: 2 for a double-click. Absent is 1. */
+  readonly clicks?: number
 }
 
 export interface PointerMotion {
@@ -107,7 +109,7 @@ export interface GestureContext {
 }
 
 function sampleOf(press: PointerPress): StrokeSample {
-  return { pick: press.pick ?? NO_PICK, modifiers: press.modifiers }
+  return { pick: press.pick ?? NO_PICK, modifiers: press.modifiers, ...(press.clicks !== undefined && press.clicks > 1 ? { clicks: press.clicks } : {}) }
 }
 
 export function gestureLogic(deps: GestureDeps) {

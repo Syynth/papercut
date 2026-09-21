@@ -20,7 +20,7 @@ import { AIR, DIR_VECTORS, SHAPE_BLOCK, inBounds, type EdgeEnd } from './documen
 import { FACE_BOTTOM, FACE_TOP, edgeKey, faceKey, parseFaceKey } from './paint'
 import type { ReadonlyVoxel } from './structure'
 import { SURFACE_CLIFF, type SurfaceAddress } from './surface'
-import { columnTopAt, voxelAt, wallStands } from './voxels'
+import { columnTopAt, topHeight, voxelAt, wallStands } from './voxels'
 
 export type RegionElement = 'voxel' | 'face' | 'edge'
 export const REGION_ELEMENTS: readonly RegionElement[] = ['voxel', 'face', 'edge']
@@ -182,6 +182,93 @@ function beside(element: RegionElement, key: string): string[] {
   const { x, z, dir, end } = parseEdgeKey(key)
   const [ax, az] = DIR_VECTORS[(dir + 1) % 4]
   return [edgeKey(x + ax, z + az, dir, end), edgeKey(x - ax, z - az, dir, end)]
+}
+
+/** The rule a double-click takes "the whole" by (design pass of 2026-09-20). One per element so far, each the element's default. */
+export type RegionMatch = 'run' | 'flat' | 'island'
+
+/** The default rule for an element: the full edge, the flat a face is part of, the island a voxel is part of. */
+export const DEFAULT_MATCH: Readonly<Record<RegionElement, RegionMatch>> = { edge: 'run', face: 'flat', voxel: 'island' }
+
+/** How many elements a match may take before it stops: a guard, not a limit anyone should meet. */
+const MATCH_LIMIT = 50_000
+
+/** The height an edge's line lies at, in half-tiles: the wall's own top, or the top of the ground its foot stands on. */
+function edgeHeight(voxel: ReadonlyVoxel, x: number, z: number, dir: number, end: EdgeEnd): number {
+  if (end === 'top') return topHeight(voxel, x, z)
+  const [dx, dz] = DIR_VECTORS[dir]
+  return inBounds(voxel.size, x + dx, z + dz) ? topHeight(voxel, x + dx, z + dz) : 0
+}
+
+/**
+ * The whole an element belongs to (design pass of 2026-09-20), which is what a double-click takes:
+ *
+ *   an edge's RUN     the straight line of edges of its kind at its height — one side of a plateau, one wall's foot —
+ *                     stopping where the line turns or the height changes;
+ *   a face's FLAT     the connected faces in its own plane: tops at its height and of its shape, or the wall it is
+ *                     part of, every layer of it, whatever they are painted with;
+ *   a voxel's ISLAND  everything connected to it without going below its layer, so a hill comes away from the
+ *                     ground it stands on.
+ *
+ * Within `span`, the layers the layer view leaves drawn. An element that does not exist matches nothing.
+ */
+export function matchRegion(voxel: ReadonlyVoxel, element: RegionElement, key: string, span: LayerSpan | null = null): string[] {
+  if (!exists(voxel, element, key)) return []
+  if (element === 'edge') {
+    const { x, z, dir, end } = parseEdgeKey(key)
+    const height = edgeHeight(voxel, x, z, dir, end)
+    const [ax, az] = DIR_VECTORS[(dir + 1) % 4]
+    const out = [key]
+    for (const step of [1, -1]) {
+      for (let i = 1; i < MATCH_LIMIT; i++) {
+        const [cx, cz] = [x + ax * i * step, z + az * i * step]
+        if (!inBounds(voxel.size, cx, cz) || !wallStands(voxel, cx, cz, dir) || edgeHeight(voxel, cx, cz, dir, end) !== height) break
+        out.push(edgeKey(cx, cz, dir, end))
+      }
+    }
+    return out
+  }
+  // A flood over what is beside, kept to what belongs with the start.
+  const start = element === 'voxel' ? parseVoxelKey(key) : parseFaceKey(key)
+  const level = (f: { x: number; z: number; y: number }): number => (f.y < 0 ? AIR : voxelAt(voxel, f.x, f.z, f.y))
+  const belongs = (other: string): boolean => {
+    if (element === 'voxel') {
+      const v = parseVoxelKey(other)
+      return v.y >= start.y && within(span, v.y)
+    }
+    const f = parseFaceKey(other)
+    // A top's plane is its layer and its shape: a slab's top is not a cube's, and a ramp's is its own.
+    const flat = 'dir' in start && (start.dir === FACE_TOP || start.dir === FACE_BOTTOM)
+    return (f.y < 0 || within(span, f.y)) && (!flat || level(f) === level(start))
+  }
+  const seen = new Set([key])
+  const queue = [key]
+  while (queue.length > 0 && seen.size < MATCH_LIMIT) {
+    for (const other of beside(element, queue.pop() as string)) {
+      if (seen.has(other) || !exists(voxel, element, other) || !belongs(other)) continue
+      seen.add(other)
+      queue.push(other)
+    }
+  }
+  return [...seen]
+}
+
+/**
+ * The one element under a press, where a footprint would take several: of the edges round a cell, the one nearest
+ * the pointer — `fx`, `fz` are where in the cell it is, 0 to 1 — and of a wall's two, the top when the pointer is in
+ * the wall's upper half (`upper`). Faces and voxels are already one to a press.
+ */
+export function elementAt(voxel: ReadonlyVoxel, press: SurfaceAddress, element: RegionElement, at: { fx: number; fz: number; upper: boolean }): string | null {
+  const keys = elementsUnder(voxel, press, [[press.x, press.y]], element, 'surface')
+  if (element !== 'edge' || keys.length <= 1) return keys[0] ?? null
+  if (press.kind === SURFACE_CLIFF) return keys.find((key) => parseEdgeKey(key).end === (at.upper ? 'top' : 'foot')) ?? keys[0]
+  // Which side of the pressed cell each edge lies along: a top's own side, or for a foot the side its wall stands on.
+  const sideOf = (key: string): number => {
+    const e = parseEdgeKey(key)
+    return e.end === 'top' ? e.dir : (e.dir + 2) % 4
+  }
+  const distance = [1 - at.fx, 1 - at.fz, at.fx, at.fz]
+  return [...keys].sort((a, b) => distance[sideOf(a)] - distance[sideOf(b)])[0]
 }
 
 /** The region and everything beside it. */
