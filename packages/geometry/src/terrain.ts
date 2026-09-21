@@ -27,6 +27,10 @@
  * stacks them. A face with nothing on it draws the fallback on its first
  * layer, and a corner no tile answers draws the fallback on its own.
  *
+ * A column is read as SPANS (2026-09-21): each run of voxels with air over it has a top, a run with air under it has
+ * an underside, and its sides are walled wherever the neighbour has air beside them — so an overhang, a gap and a
+ * block that floats are drawn as what they are. Every rule below is of a span and the spans beside it.
+ *
  * What a top face sees at a corner, on each layer: the four cells around it, each by the
  * height of its own vertex there. A neighbour whose vertex is lower is
  * nothing (the cliff top draws its rim from the edge set); one level with it
@@ -48,18 +52,21 @@
  */
 
 import {
+  AIR,
   type ArchetypeId,
   type ReadonlyVoxel,
   CORNER_OFFSETS,
   DIR_VECTORS,
+  FACE_BOTTOM,
   FACE_TOP,
   HALF,
   NO_WATER,
   SURFACE_CLIFF,
   SURFACE_TOP,
+  SURFACE_UNDER,
   SURFACE_WATER,
   chunkBounds,
-  cornerHeights,
+  cornerHeightsAt,
   encodeExtra,
   edgeOff,
   faceLayers,
@@ -70,7 +77,6 @@ import {
   slotTile,
   tagOf,
   tintPaint,
-  topHeight,
   type Tag,
 } from '@papercut/document'
 
@@ -126,6 +132,9 @@ const RAIL_GAP = 0.02
 
 /** How much each occluding neighbour darkens a corner. */
 const AO_STRENGTH = 0.17
+
+/** How bright an underside is drawn: it faces away from the sky. */
+const UNDER_SHADE = 1 - AO_STRENGTH * 2
 
 /** Quarter q of a face (0 NW, 1 NE, 2 SW, 3 SE in the face's own space) is this quadrant of the corner tile it sits on: the opposite one. */
 const QUADRANT_OF_QUARTER = [3, 2, 1, 0]
@@ -236,26 +245,6 @@ class BufferBuilder {
 
 // --- heights ------------------------------------------------------------------
 
-/**
- * The neighbour's own edge along one of this cell's sides, corner for
- * corner: the heights at this cell's start and end corners of that side as
- * the NEIGHBOUR has them — level for a flat cell, sloped for a ramp. A side
- * face is drawn wherever this cell's edge stands above it, so a flat cell
- * beside a ramp walls off the triangle between the ramp's sloped edge and
- * its own level one, which comparing flat heights never saw (the ramp
- * keeps its height and lowers corners). Outside the volume the edge is at
- * the floor.
- */
-function neighbourEdge(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number): [number, number] {
-  const [dx, dy] = DIR_VECTORS[dir]
-  const nx = x + dx
-  const ny = y + dy
-  if (!inBounds(voxel.size, nx, ny)) return [OUTSIDE_HEIGHT, OUTSIDE_HEIGHT]
-  const corners = cells.at(nx, ny).corners
-  const [start, end] = NEIGHBOUR_CORNERS[dir]
-  return [corners[start], corners[end]]
-}
-
 /** Which of `CORNER_OFFSETS` a vertex offset (dx, dy) from the cell's origin is. */
 const CORNER_AT = [
   [0, 1],
@@ -287,7 +276,8 @@ const NOTHING: FaceKeys = { keys: [null, null, null, null], tiles: NO_TILES, emp
  * times slower than the heightmap's.
  */
 class Cells {
-  private cells = new Map<number, CellInfo>()
+  private columns = new Map<number, readonly Span[]>()
+  private sides = new Map<number, readonly WallPart[]>()
   private bands = new Map<number, FaceKeys>()
 
   constructor(
@@ -295,28 +285,107 @@ class Cells {
     private readonly look: TerrainLook,
   ) {}
 
-  /** For a cell inside the volume. */
-  at(x: number, y: number): CellInfo {
+  /**
+   * The spans of a column inside the volume, lowest first: each run of voxels with air over it, and under them all the
+   * bedrock floor where the column's lowest voxel is air. A voxel inside a run is read as filling its cube, whatever
+   * its shape: only a run's top voxel shapes anything.
+   */
+  spans(x: number, y: number): readonly Span[] {
     const key = y * this.voxel.size.width + x
-    let info = this.cells.get(key)
-    if (info) return info
-    const corners = cornerHeights(this.voxel, x, y)
-    const top = topHeight(this.voxel, x, y)
-    // The top face is the top voxel's; an empty column's is the bedrock floor's, at layer -1.
-    info = { corners, top, face: this.faceKeys(x, y, Math.ceil(top / 2) - 1, FACE_TOP) }
-    this.cells.set(key, info)
-    return info
+    const known = this.columns.get(key)
+    if (known) return known
+    const { voxel } = this
+    const shape = voxel.voxels.shape
+    const solid = (layer: number): boolean => layer < voxel.layers && shape[(layer * voxel.size.height + y) * voxel.size.width + x] !== AIR
+    const span = (y0: number, y1: number): Span => {
+      const corners = cornerHeightsAt(voxel, x, y, y1)
+      // The top face is the top voxel's; the bedrock floor's is at layer -1. Only a run with air under it has an underside.
+      return { y0, y1, bottom: Math.max(y0, 0) * 2, corners, top: Math.max(...corners), face: this.faceKeys(x, y, y1, FACE_TOP), under: y0 > 0 ? this.faceKeys(x, y, y0, FACE_BOTTOM) : null }
+    }
+    const out: Span[] = []
+    if (!solid(0)) out.push(span(-1, -1))
+    let start = -1
+    for (let layer = 0; layer <= voxel.layers; layer++) {
+      if (solid(layer)) {
+        if (start < 0) start = layer
+      } else if (start >= 0) {
+        out.push(span(start, layer - 1))
+        start = -1
+      }
+    }
+    this.columns.set(key, out)
+    return out
   }
 
-  /** The column's top, or the floor outside the volume. */
-  top(x: number, y: number): number {
-    return inBounds(this.voxel.size, x, y) ? this.at(x, y).top : OUTSIDE_HEIGHT
+  /**
+   * The air beside cell (x, y) on side `dir`, lowest first: each stretch between the top of one of the neighbour's
+   * spans — corner for corner along the side, level for a flat top and sloped for a ramp's — and the underside of its
+   * next. Off the volume it is all air, down to the floor.
+   */
+  private gaps(x: number, y: number, dir: number): Gap[] {
+    const [dx, dy] = DIR_VECTORS[dir]
+    if (!inBounds(this.voxel.size, x + dx, y + dy)) return [{ lowStart: OUTSIDE_HEIGHT, lowEnd: OUTSIDE_HEIGHT, high: Infinity, floor: null }]
+    const [start, end] = NEIGHBOUR_CORNERS[dir]
+    const spans = this.spans(x + dx, y + dy)
+    return spans.map((s, i) => ({ lowStart: s.corners[start], lowEnd: s.corners[end], high: i + 1 < spans.length ? spans[i + 1].bottom : Infinity, floor: s }))
   }
 
-  /** A cell's height at grid vertex (vx, vy), one of its four corners, in half-tiles; the floor outside the volume. */
-  vertex(x: number, y: number, vx: number, vy: number): number {
-    if (!inBounds(this.voxel.size, x, y)) return OUTSIDE_HEIGHT
-    return this.at(x, y).corners[CORNER_AT[vx - x][vy - y]]
+  /**
+   * The walls cell (x, y) shows on side `dir`: for each of its spans and each stretch of air beside it, the part of
+   * the span's side that stands in that air. A side is walled wherever this cell's edge stands above the neighbour's
+   * edge along it, both taken corner for corner, so a flat cell beside a ramp walls off the triangle between the
+   * ramp's sloped edge and its own level one; and only between the span's underside and the neighbour's next one.
+   */
+  walls(x: number, y: number, dir: number): readonly WallPart[] {
+    const key = (y * this.voxel.size.width + x) * 4 + dir
+    const known = this.sides.get(key)
+    if (known) return known
+    const out: WallPart[] = []
+    const [startCorner, endCorner] = SIDE_CORNERS[dir]
+    const gaps = this.gaps(x, y, dir)
+    for (const span of this.spans(x, y)) {
+      if (span.top <= span.bottom) continue
+      const topStart = span.corners[startCorner]
+      const topEnd = span.corners[endCorner]
+      const edge = Math.max(topStart, topEnd)
+      for (const gap of gaps) {
+        if (gap.high <= span.bottom) continue
+        const { lowStart, lowEnd } = gap
+        const whole = wallRegion(lowStart, lowEnd, topStart, topEnd)
+        if (whole.length === 0) continue
+        const region = span.bottom <= Math.min(lowStart, lowEnd) && gap.high >= edge ? whole : clipToRect(whole, 0, 1, span.bottom, Math.min(gap.high, edge))
+        if (region.length === 0) continue
+        const heights = region.map((p) => p[1])
+        const full = topStart > lowStart && topEnd > lowEnd
+        out.push({
+          span,
+          gap,
+          region,
+          topStart,
+          topEnd,
+          lowStart,
+          lowEnd,
+          minH: Math.min(...heights),
+          maxH: Math.max(...heights),
+          rim: full && gap.high >= edge,
+          open: topStart >= lowStart && topEnd >= lowEnd && gap.high >= edge,
+          footed: full && span.bottom <= Math.min(lowStart, lowEnd),
+        })
+      }
+    }
+    this.sides.set(key, out)
+    return out
+  }
+
+  /** The wall of cell (x, y)'s side `dir` that reaches into course `course`, the cube-tall row at that voxel layer; `null` where it has none, and off the volume. */
+  partAt(x: number, y: number, dir: number, course: number): WallPart | null {
+    if (!inBounds(this.voxel.size, x, y)) return null
+    return this.walls(x, y, dir).find((part) => part.maxH > course * 2 && part.minH < course * 2 + 2) ?? null
+  }
+
+  /** Whether something of column (x, y) stands over height `h`: what darkens a corner beside it. Nothing does off the volume. */
+  standsAbove(x: number, y: number, h: number): boolean {
+    return inBounds(this.voxel.size, x, y) && this.spans(x, y).some((span) => span.bottom <= h && span.top > h)
   }
 
   /** The terrains a course of a side is drawn with: the face of the voxel whose layer the course is. */
@@ -340,11 +409,49 @@ class Cells {
   }
 }
 
-interface CellInfo {
+/** One run of a column's voxels with air over it, or the bedrock floor under a column that does not stand on it. */
+interface Span {
+  /** The layers of its lowest and highest voxel; both -1 for the bedrock floor. */
+  readonly y0: number
+  readonly y1: number
+  /** Where its underside is, in half-tiles. */
+  readonly bottom: number
+  /** Its top's corner heights, in `CORNER_OFFSETS` order, and the highest of them. */
   readonly corners: readonly [number, number, number, number]
   readonly top: number
-  /** The terrains the top is drawn with: its top face's. */
+  /** The terrains its top is drawn with: its top voxel's top face. */
   readonly face: FaceKeys
+  /** The terrains its underside is drawn with: its lowest voxel's bottom face. `null` where it stands on the floor. */
+  readonly under: FaceKeys | null
+}
+
+/** A stretch of air beside a cell: from the top edge of one of the neighbour's spans up to the underside of its next. */
+interface Gap {
+  readonly lowStart: number
+  readonly lowEnd: number
+  readonly high: number
+  /** The neighbour's span the air stands on; `null` off the volume. */
+  readonly floor: Span | null
+}
+
+/** One wall: the part of a span's side that stands in one stretch of air. */
+interface WallPart {
+  readonly span: Span
+  readonly gap: Gap
+  readonly region: readonly WallPoint[]
+  /** The span's top edge along the side, and the neighbour's under it. */
+  readonly topStart: number
+  readonly topEnd: number
+  readonly lowStart: number
+  readonly lowEnd: number
+  readonly minH: number
+  readonly maxH: number
+  /** It stands the whole length of the side and reaches the span's top edge: what a fringe hangs from. */
+  readonly rim: boolean
+  /** The span's top edge is in the open the whole length of the side: what a rail stands on. */
+  readonly open: boolean
+  /** It stands the whole length of the side and comes down to the neighbour's ground: what a picket stands against. */
+  readonly footed: boolean
 }
 
 /** A value at a point inside the cell, bilinear across its corners in `CORNER_OFFSETS` order. */
@@ -430,7 +537,8 @@ function unpackTint(packed: number | undefined): [number, number, number] {
 
 /**
  * Corner occlusion for a top-surface vertex. Looks at the three cells that
- * share the grid vertex with this cell and counts the ones standing above it.
+ * share the grid vertex with this cell and counts the ones with something
+ * standing over it there: a floating span overhead does not count.
  */
 function cornerShade(cells: Cells, x: number, y: number, vx: number, vy: number, h: number): number {
   let occluders = 0
@@ -439,7 +547,7 @@ function cornerShade(cells: Cells, x: number, y: number, vx: number, vy: number,
       const nx = vx + dx
       const ny = vy + dy
       if (nx === x && ny === y) continue
-      if (cells.top(nx, ny) > h) occluders += 1
+      if (cells.standsAbove(nx, ny, h)) occluders += 1
     }
   }
   return 1 - AO_STRENGTH * occluders
@@ -486,16 +594,35 @@ const SIDE_GEOMETRY: ReadonlyArray<{
  * height of its own corner there against this cell's. Each material layer is
  * its own dual grid: a cell whose layer is empty is nothing on it.
  */
-function topCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, vx: number, vy: number, layer: number): CornerKeys {
-  const mine = cells.vertex(x, y, vx, vy)
-  const own = cells.at(x, y).face.keys[layer]
+function topCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, span: Span, vx: number, vy: number, layer: number): CornerKeys {
+  const mine = span.corners[CORNER_AT[vx - x][vy - y]]
+  const own = span.face.keys[layer]
   const at = (cx: number, cy: number): Tag => {
     if (!inBounds(voxel.size, cx, cy)) return own
     if (cx === x && cy === y) return own
-    const theirs = cells.vertex(cx, cy, vx, vy)
-    if (theirs < mine) return null
-    const key = cells.at(cx, cy).face.keys[layer]
-    return theirs === mine || key === own ? key : null
+    const corner = CORNER_AT[vx - cx][vy - cy]
+    // Of the neighbour's spans, the one whose top is level with this one here, or else the one standing over it.
+    let over: Span | null = null
+    for (const theirs of cells.spans(cx, cy)) {
+      if (theirs.corners[corner] === mine) return theirs.face.keys[layer]
+      if (theirs.bottom <= mine && theirs.corners[corner] > mine) over = theirs
+    }
+    const key = over === null ? null : over.face.keys[layer]
+    return key === own ? key : null
+  }
+  return [at(vx - 1, vy - 1), at(vx, vy - 1), at(vx - 1, vy), at(vx, vy)]
+}
+
+/**
+ * The four terrains around grid vertex (vx, vy) on material layer `layer`, seen from the underside of `span`: a
+ * neighbour's underside at the same height is its material, and anything else is nothing. Off the volume it continues.
+ */
+function underCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, span: Span, vx: number, vy: number, layer: number): CornerKeys {
+  const own = (span.under as FaceKeys).keys[layer]
+  const at = (cx: number, cy: number): Tag => {
+    if (!inBounds(voxel.size, cx, cy) || (cx === x && cy === y)) return own
+    const level = cells.spans(cx, cy).find((theirs) => theirs.under !== null && theirs.bottom === span.bottom)
+    return level?.under?.keys[layer] ?? null
   }
   return [at(vx - 1, vy - 1), at(vx, vy - 1), at(vx - 1, vy), at(vx, vy)]
 }
@@ -503,24 +630,18 @@ function topCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, vx:
 /**
  * Whether cell (x, y)'s side `dir` has wall in course `course`, the cube-tall
  * row of its face at that voxel layer: the wall the mesher emits there —
- * between this cell's edge and the neighbour's, corner for corner — reaches
- * into it. Judged from the same edges the wall is cut from, so a slope beside
- * a level of the same top, whose wall is the triangle under the slope, still
- * sees its own courses.
+ * one of `Cells.walls` — reaches into it. Judged from the wall as it is cut,
+ * so a slope beside a level of the same top, whose wall is the triangle under
+ * the slope, still sees its own courses.
  */
-function courseExists(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, course: number): boolean {
-  if (!inBounds(voxel.size, x, y)) return false
-  const corners = cells.at(x, y).corners
-  const [startCorner, endCorner] = SIDE_CORNERS[dir]
-  const [lowStart, lowEnd] = neighbourEdge(cells, voxel, x, y, dir)
-  return Math.max(corners[startCorner], corners[endCorner]) > course * 2 && Math.min(lowStart, lowEnd) < course * 2 + 2
+function courseExists(cells: Cells, x: number, y: number, dir: number, course: number): boolean {
+  return cells.partAt(x, y, dir, course) !== null
 }
 
-/** Whether cell (x, y)'s top edge along side `dir` slopes: the side under it is a ramp's side, the triangle under the slope. */
-function slopesAlong(cells: Cells, x: number, y: number, dir: number): boolean {
-  const corners = cells.at(x, y).corners
-  const [start, end] = SIDE_CORNERS[dir]
-  return corners[start] !== corners[end]
+/** Whether the wall of cell (x, y)'s side `dir` in course `course` stands under a sloping top edge: it is a ramp's side, the triangle under the slope and what is below it. */
+function slopesAlong(cells: Cells, x: number, y: number, dir: number, course: number): boolean {
+  const part = cells.partAt(x, y, dir, course)
+  return part !== null && part.topStart !== part.topEnd
 }
 
 /** The side whose outward normal is (dx, dy). */
@@ -541,14 +662,14 @@ interface Turn {
  * own side facing that way; an INSIDE one as the side, facing back, of the cell diagonally out in front. `null` where
  * the wall stops.
  */
-function turnOf(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, dir: number, along: number, course: number): Turn | null {
+function turnOf(cells: Cells, x: number, y: number, dir: number, along: number, course: number): Turn | null {
   const [ux, uy] = SIDE_GEOMETRY[dir].u
   const ahead = sideFacing(along * ux, along * uy)
-  if (courseExists(cells, voxel, x, y, ahead, course)) return { x, y, dir: ahead, seam: CONVEX }
+  if (courseExists(cells, x, y, ahead, course)) return { x, y, dir: ahead, seam: CONVEX }
   const [nx, ny] = DIR_VECTORS[dir]
   const [cx, cy] = [x + along * ux + nx, y + along * uy + ny]
   const back = sideFacing(-along * ux, -along * uy)
-  if (courseExists(cells, voxel, cx, cy, back, course)) return { x: cx, y: cy, dir: back, seam: CONCAVE }
+  if (courseExists(cells, cx, cy, back, course)) return { x: cx, y: cy, dir: back, seam: CONCAVE }
   return null
 }
 
@@ -564,20 +685,20 @@ function courseCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, 
   const [ux, uy] = SIDE_GEOMETRY[dir].u
   // Read as a ramp's side (ruling of 2026-09-19), a course under a slope is that material's SIDE, and one under a
   // level edge stays the wall it is: so side art meets the wall beside it as two things, and can blend with it.
-  const slotted = (tag: Tag, cx: number, cy: number): Tag => {
-    const material = asSide && slopesAlong(cells, cx, cy, dir) ? materialOfTag(tag) : null
+  const slotted = (tag: Tag, cx: number, cy: number, c: number): Tag => {
+    const material = asSide && slopesAlong(cells, cx, cy, dir, c) ? materialOfTag(tag) : null
     return material === null ? tag : tagOf(material, SIDE)
   }
-  const own = slotted(cells.course(x, y, dir, course).keys[layer], x, y)
+  const own = slotted(cells.course(x, y, dir, course).keys[layer], x, y, course)
   const at = (along: number, c: number): Tag => {
     const cx = x + along * ux
     const cy = y + along * uy
     // Off the volume the column continues as this one: a course there only where this cell has one, so the wall's top
     // and foot stay edges out to the map's rim rather than reading the air above and the ground below as more wall.
-    if (!inBounds(voxel.size, cx, cy)) return c === course ? own : courseExists(cells, voxel, x, y, dir, c) ? slotted(cells.course(x, y, dir, c).keys[layer], x, y) : null
-    if (courseExists(cells, voxel, cx, cy, dir, c)) return slotted(cells.course(cx, cy, dir, c).keys[layer], cx, cy)
+    if (!inBounds(voxel.size, cx, cy)) return c === course ? own : courseExists(cells, x, y, dir, c) ? slotted(cells.course(x, y, dir, c).keys[layer], x, y, c) : null
+    if (courseExists(cells, cx, cy, dir, c)) return slotted(cells.course(cx, cy, dir, c).keys[layer], cx, cy, c)
     // No wall of its own there: the wall may turn, and carries on as the face round the corner.
-    const turn = along === 0 ? null : turnOf(cells, voxel, x, y, dir, along, c)
+    const turn = along === 0 ? null : turnOf(cells, x, y, dir, along, c)
     return turn === null ? null : cells.course(turn.x, turn.y, turn.dir, c).keys[layer]
   }
   const before = atEnd ? 0 : -1
@@ -635,17 +756,13 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
   }
   const { atlas } = look
   /**
-   * The rail cell (cx, cy) carries along side `d`, as the tag its tiles spell, or `null` (rulings of 2026-09-19). A
+   * The rail one wall of cell (cx, cy) carries along side `d`, as the tag its tiles spell, or `null` (rulings of 2026-09-19). A
    * rail stands on a ramp's OPEN side: the side runs with the slope, nothing beside it stands above it, and the
    * material on top has rail art — its top edge at least. The switch that takes a fringe off an edge takes this off too.
    */
-  const railOf = (cx: number, cy: number, d: number): string | null => {
-    if (!inBounds(voxel.size, cx, cy) || !slopesAlong(cells, cx, cy, d)) return null
-    const corners = cells.at(cx, cy).corners
-    const [start, end] = SIDE_CORNERS[d]
-    const [lowStart, lowEnd] = neighbourEdge(cells, voxel, cx, cy, d)
-    if (corners[start] < lowStart || corners[end] < lowEnd || edgeOff(voxel.paint, cx, cy, d, 'top')) return null
-    const face = cells.at(cx, cy).face
+  const railOf = (part: WallPart, cx: number, cy: number, d: number): string | null => {
+    if (part.topStart === part.topEnd || !part.open || edgeOff(voxel.paint, cx, cy, d, 'top')) return null
+    const face = part.span.face
     if (face.empty) return null
     for (let layer = face.keys.length - 1; layer >= 0; layer--) {
       const material = materialOfTag(face.keys[layer])
@@ -725,10 +842,9 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
     for (let x = bounds.x0; x < bounds.x1; x++) {
       const index = y * voxel.size.width + x
       const tint = unpackTint(tintPaint(voxel.paint, x, y))
-      const cornerH = cells.at(x, y).corners
-
-      // --- top face, in quarters ---------------------------------------------
-      {
+      // --- a top face for every span, in quarters -----------------------------
+      for (const span of cells.spans(x, y)) {
+        const cornerH = span.corners
         const shadeAt = CORNER_OFFSETS.map((offset, i) => cornerShade(cells, x, y, x + offset[0], y + offset[1], cornerH[i]))
         // A face's archetype comes from its geometry (ruling of 2026-09-18): a level top is a floor, a sloped one a ramp.
         const topArchetype: ArchetypeId = cornerH.every((h) => h === cornerH[0]) ? 'floor' : 'ramp'
@@ -759,10 +875,11 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
             rects,
             [bilinear(shadeAt, fx0, fy0), bilinear(shadeAt, fx0, fy1), bilinear(shadeAt, fx1, fy1), bilinear(shadeAt, fx1, fy0)],
             tint,
-            [SURFACE_TOP, x, y, 0],
+            // Which of the column's tops this is: its voxel's layer, doubled, like a cliff band's level.
+            [SURFACE_TOP, x, y, encodeExtra(0, span.y1 * 2)],
           )
         }
-        const face = cells.at(x, y).face
+        const face = span.face
         /** The part of a pasted tile, which is a picture of the whole face, that falls in a piece of it. */
         const pastedPart = (fx0: number, fy0: number, fx1: number, fy1: number) => (tile: number): Rect => {
           const [u0, v0, u1, v1] = atlas.uv(tile, -1)
@@ -773,7 +890,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
           const cy = q > 1 ? 1 : 0
           const vx = x + cx
           const vy = y + cy
-          const cornerOf = (layer: number): CornerKeys => topCorner(cells, voxel, x, y, vx, vy, layer)
+          const cornerOf = (layer: number): CornerKeys => topCorner(cells, voxel, x, y, span, vx, vy, layer)
           const markAt = (): void => mark(vx, bilinear(cornerH, cx, cy) * HALF, vy)
           if (run === null) {
             emit(cx * 0.5, cy * 0.5, cx * 0.5 + 0.5, cy * 0.5 + 0.5, quarterRects(face, topArchetype, q, cornerOf, markAt))
@@ -794,8 +911,8 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
             const besideAtB = run === 'y' ? (side === 0 ? 0 : 1) : side === 0 ? 0 : 2
             const cornerOf = (layer: number): CornerKeys => {
               const own = face.keys[layer]
-              const a = topCorner(cells, voxel, x, y, ax, ay, layer)[besideAtA]
-              const b = topCorner(cells, voxel, x, y, bx, by, layer)[besideAtB]
+              const a = topCorner(cells, voxel, x, y, span, ax, ay, layer)[besideAtA]
+              const b = topCorner(cells, voxel, x, y, span, bx, by, layer)[besideAtB]
               // What is beside the run is what is beside both its ends; a neighbour that joins at one end only, a level
               // at the ramp's foot, is across a wall for most of the way and counts as nothing.
               const beside = a === b ? a : null
@@ -809,6 +926,38 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
         }
       }
 
+      // --- an underside for every span with air beneath it ---------------------
+      // Level, a floor seen from below: the same quarters, wound the other way, and in the shade.
+      for (const span of cells.spans(x, y)) {
+        const face = span.under
+        if (face === null) continue
+        const h = span.bottom * HALF
+        for (let q = 0; q < 4; q++) {
+          const cx = q % 2
+          const cy = q > 1 ? 1 : 0
+          const [fx0, fy0, fx1, fy1] = [x + cx * 0.5, y + cy * 0.5, x + cx * 0.5 + 0.5, y + cy * 0.5 + 0.5]
+          const rects = quarterRects(face, 'floor', q, (layer) => underCorner(cells, voxel, x, y, span, x + cx, y + cy, layer), () => mark(x + cx, h, y + cy))
+          solid.polygon(
+            [
+              [fx0, h, fy0],
+              [fx1, h, fy0],
+              [fx1, h, fy1],
+              [fx0, h, fy1],
+            ],
+            [
+              [0, 1],
+              [1, 1],
+              [1, 0],
+              [0, 0],
+            ],
+            rects,
+            [UNDER_SHADE, UNDER_SHADE, UNDER_SHADE, UNDER_SHADE],
+            tint,
+            [SURFACE_UNDER, x, y, encodeExtra(0, span.y0 * 2)],
+          )
+        }
+      }
+
       // --- side faces ----------------------------------------------------------
       // A side is walled wherever this cell's edge stands above the
       // neighbour's edge along it, both taken corner for corner, so a ramp's
@@ -816,217 +965,214 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
       // between them. A ramp's descending edge meets a neighbour at the same
       // height and draws nothing; over a drop it walls the drop.
       for (let dir = 0; dir < 4; dir++) {
-        const [startCorner, endCorner] = SIDE_CORNERS[dir]
-        const topStart = cornerH[startCorner]
-        const topEnd = cornerH[endCorner]
-        const [lowStart, lowEnd] = neighbourEdge(cells, voxel, x, y, dir)
-        const region = wallRegion(lowStart, lowEnd, topStart, topEnd)
-        if (region.length === 0) continue
-
         const { origin, u } = SIDE_GEOMETRY[dir]
         const ox = x + origin[0]
         const oz = y + origin[1]
+        for (const part of cells.walls(x, y, dir)) {
+          const { topStart, topEnd, lowStart, lowEnd, region } = part
+          const topLevel = Math.ceil(part.maxH) - 1
+          const bottomLevel = Math.floor(part.minH)
 
-        const topLevel = Math.ceil(Math.max(topStart, topEnd)) - 1
-        const bottomLevel = Math.floor(Math.min(lowStart, lowEnd))
-
-        // --- trim: a fringe off the top, a picket at the foot (rulings of 2026-09-18) ---
-        // Only a wall standing the whole length of the side takes trim; a sliver beside a slope does not.
-        if (topStart > lowStart && topEnd > lowEnd) {
-          const [nx, nz] = DIR_VECTORS[dir]
-          const lerp = (a: number, b: number, t: number): number => (t <= 0 ? a : t >= 1 ? b : a + (b - a) * t)
-          const fringe = edgeOff(voxel.paint, x, y, dir, 'top') ? null : trimOf(cells.at(x, y).face, FRINGE)
-          if (fringe !== null) {
-            // The tile's lower half, the edge that hangs: the hinge at its middle, the tip at its bottom.
-            const hanging = (tile: number): [number, number, number, number] => {
-              const [u0, v0, u1, v1] = atlas.uv(tile, -1)
-              return [u0, v0, u1, (v0 + v1) / 2]
+          // --- trim: a fringe off the top, a picket at the foot (rulings of 2026-09-18) ---
+          // Only a wall standing the whole length of the side takes trim; a sliver beside a slope does not.
+          if (topStart > lowStart && topEnd > lowEnd) {
+            const [nx, nz] = DIR_VECTORS[dir]
+            const lerp = (a: number, b: number, t: number): number => (t <= 0 ? a : t >= 1 ? b : a + (b - a) * t)
+            const fringe = !part.rim || edgeOff(voxel.paint, x, y, dir, 'top') ? null : trimOf(part.span.face, FRINGE)
+            if (fringe !== null) {
+              // The tile's lower half, the edge that hangs: the hinge at its middle, the tip at its bottom.
+              const hanging = (tile: number): [number, number, number, number] => {
+                const [u0, v0, u1, v1] = atlas.uv(tile, -1)
+                return [u0, v0, u1, (v0 + v1) / 2]
+              }
+              const edge = hanging(fringe.tile)
+              // The material's angle below horizontal: it sets how far the flap juts and drops, never how long it is.
+              const angle = (fringe.settings.fringeAngle * Math.PI) / 180
+              const out = Math.cos(angle)
+              const down = Math.sin(angle)
+              // An outside corner of the plateau: this cell walls the side round the corner too, so the flap reaches out to meet that one's.
+              const walls = (vx: number, vz: number): boolean => cells.walls(x, y, sideFacing(vx, vz)).some((other) => other.span === part.span && other.rim)
+              const reach = TRIM_LENGTH * out
+              const e0 = walls(-u[0], -u[1]) ? reach : 0
+              const e1 = walls(u[0], u[1]) ? reach : 0
+              // At an outside corner the piece centred on it draws the material's corner fringe, when it has one: the rim
+              // runs in from the right at the side's start (t = 0) and from the left at its end (t = 1).
+              const tag = fringe.tag
+              const fromRight = e0 > 0 ? atlas.trimTile(tag, FRINGE, 'from-right') : null
+              const fromLeft = e1 > 0 ? atlas.trimTile(tag, FRINGE, 'from-left') : null
+              const startRect = fromRight === null ? edge : hanging(fromRight)
+              const endRect = fromLeft === null ? edge : hanging(fromLeft)
+              strip(
+                [[0, 0], [1, 0], [1 + e1, TRIM_LENGTH], [-e0, TRIM_LENGTH]],
+                (k) => (k === 0 ? startRect : k === 1 ? endRect : edge),
+                (t, sv) => [ox + u[0] * t + nx * sv * out, lerp(topStart, topEnd, t) * HALF - sv * down, oz + u[1] * t + nz * sv * out],
+                (sv) => 1 - sv / TRIM_LENGTH,
+                true,
+                tint,
+                [SURFACE_CLIFF, x, y, encodeExtra(dir, topLevel)],
+              )
             }
-            const edge = hanging(fringe.tile)
-            // The material's angle below horizontal: it sets how far the flap juts and drops, never how long it is.
-            const angle = (fringe.settings.fringeAngle * Math.PI) / 180
-            const out = Math.cos(angle)
-            const down = Math.sin(angle)
-            // An outside corner of the plateau: this cell walls the side round the corner too, so the flap reaches out to meet that one's.
-            const walls = (vx: number, vz: number): boolean => cells.top(x, y) > cells.top(x + vx, y + vz)
-            const reach = TRIM_LENGTH * out
-            const e0 = walls(-u[0], -u[1]) ? reach : 0
-            const e1 = walls(u[0], u[1]) ? reach : 0
-            // At an outside corner the piece centred on it draws the material's corner fringe, when it has one: the rim
-            // runs in from the right at the side's start (t = 0) and from the left at its end (t = 1).
-            const tag = fringe.tag
-            const fromRight = e0 > 0 ? atlas.trimTile(tag, FRINGE, 'from-right') : null
-            const fromLeft = e1 > 0 ? atlas.trimTile(tag, FRINGE, 'from-left') : null
-            const startRect = fromRight === null ? edge : hanging(fromRight)
-            const endRect = fromLeft === null ? edge : hanging(fromLeft)
-            strip(
-              [[0, 0], [1, 0], [1 + e1, TRIM_LENGTH], [-e0, TRIM_LENGTH]],
-              (k) => (k === 0 ? startRect : k === 1 ? endRect : edge),
-              (t, sv) => [ox + u[0] * t + nx * sv * out, lerp(topStart, topEnd, t) * HALF - sv * down, oz + u[1] * t + nz * sv * out],
-              (sv) => 1 - sv / TRIM_LENGTH,
-              true,
-              tint,
-              [SURFACE_CLIFF, x, y, encodeExtra(dir, topLevel)],
-            )
+            const bx = x + nx
+            const bz = y + nz
+            const picket = part.footed && part.gap.floor !== null && !edgeOff(voxel.paint, x, y, dir, 'foot') ? trimOf(part.gap.floor.face, PICKET) : null
+            if (picket !== null) {
+              const [u0, v0, u1, v1] = atlas.uv(picket.tile, -1)
+              const upright: [number, number, number, number] = [u0, (v0 + v1) / 2, u1, v1]
+              // The material's distance, in pixels of art, is world units at one tile to the unit; the gap keeps it off the wall's own pixels.
+              const off = PICKET_GAP + picket.settings.picketDistance / atlas.tile
+              strip(
+                [[0, 0], [1, 0], [1, TRIM_LENGTH], [0, TRIM_LENGTH]],
+                // The tile's upper half, the edge that pokes up: its middle on the ground, its top edge in the air.
+                () => upright,
+                (t, sv) => [ox + u[0] * t + nx * off, lerp(lowStart, lowEnd, t) * HALF + sv, oz + u[1] * t + nz * off],
+                (sv) => sv / TRIM_LENGTH,
+                false,
+                unpackTint(tintPaint(voxel.paint, bx, bz)),
+                [SURFACE_CLIFF, x, y, encodeExtra(dir, bottomLevel)],
+              )
+            }
           }
-          const bx = x + nx
-          const bz = y + nz
-          const picket = inBounds(voxel.size, bx, bz) && !edgeOff(voxel.paint, x, y, dir, 'foot') ? trimOf(cells.at(bx, bz).face, PICKET) : null
-          if (picket !== null) {
-            const [u0, v0, u1, v1] = atlas.uv(picket.tile, -1)
-            const upright: [number, number, number, number] = [u0, (v0 + v1) / 2, u1, v1]
-            // The material's distance, in pixels of art, is world units at one tile to the unit; the gap keeps it off the wall's own pixels.
-            const off = PICKET_GAP + picket.settings.picketDistance / atlas.tile
-            strip(
-              [[0, 0], [1, 0], [1, TRIM_LENGTH], [0, TRIM_LENGTH]],
-              // The tile's upper half, the edge that pokes up: its middle on the ground, its top edge in the air.
-              () => upright,
-              (t, sv) => [ox + u[0] * t + nx * off, lerp(lowStart, lowEnd, t) * HALF + sv, oz + u[1] * t + nz * off],
-              (sv) => sv / TRIM_LENGTH,
-              false,
-              unpackTint(tintPaint(voxel.paint, bx, bz)),
-              [SURFACE_CLIFF, x, y, encodeExtra(dir, bottomLevel)],
-            )
-          }
-        }
-        // --- a rail along a ramp's open side (rulings of 2026-09-19) ---
-        // Drawn in (s, height): s runs DOWNHILL along the side from the ramp's head, which is how the art is drawn —
-        // head on the left, falling to the right. Where the side runs the other way the same pieces are laid
-        // mirrored. A tile sits on each end of the cell, as on any dual grid, picked by what the rail does past it:
-        // carries on, stops (a cap), or, for an upright rail whose material asks, runs out onto level ground (a bend).
-        const rail = topStart !== topEnd ? railOf(x, y, dir) : null
-        if (rail !== null) {
-          const settings = look.trimOf(tagOf(materialOfTag(rail) as number))
-          const upright = settings.railStyle === 'upright'
-          const down = topStart > topEnd
-          const head = Math.max(topStart, topEnd)
-          const drop = head - Math.min(topStart, topEnd)
-          const [nx, nz] = DIR_VECTORS[dir]
-          const landing = tagOf(materialOfTag(rail) as number, LANDING) as string
-          /** What the rail is past one of this cell's ends: itself, a landing, or nothing. */
-          const past = (uphill: boolean): string | null => {
-            const step = uphill === down ? -1 : 1
-            const cx = x + step * u[0]
-            const cy = y + step * u[1]
-            if (!inBounds(voxel.size, cx, cy)) return null
-            const c = cells.at(cx, cy).corners
-            const [cs, ce] = [c[startCorner], c[endCorner]]
-            const meets = uphill ? head : head - drop
-            if (railOf(cx, cy, dir) === rail && cs > ce === down && (uphill ? Math.min(cs, ce) : Math.max(cs, ce)) === meets) return rail
-            // A landing wants level ground to stand on, at the height the rail reaches it, and the bend that joins them drawn.
-            if (!upright || !settings.landings || !c.every((h) => h === meets)) return null
-            return atlas.slotTile(uphill ? [null, null, landing, rail] : [null, null, rail, landing], 'ramp') === null ? null : landing
-          }
-          const above = past(true)
-          const below = past(false)
-          const middle = atlas.slotTile([null, null, rail, rail], 'ramp') as AtlasTile
-          const topTile = (l: string | null, r: string | null): number => (atlas.slotTile([null, null, l, r], 'ramp') ?? middle).tile
-          const bodyTile = (l: string | null, r: string | null): number | null => {
-            const [bl, br] = [l === rail ? rail : null, r === rail ? rail : null]
-            return (atlas.slotTile([bl, br, bl, br], 'ramp') ?? atlas.slotTile([rail, rail, rail, rail], 'ramp'))?.tile ?? null
-          }
-          const atHead = topTile(above, rail)
-          const atFoot = topTile(rail, below)
-          const address = [SURFACE_CLIFF, x, y, encodeExtra(dir, topLevel)] as const
-          const emit = (points: ReadonlyArray<readonly [number, number]>, local: ReadonlyArray<readonly [number, number]>, rect: Rect): void => {
-            const order = points.map((_, i) => (down ? i : points.length - 1 - i))
-            trim.polygon(
-              order.map((i) => {
-                const t = down ? points[i][0] : 1 - points[i][0]
-                return [ox + u[0] * t + nx * RAIL_GAP, points[i][1], oz + u[1] * t + nz * RAIL_GAP] as const
-              }),
-              order.map((i) => local[i]),
-              [rect],
-              order.map(() => 1),
-              tint,
-              address,
-            )
-          }
-          const SQUARE = [[0, 0], [1, 0], [1, 1], [0, 1]] as const
-          if (upright) {
-            // Two columns to a cell, each standing on the high side of its half tile, so the rail's foot is a
-            // staircase over the slope; below the top row its body repeats, half a tile at a time, to the ground.
-            const lowAt = (sv: number): number => lowStart + (lowEnd - lowStart) * (down ? sv : 1 - sv)
-            const column = (s0: number, base: number, tile: number, a0: number, body: number | null): void => {
-              const y0 = base * HALF
-              emit([[s0, y0], [s0 + 0.5, y0], [s0 + 0.5, y0 + 1], [s0, y0 + 1]], SQUARE, partOf(tile, a0, a0 + 0.5, 0, 1))
-              if (body === null) return
-              const under: WallPoint[] = [[s0, lowAt(s0)], [s0 + 0.5, lowAt(s0 + 0.5)], [s0 + 0.5, base], [s0, base]]
-              const floor = Math.min(lowAt(s0), lowAt(s0 + 0.5))
-              for (let n = 0; base - n > floor; n++) {
-                const piece = clipToRect(under, s0, s0 + 0.5, base - n - 1, base - n)
-                if (piece.length === 0) continue
-                // The body's upper half is its shoulder, the row under the rail, where the slope crosses the half tile corner
-                // to corner and a stringer is cut along it; its lower half is what repeats from there to the ground.
-                emit(piece.map(([sv, h]) => [sv, h * HALF] as const), piece.map(([sv, h]) => [(sv - s0) / 0.5, h - (base - n - 1)] as const), partOf(body, a0, a0 + 0.5, n === 0 ? 0.5 : 0, n === 0 ? 1 : 0.5))
+          // --- a rail along a ramp's open side (rulings of 2026-09-19) ---
+          // Drawn in (s, height): s runs DOWNHILL along the side from the ramp's head, which is how the art is drawn —
+          // head on the left, falling to the right. Where the side runs the other way the same pieces are laid
+          // mirrored. A tile sits on each end of the cell, as on any dual grid, picked by what the rail does past it:
+          // carries on, stops (a cap), or, for an upright rail whose material asks, runs out onto level ground (a bend).
+          const rail = railOf(part, x, y, dir)
+          if (rail !== null) {
+            const settings = look.trimOf(tagOf(materialOfTag(rail) as number))
+            const upright = settings.railStyle === 'upright'
+            const down = topStart > topEnd
+            const head = Math.max(topStart, topEnd)
+            const drop = head - Math.min(topStart, topEnd)
+            const [nx, nz] = DIR_VECTORS[dir]
+            const landing = tagOf(materialOfTag(rail) as number, LANDING) as string
+            /** What the rail is past one of this cell's ends: itself, a landing, or nothing. */
+            const past = (uphill: boolean): string | null => {
+              const step = uphill === down ? -1 : 1
+              const cx = x + step * u[0]
+              const cy = y + step * u[1]
+              if (!inBounds(voxel.size, cx, cy)) return null
+              const meets = uphill ? head : head - drop
+              // The rail carries on where a wall of the cell there has the same rail, running the same way, and meets this one's end.
+              for (const other of cells.walls(cx, cy, dir)) {
+                const [cs, ce] = [other.topStart, other.topEnd]
+                if (railOf(other, cx, cy, dir) === rail && cs > ce === down && (uphill ? Math.min(cs, ce) : Math.max(cs, ce)) === meets) return rail
+              }
+              // A landing wants level ground to stand on, at the height the rail reaches it, and the bend that joins them drawn.
+              if (!upright || !settings.landings || !cells.spans(cx, cy).some((span) => span.corners.every((h) => h === meets))) return null
+              return atlas.slotTile(uphill ? [null, null, landing, rail] : [null, null, rail, landing], 'ramp') === null ? null : landing
+            }
+            const above = past(true)
+            const below = past(false)
+            const middle = atlas.slotTile([null, null, rail, rail], 'ramp') as AtlasTile
+            const topTile = (l: string | null, r: string | null): number => (atlas.slotTile([null, null, l, r], 'ramp') ?? middle).tile
+            const bodyTile = (l: string | null, r: string | null): number | null => {
+              const [bl, br] = [l === rail ? rail : null, r === rail ? rail : null]
+              return (atlas.slotTile([bl, br, bl, br], 'ramp') ?? atlas.slotTile([rail, rail, rail, rail], 'ramp'))?.tile ?? null
+            }
+            const atHead = topTile(above, rail)
+            const atFoot = topTile(rail, below)
+            const address = [SURFACE_CLIFF, x, y, encodeExtra(dir, topLevel)] as const
+            const emit = (points: ReadonlyArray<readonly [number, number]>, local: ReadonlyArray<readonly [number, number]>, rect: Rect): void => {
+              const order = points.map((_, i) => (down ? i : points.length - 1 - i))
+              trim.polygon(
+                order.map((i) => {
+                  const t = down ? points[i][0] : 1 - points[i][0]
+                  return [ox + u[0] * t + nx * RAIL_GAP, points[i][1], oz + u[1] * t + nz * RAIL_GAP] as const
+                }),
+                order.map((i) => local[i]),
+                [rect],
+                order.map(() => 1),
+                tint,
+                address,
+              )
+            }
+            const SQUARE = [[0, 0], [1, 0], [1, 1], [0, 1]] as const
+            if (upright) {
+              // Two columns to a cell, each standing on the high side of its half tile, so the rail's foot is a
+              // staircase over the slope; below the top row its body repeats, half a tile at a time, to the ground.
+              const lowAt = (sv: number): number => Math.max(part.span.bottom, lowStart + (lowEnd - lowStart) * (down ? sv : 1 - sv))
+              const column = (s0: number, base: number, tile: number, a0: number, body: number | null): void => {
+                const y0 = base * HALF
+                emit([[s0, y0], [s0 + 0.5, y0], [s0 + 0.5, y0 + 1], [s0, y0 + 1]], SQUARE, partOf(tile, a0, a0 + 0.5, 0, 1))
+                if (body === null) return
+                const under: WallPoint[] = [[s0, lowAt(s0)], [s0 + 0.5, lowAt(s0 + 0.5)], [s0 + 0.5, base], [s0, base]]
+                const floor = Math.min(lowAt(s0), lowAt(s0 + 0.5))
+                for (let n = 0; base - n > floor; n++) {
+                  const piece = clipToRect(under, s0, s0 + 0.5, base - n - 1, base - n)
+                  if (piece.length === 0) continue
+                  // The body's upper half is its shoulder, the row under the rail, where the slope crosses the half tile corner
+                  // to corner and a stringer is cut along it; its lower half is what repeats from there to the ground.
+                  emit(piece.map(([sv, h]) => [sv, h * HALF] as const), piece.map(([sv, h]) => [(sv - s0) / 0.5, h - (base - n - 1)] as const), partOf(body, a0, a0 + 0.5, n === 0 ? 0.5 : 0, n === 0 ? 1 : 0.5))
+                }
+              }
+              column(0, head, atHead, 0.5, bodyTile(above, rail))
+              column(0.5, head - drop / 2, atFoot, 0, bodyTile(rail, below))
+              // A landing is the far half of the bend, on the level ground past the ramp's end.
+              if (above === landing) column(-0.5, head, atHead, 0, null)
+              if (below === landing) column(1, head - drop, atFoot, 0.5, null)
+            } else {
+              // Laid along the slope, turned and never skewed: each piece a rectangle square to it, a tile tall. Three
+              // pieces to a full ramp, like its surface: the slope is √2 long and carries a tile and a half of art.
+              const rise = drop * HALF
+              const length = Math.hypot(1, rise)
+              const [lean, up] = [rise / length, 1 / length]
+              const pieces = drop >= 2 ? 3 : 2
+              for (let k = 0; k < pieces; k++) {
+                const [s0, s1] = [k / pieces, (k + 1) / pieces]
+                const [y0, y1] = [head * HALF - rise * s0, head * HALF - rise * s1]
+                const rect = k === 0 ? partOf(atHead, 0.5, 1, 0, 1) : k === pieces - 1 ? partOf(atFoot, 0, 0.5, 0, 1) : partOf(middle.tile, 0, 0.5, 0, 1)
+                emit([[s0, y0], [s1, y1], [s1 + lean, y1 + up], [s0 + lean, y0 + up]], SQUARE, rect)
               }
             }
-            column(0, head, atHead, 0.5, bodyTile(above, rail))
-            column(0.5, head - drop / 2, atFoot, 0, bodyTile(rail, below))
-            // A landing is the far half of the bend, on the level ground past the ramp's end.
-            if (above === landing) column(-0.5, head, atHead, 0, null)
-            if (below === landing) column(1, head - drop, atFoot, 0.5, null)
-          } else {
-            // Laid along the slope, turned and never skewed: each piece a rectangle square to it, a tile tall. Three
-            // pieces to a full ramp, like its surface: the slope is √2 long and carries a tile and a half of art.
-            const rise = drop * HALF
-            const length = Math.hypot(1, rise)
-            const [lean, up] = [rise / length, 1 / length]
-            const pieces = drop >= 2 ? 3 : 2
-            for (let k = 0; k < pieces; k++) {
-              const [s0, s1] = [k / pieces, (k + 1) / pieces]
-              const [y0, y1] = [head * HALF - rise * s0, head * HALF - rise * s1]
-              const rect = k === 0 ? partOf(atHead, 0.5, 1, 0, 1) : k === pieces - 1 ? partOf(atFoot, 0, 0.5, 0, 1) : partOf(middle.tile, 0, 0.5, 0, 1)
-              emit([[s0, y0], [s1, y1], [s1 + lean, y1 + up], [s0 + lean, y0 + up]], SQUARE, rect)
-            }
           }
-        }
 
-        // A wall is tiled a COURSE at a time: one cube tall, the height of the voxel it belongs to, so its tiles are
-        // square in the world like a floor's, one tile to a world unit each way (ruling of 2026-09-18: every surface
-        // shares one texel scale). A course is two half-tile bands, and each band is still its own pick address.
-        const sloped = topStart !== topEnd
-        const topCourse = Math.ceil(Math.max(topStart, topEnd) / 2) - 1
-        const bottomCourse = Math.floor(Math.min(lowStart, lowEnd) / 2)
-        for (let course = bottomCourse; course <= topCourse; course++) {
-          for (let q = 0; q < 4; q++) {
-            const atEnd = q % 2 === 1
-            const atTop = q < 2
-            const t0 = atEnd ? 0.5 : 0
-            // A quarter of a course is one band tall: half a tile of art on half a world unit.
-            const level = atTop ? course * 2 + 1 : course * 2
-            // Bands sitting in a pit read darker at the bottom.
-            const deep = 1 - AO_STRENGTH * Math.min(2, topLevel - level) * 0.5
-            // The wall region cut to this quarter, exactly: a slope crossing it is followed, not approximated.
-            const piece = clipToRect(region, t0, t0 + 0.5, level, level + 1)
-            if (piece.length === 0) continue
-            // At a turn the quarter is half of the tile folded across the corner: the material's seam art when it has
-            // some (decision of 2026-09-21), and otherwise the wall carrying on, which `courseCorner` already reads.
-            const along = atEnd ? 1 : -1
-            const turn = inBounds(voxel.size, x + along * u[0], y + along * u[1]) && !courseExists(cells, voxel, x + along * u[0], y + along * u[1], dir, course) ? turnOf(cells, voxel, x, y, dir, along, course) : null
-            const rects = quarterRects(
-              cells.course(x, y, dir, course),
-              'wall',
-              q,
-              (layer) => courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer),
-              () => mark(ox + u[0] * (atEnd ? 1 : 0), (atTop ? course + 1 : course) * 2 * HALF, oz + u[1] * (atEnd ? 1 : 0)),
-              undefined,
-              (layer) =>
-                // Under a slope the face is the ramp's SIDE: its own art when the material has some, drawn for the way
-                // the slope runs across the face — east when it falls toward the side's end, west toward its start — so
-                // art for one is mirrored for the other; the wall art above when it has none.
-                (sloped ? atlas.slotTile(courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer, true), 'ramp', topStart > topEnd ? 0 : 2) : null) ??
-                (turn ? atlas.slotTile(courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer, false, turn.seam), 'wall') : null),
-            )
-            solid.polygon(
-              piece.map(([t, h]) => [ox + u[0] * t, h * HALF, oz + u[1] * t] as const),
-              // The texture keeps its scale however the piece is cut: u along the side, v up the course.
-              piece.map(([t, h]) => [(t - t0) / 0.5, h - level] as const),
-              rects,
-              piece.map(([, h]) => deep + (1 - deep) * (h - level)),
-              tint,
-              [SURFACE_CLIFF, x, y, encodeExtra(dir, level)],
-            )
+          // A wall is tiled a COURSE at a time: one cube tall, the height of the voxel it belongs to, so its tiles are
+          // square in the world like a floor's, one tile to a world unit each way (ruling of 2026-09-18: every surface
+          // shares one texel scale). A course is two half-tile bands, and each band is still its own pick address.
+          const sloped = topStart !== topEnd
+          const topCourse = Math.ceil(part.maxH / 2) - 1
+          const bottomCourse = Math.floor(part.minH / 2)
+          for (let course = bottomCourse; course <= topCourse; course++) {
+            for (let q = 0; q < 4; q++) {
+              const atEnd = q % 2 === 1
+              const atTop = q < 2
+              const t0 = atEnd ? 0.5 : 0
+              // A quarter of a course is one band tall: half a tile of art on half a world unit.
+              const level = atTop ? course * 2 + 1 : course * 2
+              // Bands sitting in a pit read darker at the bottom.
+              const deep = 1 - AO_STRENGTH * Math.min(2, topLevel - level) * 0.5
+              // The wall region cut to this quarter, exactly: a slope crossing it is followed, not approximated.
+              const piece = clipToRect(region, t0, t0 + 0.5, level, level + 1)
+              if (piece.length === 0) continue
+              // At a turn the quarter is half of the tile folded across the corner: the material's seam art when it has
+              // some (decision of 2026-09-21), and otherwise the wall carrying on, which `courseCorner` already reads.
+              const along = atEnd ? 1 : -1
+              const turn = inBounds(voxel.size, x + along * u[0], y + along * u[1]) && !courseExists(cells, x + along * u[0], y + along * u[1], dir, course) ? turnOf(cells, x, y, dir, along, course) : null
+              const rects = quarterRects(
+                cells.course(x, y, dir, course),
+                'wall',
+                q,
+                (layer) => courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer),
+                () => mark(ox + u[0] * (atEnd ? 1 : 0), (atTop ? course + 1 : course) * 2 * HALF, oz + u[1] * (atEnd ? 1 : 0)),
+                undefined,
+                (layer) =>
+                  // Under a slope the face is the ramp's SIDE: its own art when the material has some, drawn for the way
+                  // the slope runs across the face — east when it falls toward the side's end, west toward its start — so
+                  // art for one is mirrored for the other; the wall art above when it has none.
+                  (sloped ? atlas.slotTile(courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer, true), 'ramp', topStart > topEnd ? 0 : 2) : null) ??
+                  (turn ? atlas.slotTile(courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer, false, turn.seam), 'wall') : null),
+              )
+              solid.polygon(
+                piece.map(([t, h]) => [ox + u[0] * t, h * HALF, oz + u[1] * t] as const),
+                // The texture keeps its scale however the piece is cut: u along the side, v up the course.
+                piece.map(([t, h]) => [(t - t0) / 0.5, h - level] as const),
+                rects,
+                piece.map(([, h]) => deep + (1 - deep) * (h - level)),
+                tint,
+                [SURFACE_CLIFF, x, y, encodeExtra(dir, level)],
+              )
+            }
           }
         }
       }

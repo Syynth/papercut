@@ -1,11 +1,12 @@
 import { describe, expect, it } from 'vitest'
 
+import { setMaterial } from './ops'
 import { AIR, createMap, slotOf, tileSlot, type MapDoc } from './document'
-import { FACE_TOP, edgeKey, faceKey } from './paint'
+import { FACE_BOTTOM, FACE_TOP, edgeKey, faceKey } from './paint'
 import { combineRegions, contractRegion, describeRegion, elementAt, elementsUnder, matchApplies, matchRegion, pairRegion, expandRegion, invertRegion, pruneRegion, regionOf, voxelKey, widerMatch } from './region'
 import type { VoxelStructure } from './structure'
-import { SURFACE_CLIFF, SURFACE_TOP, type SurfaceAddress } from './surface'
-import { fillColumn, rampShape, voxelIndex } from './voxels'
+import { SURFACE_CLIFF, SURFACE_TOP, SURFACE_UNDER, decodeExtra, type SurfaceAddress } from './surface'
+import { exposedFacesOf, faceNear, fillColumn, rampShape, settleFaces, voxelIndex } from './voxels'
 
 /** A fresh map's ground is one tile up (layer 0); a 2 × 2 plateau stands two tiles over it at (3..4, 3..4), its top voxel on layer 2. */
 function plateau(): { doc: MapDoc; voxel: VoxelStructure } {
@@ -281,5 +282,43 @@ describe('the rest of the Match rules (design pass of 2026-09-20)', () => {
     expect(matchApplies('face', faceKey(1, 1, 0, FACE_TOP), 'wall')).toBe(false)
     expect(matchApplies('voxel', voxelKey(1, 1, 0), 'run')).toBe(false)
     expect(matchRegion(plateau().voxel, 'voxel', voxelKey(3, 3, 2), 'run')).toEqual([])
+  })
+})
+
+describe('a press in a column with air in it (2026-09-21)', () => {
+  /** The plateau with the middle layer of (3, 3) taken out: ground at layer 0, a gap, a block floating at layer 2. */
+  function carved(): VoxelStructure {
+    const { voxel } = plateau()
+    voxel.voxels.shape[voxelIndex(voxel, 3, 3, 1)] = AIR
+    settleFaces(voxel, 0)
+    return voxel
+  }
+  const at = (kind: SurfaceAddress['kind'], layer: number): SurfaceAddress => ({ structure: 'ground', kind, x: 3, y: 3, dir: 0, level: layer * 2 })
+
+  it('finds the top or the underside nearest a layer, and the highest for an address that names none', () => {
+    const voxel = carved()
+    expect(faceNear(voxel, 3, 3, 0, FACE_TOP)).toBe(0)
+    expect(faceNear(voxel, 3, 3, 2, FACE_TOP)).toBe(2)
+    expect(faceNear(voxel, 3, 3, 2, FACE_BOTTOM)).toBe(2)
+    expect(faceNear(voxel, 4, 4, 0, FACE_BOTTOM)).toBeNull()
+    expect(faceNear(voxel, 3, 3, Math.floor(decodeExtra(0).level / 2), FACE_TOP)).toBe(2)
+  })
+
+  it('selects the ground under the ledge, the ledge, or its ceiling, by what was pressed', () => {
+    const voxel = carved()
+    expect(elementsUnder(voxel, at(SURFACE_TOP, 0), [[3, 3]], 'face', 'surface')).toEqual([faceKey(3, 3, 0, FACE_TOP)])
+    expect(elementsUnder(voxel, at(SURFACE_TOP, 2), [[3, 3]], 'voxel', 'surface')).toEqual([voxelKey(3, 3, 2)])
+    expect(elementsUnder(voxel, at(SURFACE_UNDER, 2), [[3, 3]], 'face', 'surface')).toEqual([faceKey(3, 3, 2, FACE_BOTTOM)])
+    expect(elementsUnder(voxel, at(SURFACE_UNDER, 2), [[3, 3]], 'voxel', 'surface')).toEqual([voxelKey(3, 3, 2)])
+  })
+
+  it('paints the face pressed, and lists the floor under a column that floats', () => {
+    const voxel = carved()
+    const under = setMaterial(voxel, [[3, 3]], 2, 0, { y: 2, dir: FACE_BOTTOM })
+    expect(under.map((p) => (p.t === 'voxelPaint' ? p.key : null))).toEqual([faceKey(3, 3, 2, FACE_BOTTOM)])
+    const low = setMaterial(voxel, [[3, 3]], 2, 0, { y: 0, dir: FACE_TOP })
+    expect(low.map((p) => (p.t === 'voxelPaint' ? p.key : null))).toEqual([faceKey(3, 3, 0, FACE_TOP)])
+    voxel.voxels.shape[voxelIndex(voxel, 3, 3, 0)] = AIR
+    expect(exposedFacesOf(voxel, 3, 3)).toContain(faceKey(3, 3, -1, FACE_TOP))
   })
 })

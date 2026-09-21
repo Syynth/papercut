@@ -20,8 +20,13 @@ import {
   tagOf,
   tileSlot,
   topHeight,
+  AIR,
+  SHAPE_BLOCK,
   SURFACE_CLIFF,
   SURFACE_TOP,
+  SURFACE_UNDER,
+  settleFaces,
+  voxelIndex,
   type MapDoc,
   type ReadonlyMapDoc,
   type RgbaImage,
@@ -1095,5 +1100,89 @@ describe("a ramp's rail, side and landings (decisions of 2026-09-19)", () => {
     // Its foot is no slope, and a level cell's wall is no ramp's side.
     const plain = mesh(loneRamp(), '0,0')
     expect(bandTexels(plain, createTerrainLook(DEFAULT_MATERIALS, [placeholderSet()]), 3, 3, 0, 2).every((rgba) => rgba[0] !== 200)).toBe(true)
+  })
+})
+
+describe('a column read as spans: overhangs, gaps and blocks that float (2026-09-21)', () => {
+  /** Every triangle of cell (x, y): its surface kind, side, level, the height of its centroid and which way it faces up or down. */
+  function faces(chunk: TerrainChunkMesh, x: number, y: number): Array<{ kind: number; dir: number; level: number; height: number; ny: number }> {
+    const { solid } = chunk
+    const out = []
+    for (let t = 0; t < solid.triangleCount; t++) {
+      const address = readAddress(solid.faceAddr, t, 'ground')
+      if (address.x !== x || address.y !== y) continue
+      const vertices = [0, 1, 2].map((k) => solid.indices[t * 3 + k])
+      out.push({ kind: address.kind, dir: address.dir, level: address.level, height: vertices.reduce((sum, v) => sum + solid.positions[v * 3 + 1] / 3, 0), ny: solid.normals[vertices[0] * 3 + 1] })
+    }
+    return out
+  }
+  const levels = (list: ReturnType<typeof faces>, kind: number, dir?: number): number[] => [...new Set(list.filter((f) => f.kind === kind && (dir === undefined || f.dir === dir)).map((f) => f.level))].sort((a, b) => a - b)
+  /** Take one voxel out, and bring the paint in line with the faces that show now. */
+  function carve(doc: MapDoc, x: number, z: number, y: number): void {
+    const g = ground(doc)
+    g.voxels.shape[voxelIndex(g, x, z, y)] = AIR
+    settleFaces(g, 0)
+  }
+
+  it('draws a gap in a column as a lower top, an underside, and walls only where there are voxels', () => {
+    const doc = createMap(8, 8)
+    setHeight(doc, 4, 4, 6)
+    carve(doc, 4, 4, 1)
+    const chunk = mesh(doc, '0,0')
+    const cell = faces(chunk, 4, 4)
+    // Two tops: the voxel left on the ground, level with the ground round it, and the block over the gap.
+    expect(levels(cell, SURFACE_TOP)).toEqual([0, 4])
+    expect(cell.filter((f) => f.kind === SURFACE_TOP).every((f) => f.ny > 0.99)).toBe(true)
+    expect([...new Set(cell.filter((f) => f.kind === SURFACE_TOP).map((f) => f.height))].sort()).toEqual([1, 3])
+    // One underside, the floating block's, two tiles up and facing down.
+    const under = cell.filter((f) => f.kind === SURFACE_UNDER)
+    expect(under).toHaveLength(8)
+    expect(under.every((f) => f.level === 4 && f.height === 2 && f.ny < -0.99)).toBe(true)
+    // Walls round the floating block only: nothing is drawn across the gap.
+    for (let dir = 0; dir < 4; dir++) expect(levels(cell, SURFACE_CLIFF, dir)).toEqual([4, 5])
+    expect(chunk.missing).toEqual([])
+  })
+
+  it('walls a neighbour only where the column beside it has air: across the gap, not above or below it', () => {
+    const doc = createMap(8, 8)
+    setHeight(doc, 4, 4, 6)
+    setHeight(doc, 5, 4, 6)
+    carve(doc, 4, 4, 1)
+    const chunk = mesh(doc, '0,0')
+    // Side 2 of (5, 4) faces west, into (4, 4): it shows through the gap, and the other sides stand their whole height.
+    expect(levels(faces(chunk, 5, 4), SURFACE_CLIFF, 2)).toEqual([2, 3])
+    expect(levels(faces(chunk, 5, 4), SURFACE_CLIFF, 0)).toEqual([2, 3, 4, 5])
+    // And the carved column's own east side has nothing to show: the neighbour covers both its spans.
+    expect(levels(faces(chunk, 4, 4), SURFACE_CLIFF, 0)).toEqual([])
+  })
+
+  it('draws the floor under a block that floats, and the walls of the hole it floats over', () => {
+    const doc = createMap(8, 8)
+    setHeight(doc, 4, 4, 6)
+    carve(doc, 4, 4, 1)
+    carve(doc, 4, 4, 0)
+    const chunk = mesh(doc, '0,0')
+    const cell = faces(chunk, 4, 4)
+    // The bedrock floor is a top at layer -1.
+    expect(levels(cell, SURFACE_TOP)).toEqual([-2, 4])
+    expect(levels(cell, SURFACE_UNDER)).toEqual([4])
+    // The ground beside it stands a voxel over the floor, and walls the hole.
+    expect(levels(faces(chunk, 5, 4), SURFACE_CLIFF, 2)).toEqual([0, 1])
+    expect(chunk.missing).toEqual([])
+  })
+
+  it('keeps a ledge over a ramp apart from the ramp: the slope is a top of its own under it', () => {
+    const doc = createMap(8, 8)
+    setHeight(doc, 4, 4, 4)
+    setRamp(doc, 4, 4, 0)
+    const g = ground(doc)
+    // A block two layers over the ramp, with a layer of air between.
+    g.voxels.shape[voxelIndex(g, 4, 4, 3)] = SHAPE_BLOCK
+    settleFaces(g, 0)
+    const cell = faces(mesh(doc, '0,0'), 4, 4)
+    expect(levels(cell, SURFACE_TOP)).toEqual([2, 6])
+    expect(levels(cell, SURFACE_UNDER)).toEqual([6])
+    // The ramp's top still slopes.
+    expect(cell.filter((f) => f.kind === SURFACE_TOP && f.level === 2).every((f) => f.ny < 0.99 && f.ny > 0)).toBe(true)
   })
 })

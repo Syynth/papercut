@@ -19,9 +19,9 @@
 import { AIR, DIR_VECTORS, SHAPE_BLOCK, inBounds, type EdgeEnd } from './document'
 import { FACE_BOTTOM, FACE_TOP, edgeKey, edgeOff, faceKey, faceLayers, parseFaceKey } from './paint'
 import type { ReadonlyVoxel } from './structure'
-import { SURFACE_CLIFF, type SurfaceAddress } from './surface'
+import { SURFACE_CLIFF, SURFACE_UNDER, type SurfaceAddress } from './surface'
 import { cornerHeights } from './terrain'
-import { columnTopAt, isHalfRampShape, isRampShape, shapeHeight, voxelAt, wallStands } from './voxels'
+import { columnTopAt, faceNear, isHalfRampShape, isRampShape, shapeHeight, voxelAt, wallStands } from './voxels'
 
 export type RegionElement = 'voxel' | 'face' | 'edge'
 export const REGION_ELEMENTS: readonly RegionElement[] = ['voxel', 'face', 'edge']
@@ -65,8 +65,8 @@ const within = (span: LayerSpan | null, y: number): boolean => span === null || 
 /** Whether a face draws, and so can be selected: what `exposedFacesOf` lists, asked of one face. */
 function faceExists(voxel: ReadonlyVoxel, x: number, z: number, y: number, dir: number): boolean {
   if (!inBounds(voxel.size, x, z)) return false
-  // An empty column's top is the bedrock floor, at layer -1.
-  if (y === -1) return dir === FACE_TOP && columnTopAt(voxel, x, z) < 0
+  // The bedrock floor, at layer -1, shows wherever nothing stands on it.
+  if (y === -1) return dir === FACE_TOP && voxelAt(voxel, x, z, 0) === AIR
   if (voxelAt(voxel, x, z, y) === AIR) return false
   if (dir === FACE_TOP) return voxelAt(voxel, x, z, y + 1) === AIR
   if (dir === FACE_BOTTOM) return y > 0 && voxelAt(voxel, x, z, y - 1) === AIR
@@ -110,10 +110,13 @@ function edgesOfCell(voxel: ReadonlyVoxel, x: number, z: number): string[] {
 export function elementsUnder(voxel: ReadonlyVoxel, press: SurfaceAddress, cells: ReadonlyArray<readonly [number, number]>, element: RegionElement, depth: RegionDepth, span: LayerSpan | null = null): string[] {
   const out = new Set<string>()
   const onCliff = press.kind === SURFACE_CLIFF
+  const under = press.kind === SURFACE_UNDER
   const pressedLayer = Math.floor(press.level / 2)
   for (const [x, z] of cells) {
     if (!inBounds(voxel.size, x, z)) continue
-    const top = columnTopAt(voxel, x, z)
+    // A level press takes each cell's top nearest the layer pressed, or its underside: the ground under a ledge, not the ledge.
+    const level = onCliff ? null : faceNear(voxel, x, z, pressedLayer, under ? FACE_BOTTOM : FACE_TOP)
+    const top = level ?? columnTopAt(voxel, x, z)
     if (element === 'edge') {
       // An edge has no depth: a wall has one top and one foot however tall it is.
       if (!onCliff) for (const key of edgesOfCell(voxel, x, z)) out.add(key)
@@ -128,7 +131,8 @@ export function elementsUnder(voxel: ReadonlyVoxel, press: SurfaceAddress, cells
       } else if (onCliff) {
         if (faceExists(voxel, x, z, y, press.dir)) out.add(faceKey(x, z, y, press.dir))
       } else if (depth === 'surface') {
-        if (faceExists(voxel, x, z, y, FACE_TOP)) out.add(faceKey(x, z, y, FACE_TOP))
+        const dir = under ? FACE_BOTTOM : FACE_TOP
+        if (faceExists(voxel, x, z, y, dir)) out.add(faceKey(x, z, y, dir))
       } else {
         // Through a top: every face the column has at this layer.
         for (const dir of [0, 1, 2, 3, FACE_TOP, FACE_BOTTOM]) if (faceExists(voxel, x, z, y, dir)) out.add(faceKey(x, z, y, dir))

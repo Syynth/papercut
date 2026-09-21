@@ -12,7 +12,7 @@ import { DEFAULT_LAYERS, DIR_VECTORS, MATERIAL_LAYERS, NO_RAMP, NO_WATER, SHAPE_
 import { FACE_BOTTOM, FACE_TOP, edgeKey, faceKey, parseFaceKey, tintKey } from './paint'
 import { descendantsOf, type Placement, type ProfilePoint, type QuarterTurn, type ReadonlySketch, type ReadonlyVoxel, type SketchStructure, type Structure } from './structure'
 import { frameOf, groundHeight, toLocal, type Frame } from './terrain'
-import { columnShapes, columnTopAt, exposedFacesOf, wallStands, halfRampShape, halfRampUpShape, maxHeightOf, rampDirAt, rampShape, topHeight, topLayersAt, voxelIndex } from './voxels'
+import { columnShapes, columnTopAt, exposedFacesOf, faceNear, wallStands, halfRampShape, halfRampUpShape, maxHeightOf, rampDirAt, rampShape, topHeight, topLayersAt, voxelIndex } from './voxels'
 
 export type BrushShape = 'square' | 'circle'
 
@@ -242,14 +242,18 @@ export function smooth(doc: ReadonlyMapDoc, voxel: ReadonlyVoxel, cells: Cell[],
   return sculpted(doc, voxel, cells, patches)
 }
 
-/** Put `material` on material layer `layer` of each column's top face — the floor, for an empty column; `null` empties that layer. */
-export function setMaterial(voxel: ReadonlyVoxel, cells: Cell[], material: number | null, layer = 0): Patch[] {
-  return paintFace(
-    voxel,
-    cells.map(([x, z]) => ({ x, z, y: columnTopAt(voxel, x, z), dir: FACE_TOP })),
-    material,
-    layer,
-  )
+/**
+ * Put `material` on material layer `layer` of each column's top face — the floor, for an empty column; `null` empties
+ * that layer. With `at`, the face pressed, it is each column's top nearest that layer, or its underside nearest it:
+ * the ground under a ledge, or the ledge's ceiling, and not always the highest thing the column has.
+ */
+export function setMaterial(voxel: ReadonlyVoxel, cells: Cell[], material: number | null, layer = 0, at?: { y: number; dir: typeof FACE_TOP | typeof FACE_BOTTOM }): Patch[] {
+  const faces = cells.flatMap(([x, z]) => {
+    if (!at) return [{ x, z, y: columnTopAt(voxel, x, z), dir: FACE_TOP }]
+    const y = inBounds(voxel.size, x, z) ? faceNear(voxel, x, z, at.y, at.dir) : null
+    return y === null ? [] : [{ x, z, y, dir: at.dir }]
+  })
+  return paintFace(voxel, faces, material, layer)
 }
 
 /** The cliff edge a ramp is cut from: the cell whose side `dir` stands above its neighbour. */

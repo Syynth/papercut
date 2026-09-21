@@ -12,7 +12,7 @@
 
 import { useMemo, useSyncExternalStore } from 'react'
 
-import { SURFACE_CLIFF, SURFACE_SKETCH_CAP, SURFACE_SKETCH_WALL, describeSurface, exposedFacesOf, type ReadonlyMapDoc } from '@papercut/document'
+import { SURFACE_CLIFF, SURFACE_UNDER, SURFACE_SKETCH_CAP, SURFACE_SKETCH_WALL, describeSurface, exposedFacesOf, type ReadonlyMapDoc } from '@papercut/document'
 import { sameSurface, useDocumentSelector, useHost, useToolsSelector, useViewSelector, useViewportSelector } from '@papercut/editor-host'
 import { Hint, StatusHints, StatusRight } from '@papercut/ui'
 
@@ -163,6 +163,8 @@ function HoverReadout() {
             ? 'a sketch — Terrain edits voxel volumes'
             : hover && hover.kind === SURFACE_CLIFF
               ? `band · layer ${Math.floor(hover.level / 2)}`
+              : hover && hover.kind === SURFACE_UNDER
+                ? `underside · layer ${Math.floor(hover.level / 2)}`
               : `${cells} cells`}
         </span>
       ) : null}

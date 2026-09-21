@@ -21,13 +21,17 @@ import { ViewCube, type CubePiece } from './cube'
 import { FrameProfile, GpuTimer, type FrameProfileReport } from './profile'
 
 import {
+  AIR,
   DIR_VECTORS,
   FACE_BOTTOM,
   FACE_TOP,
   SURFACE_CLIFF,
   SURFACE_TOP,
+  SURFACE_UNDER,
   columnTopAt,
   cornerHeights,
+  cornerHeightsAt,
+  faceNear,
   parseEdgeKey,
   parseFaceKey,
   parseVoxelKey,
@@ -780,7 +784,8 @@ export class Viewport {
   // --- internals --------------------------------------------------------------
 
   /** A flat overlay quad hugging a cell's top surface, in world space through the volume's frame. */
-  private cellQuad(voxel: ReadonlyVoxel, x: number, y: number, out: number[], lift = 0.03): void {
+  /** A cell's quad, on its column's top; or, with `on`, on the top of the voxel at `layer`, or level at `flat` tiles up — an underside. */
+  private cellQuad(voxel: ReadonlyVoxel, x: number, y: number, out: number[], lift = 0.03, on?: { layer: number } | { flat: number }): void {
     if (!inBounds(voxel.size, x, y)) return
     // On the ground, under any water: the water surface neither writes depth
     // nor draws before the overlays (see the scene's water material), so a
@@ -792,7 +797,8 @@ export class Viewport {
       const [wx, wz] = toWorld(frame, lx, lz)
       return [wx, frame.y + h, wz]
     }
-    const [c00, c01, c11, c10] = cornerHeights(voxel, x, y).map((h) => (layers === null ? h : Math.min(h, layers.hi)) * 0.5 + lift)
+    const heights = on === undefined ? cornerHeights(voxel, x, y) : 'flat' in on ? [on.flat * 2, on.flat * 2, on.flat * 2, on.flat * 2] : cornerHeightsAt(voxel, x, y, on.layer)
+    const [c00, c01, c11, c10] = heights.map((h) => (layers === null ? h : Math.min(h, layers.hi)) * 0.5 + lift)
     out.push(
       ...at(x, c00, y), ...at(x, c01, y + 1), ...at(x + 1, c11, y + 1),
       ...at(x, c00, y), ...at(x + 1, c11, y + 1), ...at(x + 1, c10, y),
@@ -827,8 +833,11 @@ export class Viewport {
     const points: number[] = []
     const voxel = address ? structureOf(doc, address.structure, 'voxel') : undefined
 
-    if (address && voxel && address.kind === SURFACE_TOP) {
-      this.cellQuad(voxel, address.x, address.y, points, 0.04)
+    if (address && voxel && (address.kind === SURFACE_TOP || address.kind === SURFACE_UNDER) && inBounds(voxel.size, address.x, address.y)) {
+      // The top or the underside hovered, which in a column with air in it is not always its highest.
+      const under = address.kind === SURFACE_UNDER
+      const layer = faceNear(voxel, address.x, address.y, Math.floor(address.level / 2), under ? FACE_BOTTOM : FACE_TOP)
+      if (layer !== null) this.cellQuad(voxel, address.x, address.y, points, under ? -0.04 : 0.04, under ? { flat: layer } : { layer })
     } else if (address && voxel && address.kind === SURFACE_CLIFF) {
       // Highlight exactly the band that was picked, so the artist can see the
       // level their paint would land on.
@@ -928,8 +937,8 @@ export class Viewport {
         points.push(...a, ...b, ...c, ...a, ...c, ...d)
         lines.push(...a, ...b, ...b, ...c, ...c, ...d, ...d, ...a)
       }
-      /** A cell-local corner's height, in world units: the column's own surface, so a ramp's top is followed. */
-      const cornerAt = (x: number, z: number, cx: number, cz: number): number => cornerHeights(voxel, x, z)[[[0, 1], [3, 2]][cx][cz]] * 0.5
+      /** A cell-local corner's height on the top of the voxel at layer `y`, in world units: its own surface, so a ramp's top is followed. */
+      const cornerAt = (x: number, z: number, y: number, cx: number, cz: number): number => cornerHeightsAt(voxel, x, z, y)[[[0, 1], [3, 2]][cx][cz]] * 0.5
       /** A voxel's top, in world units: a slab or a ramp stands half as high as a cube. */
       const topOf = (x: number, z: number, y: number): number => y + shapeHeight(voxelAt(voxel, x, z, y)) * 0.5
       const side = (dir: number): { ox: number; oz: number; ux: number; uz: number } => {
@@ -938,9 +947,9 @@ export class Viewport {
       }
       const face = (x: number, z: number, y: number, dir: number, inflate = 0): void => {
         if (dir === FACE_TOP || dir === FACE_BOTTOM) {
-          // The column's top follows its slope; any other top, and every underside, is level.
-          const onTop = dir === FACE_TOP && y === columnTopAt(voxel, x, z)
-          const h = (cx: number, cz: number): number => (dir === FACE_BOTTOM ? y - inflate : onTop ? cornerAt(x, z, cx, cz) + inflate : (y < 0 ? 0 : topOf(x, z, y)) + inflate)
+          // A top with air over it follows its slope, wherever in the column it is; a buried one, and every underside, is level.
+          const onTop = dir === FACE_TOP && y >= 0 && voxelAt(voxel, x, z, y + 1) === AIR
+          const h = (cx: number, cz: number): number => (dir === FACE_BOTTOM ? y - inflate : onTop ? cornerAt(x, z, y, cx, cz) + inflate : (y < 0 ? 0 : topOf(x, z, y)) + inflate)
           quad(at(x, h(0, 0), z), at(x, h(0, 1), z + 1), at(x + 1, h(1, 1), z + 1), at(x + 1, h(1, 0), z))
           return
         }
@@ -965,7 +974,7 @@ export class Viewport {
           // The wall's line: along its top at the column's own heights, or along its foot at the heights of the ground it stands on.
           const [bx, bz] = [e.x + nx, e.z + nz]
           const beside = inBounds(voxel.size, bx, bz)
-          const heightAt = (cx: number, cz: number): number => (e.end === 'top' ? cornerAt(e.x, e.z, cx, cz) : beside ? cornerAt(bx, bz, cx - nx, cz - nz) : 0)
+          const heightAt = (cx: number, cz: number): number => (e.end === 'top' ? cornerAt(e.x, e.z, columnTopAt(voxel, e.x, e.z), cx, cz) : beside ? cornerAt(bx, bz, columnTopAt(voxel, bx, bz), cx - nx, cz - nz) : 0)
           const [h0, h1] = [heightAt(ox, oz), heightAt(ox + ux, oz + uz)]
           const [x0, z0, x1, z1] = [e.x + ox, e.z + oz, e.x + ox + ux, e.z + oz + uz]
           // Folded over the edge: a strip on the wall, and a strip on the level beside it — the top's own for a top, the ground's for a foot.

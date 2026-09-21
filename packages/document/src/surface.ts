@@ -17,7 +17,10 @@ export const SURFACE_SKETCH_CAP = 3
 /** A sketch's wall or a band on it; `x` is the outline segment. */
 export const SURFACE_SKETCH_WALL = 4
 
-export type SurfaceKind = typeof SURFACE_TOP | typeof SURFACE_CLIFF | typeof SURFACE_WATER | typeof SURFACE_SKETCH_CAP | typeof SURFACE_SKETCH_WALL
+/** The underside of a voxel with air beneath it: an overhang's ceiling. `level` is the voxel's layer, doubled. */
+export const SURFACE_UNDER = 5
+
+export type SurfaceKind = typeof SURFACE_UNDER | typeof SURFACE_TOP | typeof SURFACE_CLIFF | typeof SURFACE_WATER | typeof SURFACE_SKETCH_CAP | typeof SURFACE_SKETCH_WALL
 
 export interface SurfaceAddress {
   /** The structure the surface belongs to. */
@@ -27,7 +30,10 @@ export interface SurfaceAddress {
   y: number
   /** Cliff faces: which side (0 E, 1 S, 2 W, 3 N). */
   dir: number
-  /** Cliff faces: which half-tile band. */
+  /**
+   * Cliff faces: which half-tile band. Tops and undersides: the layer of the voxel whose face it is, doubled, so that
+   * half of any surface's level, rounded down, is its layer. A column can have a top at more than one layer.
+   */
   level: number
 }
 
@@ -62,6 +68,7 @@ export function sameSurface(a: SurfaceAddress | null, b: SurfaceAddress | null):
 export function describeSurface(address: SurfaceAddress | null): string {
   if (!address) return '—'
   if (address.kind === SURFACE_TOP) return `top (${address.x}, ${address.y})`
+  if (address.kind === SURFACE_UNDER) return `underside (${address.x}, ${address.y}) layer ${Math.floor(address.level / 2)}`
   if (address.kind === SURFACE_WATER) return `water (${address.x}, ${address.y})`
   if (address.kind === SURFACE_SKETCH_CAP) return `sketch cap ${address.structure}`
   if (address.kind === SURFACE_SKETCH_WALL) return `sketch wall ${address.structure} segment ${address.x}`

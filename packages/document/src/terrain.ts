@@ -38,10 +38,18 @@ export const RAMP_DROP = 2
  * refines when it draws shapes itself.
  */
 export function cornerHeights(voxel: ReadonlyVoxel, x: number, y: number): [number, number, number, number] {
-  const top = columnTopAt(voxel, x, y)
-  if (top < 0) return [0, 0, 0, 0]
-  const shape = voxel.voxels.shape[voxelIndex(voxel, x, y, top)]
-  const base = top * 2
+  return cornerHeightsAt(voxel, x, y, columnTopAt(voxel, x, y))
+}
+
+/**
+ * The corner heights of the top of ONE voxel, the one at `layer`, in `CORNER_OFFSETS` order: what a column's top is
+ * when that voxel is its highest, and what a lower top is where the column has air above it and more ground over that
+ * (an overhang's floor, a cave's). Layer -1 is the bedrock floor.
+ */
+export function cornerHeightsAt(voxel: ReadonlyVoxel, x: number, y: number, layer: number): [number, number, number, number] {
+  if (layer < 0) return [0, 0, 0, 0]
+  const shape = voxel.voxels.shape[voxelIndex(voxel, x, y, layer)]
+  const base = layer * 2
   const h = base + shapeHeight(shape)
   const corners: [number, number, number, number] = [h, h, h, h]
   const dir = shapeRampDir(shape)

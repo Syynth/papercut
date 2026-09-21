@@ -17,6 +17,9 @@ import {
   FACE_TOP,
   SURFACE_CLIFF,
   SURFACE_TOP,
+  SURFACE_UNDER,
+  FACE_BOTTOM,
+  faceNear,
   brushCells,
   columnTopAt,
   faceLayers,
@@ -194,10 +197,17 @@ function faceOf(address: SurfaceAddress, x: number, z: number): FaceRef {
   return { x, z, y: Math.floor(address.level / 2), dir: address.dir }
 }
 
-/** The face a surface address is on: a band's voxel side, or the column's top. */
+/** Which of a column's level faces a top or an underside address names: the layer pressed, and whether it faces up or down. */
+function levelFace(address: SurfaceAddress): { y: number; dir: typeof FACE_TOP | typeof FACE_BOTTOM } {
+  return { y: Math.floor(address.level / 2), dir: address.kind === SURFACE_UNDER ? FACE_BOTTOM : FACE_TOP }
+}
+
+/** The face a surface address is on: a band's voxel side, or the top or underside pressed — the column's top when the address names none it has. */
 function surfaceFace(voxel: ReadonlyVoxel, address: SurfaceAddress): FaceRef {
   if (address.kind === SURFACE_CLIFF) return faceOf(address, address.x, address.y)
-  return { x: address.x, z: address.y, y: columnTopAt(voxel, address.x, address.y), dir: FACE_TOP }
+  const { y, dir } = levelFace(address)
+  const near = inBounds(voxel.size, address.x, address.y) ? faceNear(voxel, address.x, address.y, y, dir) : null
+  return near === null ? { x: address.x, z: address.y, y: columnTopAt(voxel, address.x, address.y), dir: FACE_TOP } : { x: address.x, z: address.y, y: near, dir }
 }
 
 /** The material on one of a face's material layers, or `null` for an empty or unpainted one. */
@@ -289,7 +299,7 @@ export function paintPatches(voxel: ReadonlyVoxel, params: TerrainParams, addres
         const faces = cells.filter(([x, y]) => (address.dir % 2 === 0 ? x === address.x : y === address.y)).map(([x, y]) => faceOf(address, x, y))
         return paintFace(voxel, faces, erase ? null : params.material, params.materialLayer)
       }
-      if (address.kind === SURFACE_TOP) return setMaterial(voxel, cells, erase ? null : params.material, params.materialLayer)
+      if (address.kind === SURFACE_TOP || address.kind === SURFACE_UNDER) return setMaterial(voxel, cells, erase ? null : params.material, params.materialLayer, levelFace(address))
       return []
     case 'tint':
       return paintTint(voxel, cells, erase ? undefined : params.tint)
@@ -303,7 +313,7 @@ export function paintPatches(voxel: ReadonlyVoxel, params: TerrainParams, addres
     case 'tiles': {
       // The stamp's top-left lands on the face pressed; shift clears the stamp's footprint on the active layer.
       const stamp = params.stamp
-      if (!stamp || (address.kind !== SURFACE_TOP && address.kind !== SURFACE_CLIFF)) return []
+      if (!stamp || (address.kind !== SURFACE_TOP && address.kind !== SURFACE_CLIFF && address.kind !== SURFACE_UNDER)) return []
       const tiles = erase ? stamp.tiles.map((row) => row.map(() => null)) : stamp.tiles
       return pasteTiles(voxel, surfaceFace(voxel, address), stamp.image, tiles, params.materialLayer)
     }
