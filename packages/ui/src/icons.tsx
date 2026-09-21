@@ -258,6 +258,97 @@ const GLYPHS = {
       <path d="M12 9v6M10 11l2-2 2 2M10 13l2 2 2-2" />
     </>
   ),
+  // the Match rules and their switches (design pass of 2026-09-20; the set is drawn in docs/design/terrain-tools-round)
+  matchRun: (
+    <>
+      <rect x="4" y="6" width="16" height="12" rx="1" strokeOpacity=".4" /><path d="M4 6h16" strokeWidth="3.2" /><path d="M4 3.5v5M20 3.5v5" />
+    </>
+  ),
+  matchLoop: (
+    <>
+      <path d="M13 6H5a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1V7a1 1 0 0 0-1-1h-1.5" strokeWidth="3.2" /><path d="M10.5 2.8 13.7 6l-3.2 3.2" strokeWidth="2" />
+    </>
+  ),
+  matchKind: (
+    <>
+      <rect x="4" y="6" width="16" height="12" rx="1" strokeOpacity=".4" /><path d="M4 6h16M4 18h16" strokeWidth="3.2" />
+    </>
+  ),
+  matchTrim: (
+    <>
+      <rect x="4" y="6" width="16" height="12" rx="1" strokeOpacity=".4" /><path d="M4 6h16" strokeWidth="2.4" /><path d="M6 6v4M9.5 6v3M13 6v4M16.5 6v3M20 6v4" />
+    </>
+  ),
+  matchFlat: (
+    <>
+      <path d="M12 5 22 12 12 19 2 12z" fill="currentColor" fillOpacity=".35" stroke="none" /><path d="M12 5 22 12 12 19 2 12zM7 8.5 17 15.5M17 8.5 7 15.5" />
+    </>
+  ),
+  matchMaterial: (
+    <>
+      <path d="M12 5 22 12 12 19 2 12z" /><path d="M12 8.2c1.7 2 2.6 3.3 2.6 4.4a2.6 2.6 0 0 1-5.2 0c0-1.1.9-2.4 2.6-4.4z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  matchTile: (
+    <>
+      <path d="M12 5 22 12 12 19 2 12z" /><path d="M12 8.5 17 12l-5 3.5L7 12z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  matchSurface: (
+    <>
+      <path d="M2 18h6v-4h6v-4h8" strokeWidth="3.2" /><path d="M8 18h14v-8" strokeOpacity=".4" />
+    </>
+  ),
+  matchWall: (
+    <>
+      <path d="M12 3 20 7.5v9L12 21 4 16.5v-9z" strokeOpacity=".4" /><path d="M4 7.5 12 12v9l-8-4.5z" fill="currentColor" stroke="none" /><path d="M20 7.5 12 12v9l8-4.5z" fill="currentColor" fillOpacity=".35" stroke="none" />
+    </>
+  ),
+  matchLayer: (
+    <>
+      <rect x="4" y="5" width="16" height="4" strokeOpacity=".4" /><rect x="4" y="10" width="16" height="4" fill="currentColor" stroke="none" /><rect x="4" y="15" width="16" height="4" strokeOpacity=".4" />
+    </>
+  ),
+  matchIsland: (
+    <>
+      <path d="M2 19h20" strokeOpacity=".4" /><path d="M5 19v-5h4v-5h6v3h4v7z" fill="currentColor" fillOpacity=".35" stroke="none" /><path d="M5 19v-5h4v-5h6v3h4v7" />
+    </>
+  ),
+  matchColumn: (
+    <>
+      <rect x="4" y="11" width="5" height="8" strokeOpacity=".4" /><rect x="15" y="14" width="5" height="5" strokeOpacity=".4" /><rect x="9.5" y="4" width="5" height="15" fill="currentColor" stroke="none" />
+    </>
+  ),
+  matchPiece: (
+    <>
+      <path d="M3 19h9V10z" fill="currentColor" stroke="none" /><path d="M12 19h9v-9z" fill="currentColor" fillOpacity=".35" stroke="none" /><path d="M12 19h9v-9z" />
+    </>
+  ),
+  connected: (
+    <>
+      <rect x="4" y="9" width="6" height="6" fill="currentColor" stroke="none" /><rect x="10" y="9" width="6" height="6" fill="currentColor" stroke="none" /><rect x="16" y="15" width="4" height="4" strokeOpacity=".4" /><rect x="16" y="4" width="4" height="4" strokeOpacity=".4" />
+    </>
+  ),
+  everywhere: (
+    <>
+      <rect x="3" y="4" width="6" height="6" fill="currentColor" stroke="none" /><rect x="15" y="6" width="6" height="6" fill="currentColor" stroke="none" /><rect x="8" y="14" width="6" height="6" fill="currentColor" stroke="none" />
+    </>
+  ),
+  band: (
+    <>
+      <path d="M12 3 20 7.5v9L12 21 4 16.5v-9z" /><path d="M4 7.5 12 12l8-4.5" strokeOpacity=".4" /><path d="M4 10.5 12 15l8-4.5v3L12 18l-8-4.5z" fill="currentColor" stroke="none" />
+    </>
+  ),
+  topLayer: (
+    <>
+      <path d="M12 4 21 8.5 12 13 3 8.5z" fill="currentColor" stroke="none" /><path d="M3 12.5 12 17l9-4.5M3 16.5 12 21l9-4.5" />
+    </>
+  ),
+  anyLayer: (
+    <>
+      <path d="M12 4 21 8.5 12 13 3 8.5z" fill="currentColor" stroke="none" /><path d="M3 12.5 12 17l9-4.5M3 16.5 12 21l9-4.5" strokeWidth="3" />
+    </>
+  ),
   place: (
     <>
       <path d="M12 21s-6-6-6-11a6 6 0 0 1 12 0c0 5-6 11-6 11z" />

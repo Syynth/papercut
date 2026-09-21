@@ -26,7 +26,9 @@ default rule (Run, Flat, Island), a one-cell brush takes one element, hover show
 ctrl-hover what a double-click would, and Fill is retired. Step 2 followed the same day: triple-click takes the
 next whole out (an edge's Loop, a top's Surface or a side's Wall, a voxel's Island), Follow slopes and Pair are in
 the edge bar, and a voxel's default became Layer rather than Island (decision of 2026-09-21), so the boards' "Island"
-default is superseded. What was built before that is Region mode, the three elements, brush, rectangle and fill, surface and
+default is superseded. Step 3, 2026-09-21: Match is a row of buttons per element with the rest of the rules —
+Same kind, Same trim; Material, Tile, Surface with its Step, Wall, and Band; Column, Same piece — and Everywhere
+for the rules that are a test of one element against the clicked one. What was built before that is Region mode, the three elements, brush, rectangle and fill, surface and
 through, combine, and grow, shrink and invert. This pass maps the rest, with the aim that it stays simple: three
 gestures and one Match menu, and everything specialised is what a double-click means.
 

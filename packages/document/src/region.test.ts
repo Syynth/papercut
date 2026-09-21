@@ -1,11 +1,11 @@
 import { describe, expect, it } from 'vitest'
 
-import { createMap, type MapDoc } from './document'
+import { AIR, createMap, slotOf, tileSlot, type MapDoc } from './document'
 import { FACE_TOP, edgeKey, faceKey } from './paint'
-import { combineRegions, contractRegion, describeRegion, elementAt, elementsUnder, matchRegion, pairRegion, expandRegion, invertRegion, pruneRegion, regionOf, voxelKey, widerMatch } from './region'
+import { combineRegions, contractRegion, describeRegion, elementAt, elementsUnder, matchApplies, matchRegion, pairRegion, expandRegion, invertRegion, pruneRegion, regionOf, voxelKey, widerMatch } from './region'
 import type { VoxelStructure } from './structure'
 import { SURFACE_CLIFF, SURFACE_TOP, type SurfaceAddress } from './surface'
-import { fillColumn, rampShape } from './voxels'
+import { fillColumn, rampShape, voxelIndex } from './voxels'
 
 /** A fresh map's ground is one tile up (layer 0); a 2 × 2 plateau stands two tiles over it at (3..4, 3..4), its top voxel on layer 2. */
 function plateau(): { doc: MapDoc; voxel: VoxelStructure } {
@@ -202,5 +202,84 @@ describe('the whole an element belongs to (design pass of 2026-09-20)', () => {
     expect(elementAt(voxel, top(3, 3), 'voxel', { fx: 0.5, fz: 0.5, upper: true })).toBe(voxelKey(3, 3, 2))
     // Level ground away from the map's rim stands no wall, so it has no edge to take.
     expect(elementAt(voxel, top(1, 1), 'edge', { fx: 0.5, fz: 0.5, upper: true })).toBeNull()
+  })
+})
+
+describe('the rest of the Match rules (design pass of 2026-09-20)', () => {
+  it('takes faces showing the same material, across heights but staying on the kind of face clicked; and anywhere with Everywhere', () => {
+    const { voxel } = plateau()
+    // A path of material 4 across the ground, up onto the plateau and down the other side: five tops in a line.
+    for (const [x, y] of [[1, 3, 0], [2, 3, 0], [3, 3, 2], [4, 3, 2], [5, 3, 0]].map(([x, , y]) => [x, y])) voxel.paint.faces[faceKey(x, 3, y, FACE_TOP)] = [slotOf(4), null, null, null]
+    // And one more, apart from the rest.
+    voxel.paint.faces[faceKey(7, 7, 0, FACE_TOP)] = [slotOf(4), null, null, null]
+    expect(matchRegion(voxel, 'face', faceKey(1, 3, 0, FACE_TOP), 'material')).toHaveLength(5)
+    expect(matchRegion(voxel, 'face', faceKey(1, 3, 0, FACE_TOP), 'material', { everywhere: true })).toHaveLength(6)
+    // What shows is the top of the stack: grass over the path hides it, unless every layer is looked at.
+    voxel.paint.faces[faceKey(2, 3, 0, FACE_TOP)] = [slotOf(4), slotOf(0), null, null]
+    expect(matchRegion(voxel, 'face', faceKey(1, 3, 0, FACE_TOP), 'material')).toEqual([faceKey(1, 3, 0, FACE_TOP)])
+    expect(matchRegion(voxel, 'face', faceKey(1, 3, 0, FACE_TOP), 'material', { anyLayer: true })).toHaveLength(5)
+    // A wall painted the same is another kind of face, and stays out of it.
+    voxel.paint.faces[faceKey(3, 3, 2, 3)] = [slotOf(4), null, null, null]
+    expect(matchRegion(voxel, 'face', faceKey(3, 3, 2, FACE_TOP), 'material', { everywhere: true }).every((key) => key.endsWith(`,${FACE_TOP}`))).toBe(true)
+  })
+
+  it('takes faces holding the same pasted tile, and only itself when the face holds none', () => {
+    const { voxel } = plateau()
+    for (const x of [1, 2]) voxel.paint.faces[faceKey(x, 1, 0, FACE_TOP)] = [slotOf(0), tileSlot(1, 7), null, null]
+    voxel.paint.faces[faceKey(3, 1, 0, FACE_TOP)] = [slotOf(0), tileSlot(1, 8), null, null]
+    expect(matchRegion(voxel, 'face', faceKey(1, 1, 0, FACE_TOP), 'tile').sort()).toEqual([faceKey(1, 1, 0, FACE_TOP), faceKey(2, 1, 0, FACE_TOP)])
+    expect(matchRegion(voxel, 'face', faceKey(6, 6, 0, FACE_TOP), 'tile')).toEqual([faceKey(6, 6, 0, FACE_TOP)])
+  })
+
+  it("sets how big a step is still the same surface, and keeps a wall to one course with Band", () => {
+    const { voxel } = plateau()
+    // The plateau stands four half-tiles over the ground: a step of four joins them, and then the surface is every top.
+    expect(matchRegion(voxel, 'face', faceKey(3, 3, 2, FACE_TOP), 'surface', { step: 3 })).toHaveLength(4)
+    expect(matchRegion(voxel, 'face', faceKey(3, 3, 2, FACE_TOP), 'surface', { step: 4 })).toHaveLength(64)
+    expect(matchRegion(voxel, 'face', faceKey(3, 3, 2, FACE_TOP), 'surface', { step: 0 })).toHaveLength(4)
+    expect(matchRegion(voxel, 'face', faceKey(4, 3, 1, 0), 'wall', { band: true })).toHaveLength(8)
+    expect(matchRegion(voxel, 'face', faceKey(4, 3, 1, 0), 'flat', { band: true }).sort()).toEqual([faceKey(4, 3, 1, 0), faceKey(4, 4, 1, 0)])
+  })
+
+  it('takes a column down to the floor or the first gap, and connected voxels of the same piece', () => {
+    const { voxel } = plateau()
+    expect(matchRegion(voxel, 'voxel', voxelKey(3, 3, 2), 'column').sort()).toEqual([voxelKey(3, 3, 0), voxelKey(3, 3, 1), voxelKey(3, 3, 2)])
+    voxel.voxels.shape[voxelIndex(voxel, 3, 3, 1)] = AIR
+    expect(matchRegion(voxel, 'voxel', voxelKey(3, 3, 2), 'column')).toEqual([voxelKey(3, 3, 2)])
+    // Two ramps in a run, whatever way each faces, are the same piece; the cubes beside them are not.
+    const fresh = plateau().voxel
+    fillColumn(fresh, 5, 3, 6, { material: 0, shape: rampShape(0) })
+    fillColumn(fresh, 6, 3, 4, { material: 0, shape: rampShape(0) })
+    expect(matchRegion(fresh, 'voxel', voxelKey(5, 3, 2), 'samePiece').sort()).toEqual([voxelKey(5, 3, 2), voxelKey(6, 3, 1)])
+    // Everywhere, a layer is every voxel on it, connected or not: the plateau's four and the ramp against it, and a pillar apart.
+    fillColumn(fresh, 0, 0, 6)
+    expect(matchRegion(fresh, 'voxel', voxelKey(3, 3, 2), 'layer')).toHaveLength(5)
+    expect(matchRegion(fresh, 'voxel', voxelKey(3, 3, 2), 'layer', { everywhere: true })).toHaveLength(6)
+  })
+
+  it('takes connected edges of the same kind whatever their height, and those in the same trim state', () => {
+    const { voxel } = plateau()
+    // A taller cell on the plateau's corner: its rim is at another height, which stops a loop and not Same kind.
+    fillColumn(voxel, 4, 4, 8)
+    const loop = matchRegion(voxel, 'edge', edgeKey(3, 3, 3, 'top'), 'loop', { followSlopes: false })
+    const kind = matchRegion(voxel, 'edge', edgeKey(3, 3, 3, 'top'), 'sameKind')
+    expect(kind.length).toBeGreaterThan(loop.length)
+    expect(kind).toContain(edgeKey(4, 4, 0, 'top'))
+    expect(kind.every((key) => key.endsWith('top'))).toBe(true)
+    // Two edges switched off: connected, the same trim is the two of them; everywhere, every top that is off.
+    voxel.paint.edges[edgeKey(3, 3, 3, 'top')] = 'off'
+    voxel.paint.edges[edgeKey(4, 3, 3, 'top')] = 'off'
+    voxel.paint.edges[edgeKey(0, 0, 3, 'top')] = 'off'
+    expect(matchRegion(voxel, 'edge', edgeKey(3, 3, 3, 'top'), 'sameTrim').sort()).toEqual([edgeKey(3, 3, 3, 'top'), edgeKey(4, 3, 3, 'top')])
+    expect(matchRegion(voxel, 'edge', edgeKey(3, 3, 3, 'top'), 'sameTrim', { everywhere: true })).toHaveLength(3)
+  })
+
+  it('says which rules mean anything for what was clicked', () => {
+    expect(matchApplies('face', faceKey(1, 1, 0, FACE_TOP), 'surface')).toBe(true)
+    expect(matchApplies('face', faceKey(1, 1, 0, 2), 'surface')).toBe(false)
+    expect(matchApplies('face', faceKey(1, 1, 0, 2), 'wall')).toBe(true)
+    expect(matchApplies('face', faceKey(1, 1, 0, FACE_TOP), 'wall')).toBe(false)
+    expect(matchApplies('voxel', voxelKey(1, 1, 0), 'run')).toBe(false)
+    expect(matchRegion(plateau().voxel, 'voxel', voxelKey(3, 3, 2), 'run')).toEqual([])
   })
 })

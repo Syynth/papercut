@@ -17,11 +17,11 @@
  */
 
 import { AIR, DIR_VECTORS, SHAPE_BLOCK, inBounds, type EdgeEnd } from './document'
-import { FACE_BOTTOM, FACE_TOP, edgeKey, faceKey, parseFaceKey } from './paint'
+import { FACE_BOTTOM, FACE_TOP, edgeKey, edgeOff, faceKey, faceLayers, parseFaceKey } from './paint'
 import type { ReadonlyVoxel } from './structure'
 import { SURFACE_CLIFF, type SurfaceAddress } from './surface'
 import { cornerHeights } from './terrain'
-import { columnTopAt, shapeHeight, voxelAt, wallStands } from './voxels'
+import { columnTopAt, isHalfRampShape, isRampShape, shapeHeight, voxelAt, wallStands } from './voxels'
 
 export type RegionElement = 'voxel' | 'face' | 'edge'
 export const REGION_ELEMENTS: readonly RegionElement[] = ['voxel', 'face', 'edge']
@@ -189,7 +189,14 @@ function beside(element: RegionElement, key: string): string[] {
  * A rule for "the whole an element belongs to" (design pass of 2026-09-20). A double-click takes the element's default,
  * a triple-click the next whole out.
  */
-export type RegionMatch = 'run' | 'loop' | 'flat' | 'surface' | 'wall' | 'layer' | 'island'
+export type RegionMatch = 'run' | 'loop' | 'sameKind' | 'sameTrim' | 'flat' | 'material' | 'tile' | 'surface' | 'wall' | 'layer' | 'island' | 'column' | 'samePiece'
+
+/** The rules an element offers, its default first: what the Match row in Select's bar lists. */
+export const MATCH_RULES: Readonly<Record<RegionElement, readonly RegionMatch[]>> = {
+  edge: ['run', 'loop', 'sameKind', 'sameTrim'],
+  face: ['flat', 'material', 'tile', 'surface', 'wall'],
+  voxel: ['layer', 'island', 'column', 'samePiece'],
+}
 
 /**
  * The default rule for an element, which a double-click takes: the full edge, the flat a face is part of, the layer a
@@ -211,12 +218,24 @@ export interface MatchOptions {
   readonly span?: LayerSpan | null
   /** Whether an edge's run or loop carries on down a ramp's side and picks up the rim below. Absent is on. */
   readonly followSlopes?: boolean
+  /**
+   * Take every element the rule's test passes, connected to the start or not: "select similar". It means something
+   * only for a rule that is a test of one element against the start — the same material, the same layer, the same
+   * trim — and is ignored by the rules that are about how elements join: a run, a loop, a surface, a wall, an island.
+   */
+  readonly everywhere?: boolean
+  /** How big a change of height still counts as the same ground to Surface, in half-tiles. Absent is 1: a slab or a ramp joins, a cliff does not. */
+  readonly step?: number
+  /** On a side face, keep to the clicked layer: one course of a wall. */
+  readonly band?: boolean
+  /** Material and Tile look at every layer of a face's stack rather than the one that shows on top. */
+  readonly anyLayer?: boolean
 }
 
 /** How many elements a match may take before it stops: a guard, not a limit anyone should meet. */
 const MATCH_LIMIT = 50_000
 
-/** How big a change of height still counts as the same ground to a Surface match, in half-tiles: a slab or a ramp joins, a cliff does not. */
+/** How big a change of height still counts as the same ground to a Surface match unless the caller says, in half-tiles. */
 const SURFACE_STEP = 1
 
 /** Where each side of a cell starts, and which way it runs, as the mesher has them: east, south, west, north. */
@@ -247,11 +266,11 @@ function edgeEnds(voxel: ReadonlyVoxel, x: number, z: number, dir: number, end: 
  * outside or inside, until it comes back or runs out. Unless slopes are followed, it also keeps to level edges at the
  * height it started at, so it stops at a ramp; followed, it goes down the ramp's side and takes the rim it lands on.
  */
-function matchEdges(voxel: ReadonlyVoxel, key: string, loop: boolean, followSlopes: boolean): string[] {
+function matchEdges(voxel: ReadonlyVoxel, key: string, loop: boolean, followSlopes: boolean, keep: (other: string) => boolean = () => true, anyHeight = false): string[] {
   const start = parseEdgeKey(key)
   const startEnds = edgeEnds(voxel, start.x, start.z, start.dir, start.end)
   const level = (ends: ReadonlyArray<{ h: number }>): boolean => ends[0].h === ends[1].h
-  const allowed = (ends: ReadonlyArray<{ h: number }>): boolean => followSlopes || (level(ends) && ends[0].h === startEnds[0].h)
+  const allowed = (ends: ReadonlyArray<{ h: number }>): boolean => anyHeight || followSlopes || (level(ends) && ends[0].h === startEnds[0].h)
   const seen = new Set([key])
   const queue = [key]
   while (queue.length > 0 && seen.size < MATCH_LIMIT) {
@@ -265,7 +284,7 @@ function matchEdges(voxel: ReadonlyVoxel, key: string, loop: boolean, followSlop
           const other = edgeKey(cx, cz, dir, start.end)
           if (seen.has(other) || !wallStands(voxel, cx, cz, dir)) continue
           const ends = edgeEnds(voxel, cx, cz, dir, start.end)
-          if (!ends.some((end) => end.vx === at.vx && end.vz === at.vz && end.h === at.h) || !allowed(ends)) continue
+          if (!ends.some((end) => end.vx === at.vx && end.vz === at.vz && (anyHeight || end.h === at.h)) || !allowed(ends) || !keep(other)) continue
           seen.add(other)
           queue.push(other)
         }
@@ -299,50 +318,115 @@ function besideOnWall(key: string): string[] {
  *                      part of, every layer of it, whatever they are painted with;
  *   a top's SURFACE    connected tops across steps of half a tile: the ground you could walk;
  *   a side's WALL      connected side faces, round corners and up and down: the whole cliff;
- *   a voxel's LAYER    the connected voxels of its own layer: one storey;
+ *   a face's MATERIAL  connected faces of its kind showing the same material, across planes and heights; TILE, the
+ *                      same pasted tile;
+ *   a voxel's LAYER    the connected voxels of its own layer: one storey; COLUMN, straight down from it; SAME
+ *                      PIECE, connected voxels of its shape: a run of ramps;
+ *   an edge's SAME KIND and SAME TRIM   connected edges that are tops or feet like it, or switched on or off like it;
  *   a voxel's ISLAND   everything connected to it without going below its layer, so a hill leaves its ground behind.
  *
  * An element that does not exist matches nothing, as does a rule that is not its element's.
  */
 export function matchRegion(voxel: ReadonlyVoxel, element: RegionElement, key: string, rule: RegionMatch = DEFAULT_MATCH[element], options: MatchOptions = {}): string[] {
-  if (!exists(voxel, element, key)) return []
+  if (!exists(voxel, element, key) || !MATCH_RULES[element].includes(rule)) return []
   const span = options.span ?? null
-  if (element === 'edge') return rule === 'run' || rule === 'loop' ? matchEdges(voxel, key, rule === 'loop', options.followSlopes ?? true) : []
+  const everywhere = options.everywhere ?? false
+  /** A rule that is a test of one element against the start can be asked of every element, connected or not. */
+  const similar = (test: (other: string) => boolean): string[] => [...new Set([key, ...allElements(voxel, element, span).filter(test)])]
+
+  if (element === 'edge') {
+    if (rule === 'run' || rule === 'loop') return matchEdges(voxel, key, rule === 'loop', options.followSlopes ?? true)
+    const start = parseEdgeKey(key)
+    // An edge's trim is on unless someone switched it off; that is the state there is to share so far.
+    const off = (e: { x: number; z: number; dir: number; end: EdgeEnd }): boolean => edgeOff(voxel.paint, e.x, e.z, e.dir, e.end)
+    const test = (other: string): boolean => {
+      const e = parseEdgeKey(other)
+      return e.end === start.end && (rule === 'sameKind' || off(e) === off(start))
+    }
+    // Connected whatever way they turn and whatever their height: round corners, and across the steps of a terraced rim.
+    return everywhere ? similar(test) : matchEdges(voxel, key, true, true, test, true)
+  }
 
   // A flood over what is beside, kept to what belongs with the start.
   let next: (from: string) => string[]
   let belongs: (other: string, from: string) => boolean
   if (element === 'voxel') {
-    if (rule !== 'layer' && rule !== 'island') return []
-    const floor = parseVoxelKey(key).y
-    next = (from) => beside('voxel', from)
-    belongs = (other) => {
-      const y = parseVoxelKey(other).y
-      return within(span, y) && (rule === 'layer' ? y === floor : y >= floor)
+    const start = parseVoxelKey(key)
+    const family = (shape: number): number => (isRampShape(shape) ? 2 : isHalfRampShape(shape) ? 3 : shape)
+    const piece = family(voxelAt(voxel, start.x, start.z, start.y))
+    if (rule === 'column') {
+      // Straight down from the click, to the floor or to the first gap.
+      const out = [key]
+      for (let y = start.y - 1; y >= 0 && within(span, y) && voxelAt(voxel, start.x, start.z, y) !== AIR; y--) out.push(voxelKey(start.x, start.z, y))
+      return out
     }
+    // The pieces of a staircase never share a face: each ramp is a cell along and a layer down from the last. So Same
+    // piece also steps along-and-up and along-and-down, which is how a run of ramps is connected.
+    const stepped = (from: string): string[] => {
+      const v = parseVoxelKey(from)
+      return DIR_VECTORS.flatMap(([dx, dz]) => [voxelKey(v.x + dx, v.z + dz, v.y + 1), voxelKey(v.x + dx, v.z + dz, v.y - 1)])
+    }
+    next = (from) => (rule === 'samePiece' ? [...beside('voxel', from), ...stepped(from)] : beside('voxel', from))
+    belongs = (other) => {
+      const v = parseVoxelKey(other)
+      if (!within(span, v.y)) return false
+      if (rule === 'layer') return v.y === start.y
+      if (rule === 'samePiece') return family(voxelAt(voxel, v.x, v.z, v.y)) === piece
+      return v.y >= start.y
+    }
+    if (everywhere && (rule === 'layer' || rule === 'samePiece')) return similar((other) => belongs(other, key))
   } else {
     const start = parseFaceKey(key)
     const flatTop = start.dir === FACE_TOP || start.dir === FACE_BOTTOM
     const shape = (f: { x: number; z: number; y: number }): number => (f.y < 0 ? AIR : voxelAt(voxel, f.x, f.z, f.y))
     const height = (f: { x: number; z: number; y: number }): number => (f.y < 0 ? 0 : f.y * 2 + shapeHeight(shape(f)))
-    const inSpan = (other: string): boolean => {
-      const y = parseFaceKey(other).y
-      return y < 0 || within(span, y)
+    const inSpan = (f: { y: number }): boolean => f.y < 0 || within(span, f.y)
+    /** On a side face with Band on, only the clicked layer: one course of the wall. */
+    const inBand = (f: { y: number; dir: number }): boolean => !(options.band ?? false) || flatTop || f.y === start.y
+    /** The tops of the four cells beside, at any layer, or for a side the wall round its corners: how faces of one kind join across heights. */
+    const across = (from: string): string[] => {
+      const f = parseFaceKey(from)
+      if (f.dir !== FACE_TOP) return f.dir === FACE_BOTTOM ? beside('face', from) : besideOnWall(from)
+      return DIR_VECTORS.flatMap(([dx, dz]) => Array.from({ length: voxel.layers + 1 }, (_, i) => faceKey(f.x + dx, f.z + dz, i - 1, FACE_TOP)))
     }
+    /** The kind of face the start is, which Material and Tile stay on: tops with tops, sides with sides. */
+    const sameKindOfFace = (f: { dir: number }): boolean => (start.dir < 4 ? f.dir < 4 : f.dir === start.dir)
     if (rule === 'flat') {
       next = (from) => beside('face', from)
       // A top's plane is its layer and its shape: a slab's top is not a cube's, and a ramp's is its own.
-      belongs = (other) => inSpan(other) && (!flatTop || shape(parseFaceKey(other)) === shape(start))
-    } else if (rule === 'surface' && start.dir === FACE_TOP) {
-      // The tops of the four cells beside, at any layer: the step between them is what decides.
-      next = (from) => {
-        const f = parseFaceKey(from)
-        return DIR_VECTORS.flatMap(([dx, dz]) => Array.from({ length: voxel.layers + 1 }, (_, i) => faceKey(f.x + dx, f.z + dz, i - 1, FACE_TOP)))
+      const test = (f: { x: number; z: number; y: number; dir: number }): boolean => inSpan(f) && inBand(f) && (!flatTop || shape(f) === shape(start))
+      belongs = (other) => test(parseFaceKey(other))
+      // Everywhere, a flat is every face in the start's plane: the same way up at the same height, or the same wall plane.
+      if (everywhere) {
+        const plane = (f: { x: number; z: number; y: number; dir: number }): number => (f.dir === FACE_TOP || f.dir === FACE_BOTTOM ? height(f) : f.dir % 2 === 0 ? f.x : f.z)
+        return similar((other) => {
+          const f = parseFaceKey(other)
+          return f.dir === start.dir && plane(f) === plane(start) && test(f)
+        })
       }
-      belongs = (other, from) => inSpan(other) && Math.abs(height(parseFaceKey(other)) - height(parseFaceKey(from))) <= SURFACE_STEP
+    } else if (rule === 'material' || rule === 'tile') {
+      // What a face shows is the topmost slot it holds; the stack under it counts only when asked.
+      const prefix = rule === 'material' ? 'm:' : 't:'
+      const slotsOf = (f: { x: number; z: number; y: number; dir: number }): string[] => [...(faceLayers(voxel.paint, f.x, f.z, f.y, f.dir) ?? [])].filter((slot): slot is string => slot !== null)
+      const wanted = slotsOf(start).filter((slot) => slot.startsWith(prefix)).pop()
+      if (wanted === undefined) return [key]
+      const test = (f: { x: number; z: number; y: number; dir: number }): boolean => {
+        const slots = slotsOf(f)
+        return inSpan(f) && inBand(f) && sameKindOfFace(f) && ((options.anyLayer ?? false) ? slots.includes(wanted) : slots[slots.length - 1] === wanted)
+      }
+      next = across
+      belongs = (other) => test(parseFaceKey(other))
+      if (everywhere) return similar((other) => test(parseFaceKey(other)))
+    } else if (rule === 'surface' && start.dir === FACE_TOP) {
+      const step = options.step ?? SURFACE_STEP
+      next = across
+      belongs = (other, from) => inSpan(parseFaceKey(other)) && Math.abs(height(parseFaceKey(other)) - height(parseFaceKey(from))) <= step
     } else if (rule === 'wall' && !flatTop) {
       next = besideOnWall
-      belongs = (other) => inSpan(other) && parseFaceKey(other).dir < 4
+      belongs = (other) => {
+        const f = parseFaceKey(other)
+        return inSpan(f) && inBand(f) && f.dir < 4
+      }
     } else return []
   }
   const seen = new Set([key])
@@ -356,6 +440,14 @@ export function matchRegion(voxel: ReadonlyVoxel, element: RegionElement, key: s
     }
   }
   return [...seen]
+}
+
+/** Whether a rule means anything for the element clicked: Surface is a top's, Wall a side's. The rest are any element's of their kind. */
+export function matchApplies(element: RegionElement, key: string, rule: RegionMatch): boolean {
+  if (!MATCH_RULES[element].includes(rule)) return false
+  if (element !== 'face') return true
+  const { dir } = parseFaceKey(key)
+  return rule === 'surface' ? dir === FACE_TOP : rule === 'wall' ? dir < 4 : true
 }
 
 /** Every selected edge's other end as well: a top takes its wall's foot, a foot its top — from "this rim" to "this cliff's trims". */
@@ -399,25 +491,30 @@ export function contractRegion(voxel: ReadonlyVoxel, region: Region): Region | n
   return keys.length ? { ...region, keys } : null
 }
 
-/** Every element of the region's kind that it does not hold, within `span`. */
-export function invertRegion(voxel: ReadonlyVoxel, region: Region, span: LayerSpan | null = null): Region | null {
-  const held = new Set(region.keys)
+/** Every element of a kind the volume has, within `span`. */
+function allElements(voxel: ReadonlyVoxel, element: RegionElement, span: LayerSpan | null): string[] {
   const all: string[] = []
   for (let z = 0; z < voxel.size.height; z++) {
     for (let x = 0; x < voxel.size.width; x++) {
-      if (region.element === 'edge') {
+      if (element === 'edge') {
         for (let dir = 0; dir < 4; dir++) if (wallStands(voxel, x, z, dir)) all.push(edgeKey(x, z, dir, 'top'), edgeKey(x, z, dir, 'foot'))
         continue
       }
-      for (let y = region.element === 'face' ? -1 : 0; y < voxel.layers; y++) {
+      for (let y = element === 'face' ? -1 : 0; y < voxel.layers; y++) {
         if (y >= 0 && !within(span, y)) continue
-        if (region.element === 'voxel') {
+        if (element === 'voxel') {
           if (voxelAt(voxel, x, z, y) !== AIR) all.push(voxelKey(x, z, y))
         } else for (const dir of [0, 1, 2, 3, FACE_TOP, FACE_BOTTOM]) if (faceExists(voxel, x, z, y, dir)) all.push(faceKey(x, z, y, dir))
       }
     }
   }
-  const keys = all.filter((key) => !held.has(key))
+  return all
+}
+
+/** Every element of the region's kind that it does not hold, within `span`. */
+export function invertRegion(voxel: ReadonlyVoxel, region: Region, span: LayerSpan | null = null): Region | null {
+  const held = new Set(region.keys)
+  const keys = allElements(voxel, region.element, span).filter((key) => !held.has(key))
   return keys.length ? regionOf(region.structure, region.element, keys) : null
 }
 
