@@ -58,6 +58,7 @@ import { Kbd, LayerRange, MaterialLayers, Overlay, Pill, type MaterialLayerRow }
 import { Viewport, type SketchOverlay } from '@papercut/viewport'
 
 import { useArt } from './art'
+import { describeSelection } from './bars'
 import { run } from './commands'
 import { mergeParams } from './params'
 
@@ -238,6 +239,9 @@ export function Stage({ platform }: { platform: Platform }) {
         </Overlay>
       ) : (
         <Overlay at="bottom-right">
+          {/* Stacked over the mouse hints rather than beside them, so the two never meet in a narrow window. */}
+          <div style={{ display: 'grid', gap: 6, justifyItems: 'end' }}>
+            <SelectionPill />
           <Pill>
             <span>
               <Kbd>⌥ drag</Kbd> orbit
@@ -249,9 +253,32 @@ export function Stage({ platform }: { platform: Platform }) {
               <Kbd>scroll</Kbd> zoom
             </span>
           </Pill>
+          </div>
         </Overlay>
       )}
     </>
+  )
+}
+
+/**
+ * What is selected, said on the stage in a pill like the mouse hints' (the owner, 2026-09-21): it is a fact about the
+ * view, true under every tool now that the selection drives the terrain tools, so it does not live in one tool's bar.
+ * Nothing selected shows nothing.
+ */
+function SelectionPill() {
+  const selection = useViewSelector((snapshot) => snapshot.context.selection)
+  const doc = useDocument(wholeDocument, { settled: true })
+  const named = describeSelection(doc, selection)
+  if (named === null) return null
+  return (
+    <Pill>
+      <span>
+        <Kbd>selected</Kbd> {named}
+      </span>
+      <span>
+        <Kbd>esc</Kbd> clear
+      </span>
+    </Pill>
   )
 }
 

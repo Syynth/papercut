@@ -174,9 +174,7 @@ export function SelectBar({
           { value: 'region', icon: 'marquee', title: 'A region of the terrain: its voxels, its faces or its edges' },
         ]}
       />
-      <BarDivider />
-      <BarLabel>Selection</BarLabel>
-      <BarValue>{named ?? 'nothing'}</BarValue>
+      {/* What is selected is said on the stage, in a pill beside the mouse hints (the owner, 2026-09-21), not here: it belongs to the view, under every tool. */}
       <BarDivider />
       {region ? (
         <>

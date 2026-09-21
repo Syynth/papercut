@@ -24,7 +24,7 @@
  * neither platform sees a phantom conflict.
  */
 
-import { keymap, reserveOwner, type KeyBinding } from '@papercut/registry'
+import { and, keymap, reserveOwner, type KeyBinding } from '@papercut/registry'
 
 // `./host` for its side effect only: `mode.play`, `mode.edit`,
 // `commands.run` and `selection.delete` are declared at its import, and a
@@ -57,6 +57,8 @@ const CORE_BINDINGS: readonly KeyBinding[] = [
   // list that prefers `1`/`2`/`3` shadows them without touching the tools.
   { chord: 'v', command: 'tools.set', args: { tool: 'select' } },
   { chord: 'escape', command: 'tools.set', args: { tool: 'select' }, when: toolKeys.tool.is('select').not() },
+  // Already in Select, Escape lets go of what is selected: the stage's selection pill says so beside it.
+  { chord: 'escape', command: 'selection.select', args: { selection: null }, when: and(toolKeys.tool.is('select'), viewKeys.hasSelection.is(true)) },
   { chord: 't', command: 'tools.set', args: { tool: 'terrain' } },
   { chord: 'o', command: 'tools.set', args: { tool: 'object' } },
 
