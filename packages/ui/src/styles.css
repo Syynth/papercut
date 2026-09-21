@@ -91,14 +91,108 @@ body {
 .ui-bar {
   grid-area: bar;
   display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 0 10px;
+  align-items: stretch;
+  min-width: 0;
   background: var(--ui-panel);
   border-bottom: 1px solid var(--ui-line);
-  overflow-x: auto;
-  overflow-y: hidden;
   white-space: nowrap;
+}
+
+/* One line of controls; what does not fit wraps below it, out of sight, and is offered by the More menu instead. The row
+   gap is the bar's own height so a second line can never show under the first. */
+.ui-bar-row {
+  flex: 1;
+  min-width: 0;
+  height: var(--ui-context);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  align-content: flex-start;
+  column-gap: 8px;
+  row-gap: var(--ui-context);
+  padding: 6px 10px 0;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.ui-bar-row > * {
+  min-height: 28px;
+}
+
+.ui-bar-more-anchor {
+  position: relative;
+  display: flex;
+  align-items: center;
+  padding: 0 8px;
+  border-left: 1px solid var(--ui-line);
+}
+
+.ui-bar-more {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 6px;
+  z-index: 40;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: min(420px, 70vw);
+  padding: 10px;
+  background: var(--ui-panel);
+  border: 1px solid var(--ui-line-2);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  white-space: nowrap;
+}
+
+/* The menu wraps, so a divider would as often end a line as divide one: its groups are set apart by the gap instead. */
+.ui-bar-more > .ui-bar-divider {
+  display: none;
+}
+
+.ui-frame.is-insp-collapsed {
+  grid-template-columns: var(--ui-rail) minmax(0, 1fr) 40px;
+}
+
+.ui-insp.is-collapsed {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 8px;
+  overflow-x: hidden;
+}
+
+.ui-insp-head.is-collapsed {
+  width: 100%;
+  justify-content: center;
+  padding: 0;
+  margin-bottom: 4px;
+}
+
+.ui-insp-head > span {
+  flex: 1;
+}
+
+.ui-insp-strip {
+  position: relative;
+}
+
+.ui-insp-strip.is-accent::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  right: 3px;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--ui-accent);
+}
+
+.ui-insp-initial {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--ui-ink-2);
 }
 
 .ui-stage {

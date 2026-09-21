@@ -17,10 +17,11 @@
 
 import { Suspense, lazy, useEffect, useMemo } from 'react'
 
-import { useHost, useProjectSelector } from '@papercut/editor-host'
-import { Frame } from '@papercut/ui'
+import { useHost, useProjectSelector, useViewSelector } from '@papercut/editor-host'
+import { Frame, InspectorPanel } from '@papercut/ui'
 
 import { ContextBar } from './bars'
+import { run } from './commands'
 import { InspectorRegion } from './inspector'
 import { detectPlatform, installKeyDispatcher } from './keys'
 import { Rail } from './rail'
@@ -52,6 +53,8 @@ export default function App({ session }: { session: Session }) {
   // handed `host.input` before React has rendered anything, and a host built
   // by a hook is rebuilt when React remounts.
   const host = useHost()
+  // The one piece of view state the frame itself is shaped by: whether the inspector is folded to its strip.
+  const inspectorCollapsed = useViewSelector((snapshot) => snapshot.context.inspectorCollapsed)
   const platform = useMemo(detectPlatform, [])
   const folder = useProjectSelector((snapshot) => snapshot.context.folder)
   // A project can be open with no map (ruling of 2026-09-19): the stage then offers its maps and a new one.
@@ -137,7 +140,12 @@ export default function App({ session }: { session: Session }) {
         rail={<Rail platform={platform} />}
         bar={<ContextBar platform={platform} />}
         stage={hasMap ? <Stage platform={platform} /> : <NoMapStage session={session} />}
-        inspector={<InspectorRegion platform={platform} />}
+        inspectorCollapsed={inspectorCollapsed}
+        inspector={
+          <InspectorPanel collapsed={inspectorCollapsed} onCollapsedChange={(collapsed) => run(host, 'view.set', { inspectorCollapsed: collapsed })}>
+            <InspectorRegion platform={platform} />
+          </InspectorPanel>
+        }
         status={<StatusBar />}
       />
     </>

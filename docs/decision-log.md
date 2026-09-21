@@ -1118,3 +1118,11 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** The state of the tools is durable across a refresh: the active tool, Select's settings, and every feature's parameters come back as they were. Per map, so do the camera, the layer view and what was selected. It is kept on the machine, beside the app preferences, and never in the project. A new tool setting is expected to be durable by default; a value that describes a gesture in flight, such as a ramp being dragged out, is the exception.
 - **WHY:** Having to constantly re-select things after every refresh is frustrating, and the editor is reloaded often while it is being built.
+
+## The inspector folds to a strip, and a bar that does not fit has a More menu
+- **WHEN:** 2026-09-21
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui
+- **SCOPE:** moderate
+- **WHAT:** The inspector can fold to a thin strip that keeps each section as an icon; clicking one unfolds the panel onto that section, and the backslash key folds and unfolds it. Folded or not is remembered across reloads. A context bar whose controls do not fit keeps what fits on one line and offers the rest in a More menu at its end, rather than wrapping to a second row or scrolling sideways. Select's four combine buttons leave the bar: shift adds, alt takes away, and a plain press replaces.
+- **WHY:** The Select bar overflowed and part of the cause was a sidebar that could not be collapsed. A strip rather than hiding the panel outright, because it stays discoverable and one click reopens the right section. A menu rather than a second row, because a row would take stage height whenever it appeared.

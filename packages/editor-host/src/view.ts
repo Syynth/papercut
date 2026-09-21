@@ -21,6 +21,7 @@ export type SettingsSection = (typeof SETTINGS_SECTIONS)[number]
 
 export const viewKeys = {
   hasSelection: defineContextKey(VIEW_OWNER, 'view.hasSelection', false),
+  inspectorCollapsed: defineContextKey(VIEW_OWNER, 'view.inspectorCollapsed', false),
   gameCamera: defineContextKey(VIEW_OWNER, 'view.gameCamera', false),
 }
 
@@ -44,6 +45,8 @@ const viewSettings = z
     /** How the editor camera projects while free: the view cube's second click flips it. The game's rig has its own. */
     projection: z.enum(['perspective', 'orthographic']).exactOptional(),
     inspector: z.enum(['properties', 'coverage', 'atmosphere', 'outliner']).exactOptional(),
+    /** The inspector folded to a thin strip of its sections' icons, so the bar and the stage have its width (the owner, 2026-09-21). */
+    inspectorCollapsed: z.boolean().exactOptional(),
     layers: layerRange.nullable().exactOptional(),
     /** The level's own sections — camera rig, atmosphere, coverage — opened and closed together from the rail's gear. */
     levelOpen: z.boolean().exactOptional(),
@@ -121,7 +124,7 @@ export const viewLogic = setup({
   },
 }).createMachine({
   id: 'view',
-  context: { showGrid: true, showMissing: false, fallback: 0xff00ff, materialLayersShown: [true, true, true, true], materialLayersOpen: true, gameCamera: false, projection: 'perspective', inspector: 'properties', layers: null, levelOpen: false, notice: null, settings: null, dialog: null, selection: null, selectedObjectId: null },
+  context: { showGrid: true, showMissing: false, fallback: 0xff00ff, materialLayersShown: [true, true, true, true], materialLayersOpen: true, gameCamera: false, projection: 'perspective', inspector: 'properties', inspectorCollapsed: false, layers: null, levelOpen: false, notice: null, settings: null, dialog: null, selection: null, selectedObjectId: null },
   initial: 'ready',
   states: {
     ready: {

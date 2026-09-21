@@ -66,6 +66,9 @@ const CORE_BINDINGS: readonly KeyBinding[] = [
 
   { chord: 'g', command: 'view.set', args: { gameCamera: true }, when: viewKeys.gameCamera.is(false) },
   { chord: 'g', command: 'view.set', args: { gameCamera: false }, when: viewKeys.gameCamera.is(true) },
+  // The inspector folds to a strip and back: the backslash, as the reference art apps hide their panels with it.
+  { chord: '\\', command: 'view.set', args: { inspectorCollapsed: true }, when: viewKeys.inspectorCollapsed.is(false) },
+  { chord: '\\', command: 'view.set', args: { inspectorCollapsed: false }, when: viewKeys.inspectorCollapsed.is(true) },
 
   // No `when` on either: `hostKeys.mode` already gates the commands, and the
   // resolver ANDs a command's own availability into the binding's condition.
