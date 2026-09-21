@@ -397,6 +397,21 @@ describe("Select's region half (rulings of 2026-09-12 and 2026-09-20)", () => {
     expect(keysOf(seen[seen.length - 1])).toHaveLength(16 * 16 + 2)
   })
 
+  it('takes the whole by the rule picked in the bar, and by the default where that rule means nothing for what was clicked', () => {
+    const { reader } = createDocument(createMap(16, 16))
+    fillColumn(ground(reader.doc), 5, 5, 6)
+    const seen: Array<Selection | null> = []
+    const pressWith = (tools: ToolsSnapshot): readonly string[] => {
+      const deps: StrokeDeps = { reader, tools: () => tools, setTools: () => undefined, select: (selection) => void seen.push(selection), contract: () => undefined }
+      const at = { ...sample(5, 5), clicks: 2 }
+      createStrokeHandler(deps, at, null)?.begin(at)
+      return keysOf(seen[seen.length - 1])
+    }
+    expect(pressWith({ ...REGION, selectMatch: { ...REGION.selectMatch, voxel: 'column' } })).toEqual(['5,5,0', '5,5,1', '5,5,2'])
+    // Wall is a side's rule; on a top it gives way to Flat, the pillar's one top face.
+    expect(pressWith({ ...REGION, selectElement: 'face', selectMatch: { ...REGION.selectMatch, face: 'wall' } })).toEqual(['5,5,2,4'])
+  })
+
   it('meets the selection as any press does: alt-double-click takes the whole away', () => {
     const all: Selection = { kind: 'region', structure: 'ground', element: 'face', keys: ['1,1,0,4', '2,1,0,4'] }
     const taking = selecting({ ...REGION, selectElement: 'face' }, all)

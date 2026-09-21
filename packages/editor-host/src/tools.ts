@@ -13,7 +13,7 @@
  * knows, and `tools.set { tool }` refuses an id no owner declared.
  */
 
-import type { RegionCombine, RegionDepth, RegionElement, SnapMode } from '@papercut/document'
+import type { RegionCombine, RegionDepth, RegionElement, RegionMatch, SnapMode } from '@papercut/document'
 import { commands, defineContextKey, reserveOwner, tools } from '@papercut/registry'
 import { setup, types } from 'xstate'
 import { z } from 'zod'
@@ -42,6 +42,19 @@ const toolSettings = z
     selectCombine: z.enum(['replace', 'add', 'subtract', 'intersect']).exactOptional(),
     /** Whether an edge's run or loop carries on down a ramp's side and onto the rim below. */
     selectFollowSlopes: z.boolean().exactOptional(),
+    /** The rule a double-click takes "the whole" by, for each element: one of that element's. */
+    selectMatch: z
+      .object({ edge: z.enum(['run', 'loop', 'sameKind', 'sameTrim']), face: z.enum(['flat', 'material', 'tile', 'surface', 'wall']), voxel: z.enum(['layer', 'island', 'column', 'samePiece']) })
+      .strict()
+      .exactOptional(),
+    /** Take every element the rule's test passes, connected or not. */
+    selectEverywhere: z.boolean().exactOptional(),
+    /** How big a change of height is still the same surface, in half-tiles. */
+    selectStep: z.int().min(0).max(8).exactOptional(),
+    /** Keep a match on a side face to the clicked layer. */
+    selectBand: z.boolean().exactOptional(),
+    /** Material and Tile look at every layer of a face's stack. */
+    selectAnyLayer: z.boolean().exactOptional(),
   })
   .strict()
 
@@ -67,11 +80,16 @@ export interface ToolsContext {
   /** How a new region meets the one there; shift adds and alt subtracts whatever this says. */
   readonly selectCombine: RegionCombine
   readonly selectFollowSlopes: boolean
+  readonly selectMatch: Readonly<Record<RegionElement, RegionMatch>>
+  readonly selectEverywhere: boolean
+  readonly selectStep: number
+  readonly selectBand: boolean
+  readonly selectAnyLayer: boolean
   readonly features: Readonly<Record<string, FeatureParams>>
 }
 
 /** How Select starts: on objects, and for a region, one voxel under a one-cell brush, replacing what was selected. */
-export const SELECT_DEFAULTS = { selectMode: 'objects', selectElement: 'voxel', selectFootprint: 'brush', selectSize: 1, selectDepth: 'surface', selectCombine: 'replace', selectFollowSlopes: true } as const satisfies Partial<ToolsContext>
+export const SELECT_DEFAULTS = { selectMode: 'objects', selectElement: 'voxel', selectFootprint: 'brush', selectSize: 1, selectDepth: 'surface', selectCombine: 'replace', selectFollowSlopes: true, selectMatch: { edge: 'run', face: 'flat', voxel: 'layer' }, selectEverywhere: false, selectStep: 1, selectBand: false, selectAnyLayer: false } as const satisfies Partial<ToolsContext>
 
 commands.declare(TOOLS_OWNER, { id: 'tools.set', title: 'Set Tool', category: 'Tools', args: toolSettings })
 
@@ -94,6 +112,11 @@ function applySettings(settings: ToolSettings): { context: Partial<ToolsContext>
   if (settings.selectDepth !== undefined) next.selectDepth = settings.selectDepth
   if (settings.selectCombine !== undefined) next.selectCombine = settings.selectCombine
   if (settings.selectFollowSlopes !== undefined) next.selectFollowSlopes = settings.selectFollowSlopes
+  if (settings.selectMatch !== undefined) next.selectMatch = settings.selectMatch
+  if (settings.selectEverywhere !== undefined) next.selectEverywhere = settings.selectEverywhere
+  if (settings.selectStep !== undefined) next.selectStep = settings.selectStep
+  if (settings.selectBand !== undefined) next.selectBand = settings.selectBand
+  if (settings.selectAnyLayer !== undefined) next.selectAnyLayer = settings.selectAnyLayer
   return { context: next }
 }
 

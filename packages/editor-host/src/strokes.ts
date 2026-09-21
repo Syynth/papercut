@@ -52,6 +52,7 @@ import {
   groundedPosition,
   inBounds,
   newId,
+  matchApplies,
   matchRegion,
   widerMatch,
   placeStructureOnto,
@@ -247,9 +248,12 @@ export function regionKeysAt(doc: ReadonlyMapDoc, tools: ToolsSnapshot, press: S
   if (whole) {
     const key = elementAt(voxel, press, tools.selectElement, placeIn(doc, pick, press, voxel))
     if (key === null) return []
-    // A double-click takes the element's default whole, a triple-click the next one out.
-    const rule = whole === 'wider' ? widerMatch(tools.selectElement, key) : DEFAULT_MATCH[tools.selectElement]
-    return matchRegion(voxel, tools.selectElement, key, rule, { span, followSlopes: tools.selectFollowSlopes })
+    // A double-click takes the whole by the rule picked in the bar — the element's default until someone picks — and a
+    // triple-click the next one out. A rule that means nothing for what was clicked, Surface on a wall, gives way to the default.
+    const picked = tools.selectMatch[tools.selectElement]
+    const chosen = matchApplies(tools.selectElement, key, picked) ? picked : DEFAULT_MATCH[tools.selectElement]
+    const rule = whole === 'wider' ? widerMatch(tools.selectElement, key) : chosen
+    return matchRegion(voxel, tools.selectElement, key, rule, { span, followSlopes: tools.selectFollowSlopes, everywhere: tools.selectEverywhere, step: tools.selectStep, band: tools.selectBand, anyLayer: tools.selectAnyLayer })
   }
   if (tools.selectFootprint === 'brush' && tools.selectSize === 1 && tools.selectDepth === 'surface') {
     // The element under the pointer, read against the face pressed but at the cell the pointer is over now.

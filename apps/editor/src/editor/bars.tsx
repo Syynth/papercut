@@ -12,7 +12,7 @@
 import type { Selection } from '@papercut/editor-host'
 import { mergeParams, type EditorParams } from './params'
 import { useDocument, useHost, useProject, useToolsSelector, useViewSelector } from '@papercut/editor-host'
-import { DEFAULT_MATCH, describeRegion, type MaterialDef, type RegionElement, type RegionMatch, type ReadonlyMapDoc, type ReadonlyProjectDoc, type SnapMode } from '@papercut/document'
+import { MATCH_RULES, describeRegion, type MaterialDef, type RegionMatch, type ReadonlyMapDoc, type ReadonlyProjectDoc, type SnapMode } from '@papercut/document'
 import { SPRITE_NAMES } from '@papercut/fixtures/textures'
 import type { TerrainPanelProps } from '@papercut/feature-terrain'
 import { always, chordFor, evaluate, panels, tools, type PanelSlot, type Platform } from '@papercut/registry'
@@ -134,12 +134,24 @@ export function SnapControl({ value, onChange }: { value: SnapMode; onChange: (s
   )
 }
 
-const MATCH_NAME: Record<RegionMatch, string> = { run: 'Run', loop: 'Loop', flat: 'Flat', surface: 'Surface', wall: 'Wall', layer: 'Layer', island: 'Island' }
-const MATCH_HINT: Record<RegionElement, string> = {
-  edge: 'Double-click an edge for its run, the full straight edge. Triple-click for its loop: on round the corners, all the way',
-  face: 'Double-click a face for its flat, every connected face in its plane. Triple-click for a top\'s surface, across half-tile steps, or a side\'s wall, round its corners',
-  voxel: 'Double-click a voxel for its layer, the connected voxels of one storey. Triple-click for its island: everything connected, without going below that layer',
+/** Each Match rule as the bar shows it: its glyph, and what a double-click takes by it. */
+const MATCH: Record<RegionMatch, { icon: IconName; title: string }> = {
+  run: { icon: 'matchRun', title: 'Run: the full straight edge, to where it turns' },
+  loop: { icon: 'matchLoop', title: 'Loop: the edge, on round the corners, all the way' },
+  sameKind: { icon: 'matchKind', title: 'Same kind: connected tops, or connected feet, whatever their height' },
+  sameTrim: { icon: 'matchTrim', title: 'Same trim: connected edges switched on, or off, like this one' },
+  flat: { icon: 'matchFlat', title: 'Flat: every connected face in the same plane, whatever it is painted with' },
+  material: { icon: 'matchMaterial', title: 'Material: connected faces showing the same material, across heights' },
+  tile: { icon: 'matchTile', title: 'Tile: connected faces holding the same pasted tile' },
+  surface: { icon: 'matchSurface', title: 'Surface: connected tops across steps up to the Step beside this' },
+  wall: { icon: 'matchWall', title: 'Wall: connected side faces, round corners and up and down' },
+  layer: { icon: 'matchLayer', title: 'Layer: the connected voxels of one storey' },
+  island: { icon: 'matchIsland', title: 'Island: everything connected, without going below the clicked layer' },
+  column: { icon: 'matchColumn', title: 'Column: straight down from the click, to the floor or the first gap' },
+  samePiece: { icon: 'matchPiece', title: 'Same piece: connected voxels of the same shape, as a run of ramps is' },
 }
+/** The rules that are a test of one element against the clicked one, and so can be asked everywhere; the rest are about how elements join. */
+const SIMILAR: readonly RegionMatch[] = ['sameKind', 'sameTrim', 'flat', 'material', 'tile', 'layer', 'samePiece']
 
 export function SelectBar({
   doc,
@@ -163,6 +175,7 @@ export function SelectBar({
   const named = describeSelection(doc, selection)
   const region = params.selectMode === 'region'
   const held = selection?.kind === 'region'
+  const rule = params.selectMatch[params.selectElement]
   return (
     <>
       {/* The mode first, as every tool's bar has it (ruling of 2026-09-12): things that stand on the map, or a region of the terrain itself. */}
@@ -200,8 +213,17 @@ export function SelectBar({
           <BarDivider />
           {/* What a double-click takes: the element's default rule (design pass of 2026-09-20). The other rules join it here as they are built. */}
           <BarLabel>Match</BarLabel>
-          <BarValue title={MATCH_HINT[params.selectElement]}>{MATCH_NAME[DEFAULT_MATCH[params.selectElement]]}</BarValue>
-          {params.selectElement === 'edge' ? <Verb icon="followSlopes" active={params.selectFollowSlopes} title="Follow slopes: a run or a loop carries on down a ramp's side and onto the rim below" onClick={() => set({ selectFollowSlopes: !params.selectFollowSlopes })} /> : null}
+          <IconSegmented
+            value={rule}
+            onChange={(next) => set({ selectMatch: { ...params.selectMatch, [params.selectElement]: next } })}
+            options={MATCH_RULES[params.selectElement].map((value) => ({ value, icon: MATCH[value].icon, title: `${MATCH[value].title}. Double-click takes it; triple-click takes the next whole out` }))}
+          />
+          {/* Only the switches the picked rule reads. */}
+          {rule === 'run' || rule === 'loop' ? <Verb icon="followSlopes" active={params.selectFollowSlopes} title="Follow slopes: a run or a loop carries on down a ramp's side and onto the rim below" onClick={() => set({ selectFollowSlopes: !params.selectFollowSlopes })} /> : null}
+          {rule === 'surface' ? <BarScrub label="Step" title="How big a change of height is still the same surface, in half-tiles: 0 is level ground only" unit="½" value={params.selectStep} min={0} max={8} onChange={(selectStep) => set({ selectStep })} /> : null}
+          {rule === 'flat' || rule === 'wall' || rule === 'material' || rule === 'tile' ? <Verb icon="band" active={params.selectBand} title="Band: on a side face, keep to the clicked layer — one course of the wall" onClick={() => set({ selectBand: !params.selectBand })} /> : null}
+          {rule === 'material' || rule === 'tile' ? <Verb icon={params.selectAnyLayer ? 'anyLayer' : 'topLayer'} active={params.selectAnyLayer} title="Any layer: match what a face holds on any of its layers, not only the one that shows on top" onClick={() => set({ selectAnyLayer: !params.selectAnyLayer })} /> : null}
+          {SIMILAR.includes(rule) ? <Verb icon={params.selectEverywhere ? 'everywhere' : 'connected'} active={params.selectEverywhere} title="Everywhere: take every match on the map, within the layer view, connected to the click or not" onClick={() => set({ selectEverywhere: !params.selectEverywhere })} /> : null}
           <BarDivider />
           <IconSegmented
             value={params.selectDepth}
