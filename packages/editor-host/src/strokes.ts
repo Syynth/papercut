@@ -39,6 +39,7 @@
  */
 
 import {
+  DEFAULT_MATCH,
   DIR_VECTORS,
   addObject,
   brushCells,
@@ -52,6 +53,7 @@ import {
   inBounds,
   newId,
   matchRegion,
+  widerMatch,
   placeStructureOnto,
   rectCells,
   regionOf,
@@ -231,17 +233,23 @@ function placeIn(doc: ReadonlyMapDoc, pick: PickSample, cell: SurfaceAddress, vo
   return { fx: clamp(lx - cell.x), fz: clamp(lz - cell.y), upper: pick.point?.y === undefined || pick.point.y >= middle }
 }
 
+/** How much a press takes: what is under it, the whole that belongs to (a double-click), or the next whole out (a triple-click). */
+export type Whole = false | 'whole' | 'wider'
+
 /**
  * What a press at `at` takes, read against the face first pressed, `press`: the whole the element under it belongs to
  * for a double-click; one element under a one-cell brush; else what the footprint covers. The ONE answer to "what
  * would selecting here take", so the hover preview and the stroke cannot disagree.
  */
-export function regionKeysAt(doc: ReadonlyMapDoc, tools: ToolsSnapshot, press: SurfaceAddress, at: SurfaceAddress, pick: PickSample, span: LayerSpan | null, whole: boolean): string[] {
+export function regionKeysAt(doc: ReadonlyMapDoc, tools: ToolsSnapshot, press: SurfaceAddress, at: SurfaceAddress, pick: PickSample, span: LayerSpan | null, whole: Whole): string[] {
   const voxel = structureOf(doc, press.structure, 'voxel')
   if (!voxel) return []
   if (whole) {
     const key = elementAt(voxel, press, tools.selectElement, placeIn(doc, pick, press, voxel))
-    return key === null ? [] : matchRegion(voxel, tools.selectElement, key, span)
+    if (key === null) return []
+    // A double-click takes the element's default whole, a triple-click the next one out.
+    const rule = whole === 'wider' ? widerMatch(tools.selectElement, key) : DEFAULT_MATCH[tools.selectElement]
+    return matchRegion(voxel, tools.selectElement, key, rule, { span, followSlopes: tools.selectFollowSlopes })
   }
   if (tools.selectFootprint === 'brush' && tools.selectSize === 1 && tools.selectDepth === 'surface') {
     // The element under the pointer, read against the face pressed but at the cell the pointer is over now.
@@ -253,7 +261,7 @@ export function regionKeysAt(doc: ReadonlyMapDoc, tools: ToolsSnapshot, press: S
 }
 
 /** What a click where the pointer is would take, or with `whole` a double-click: the hover preview's region. `null` off the terrain, or when Select is not on regions. */
-export function regionUnder(doc: ReadonlyMapDoc, tools: ToolsSnapshot, pick: PickSample, span: LayerSpan | null, whole: boolean): Region | null {
+export function regionUnder(doc: ReadonlyMapDoc, tools: ToolsSnapshot, pick: PickSample, span: LayerSpan | null, whole: Whole): Region | null {
   if (tools.tool !== 'select' || tools.selectMode !== 'region' || !pick.surface) return null
   const keys = regionKeysAt(doc, tools, pick.surface, pick.surface, pick, span, whole)
   return keys.length ? regionOf(pick.surface.structure, tools.selectElement, keys) : null
@@ -268,6 +276,7 @@ export function regionUnder(doc: ReadonlyMapDoc, tools: ToolsSnapshot, pick: Pic
  * A brush gathers along the drag; a rectangle runs from the press to the pointer. A one-cell brush takes ONE element,
  * so a click on a cell with several edges round it takes the edge nearest the pointer. A DOUBLE-CLICK takes the whole
  * the element belongs to (design pass of 2026-09-20): an edge's run, a face's flat, a voxel's island. It meets the
+ * A TRIPLE-CLICK takes the next whole out: an edge's loop, a top's surface or a side's wall, a voxel's island. Each meets the
  * selection as any press does, and by then the first click of the pair has already taken the element itself, so
  * shift-double-click adds the whole and alt-double-click takes it away. The pressed face stays the reference for the whole stroke, so dragging off a cliff top onto the ground
  * keeps taking tops, and along a wall keeps taking that side.
@@ -277,7 +286,7 @@ function regionStroke(deps: StrokeDeps, selection: Selection | null): EditorStro
   let press: SurfaceAddress | null = null
   let mode: RegionCombine = 'replace'
   /** A double-click: the press takes the whole its element belongs to, and the drag after it takes nothing more. */
-  let whole = false
+  let whole: Whole = false
   const gathered = new Set<string>()
 
   const take = (sample: StrokeSample): void => {
@@ -304,7 +313,7 @@ function regionStroke(deps: StrokeDeps, selection: Selection | null): EditorStro
         return []
       }
       press = pick.surface
-      whole = (sample.clicks ?? 1) >= 2
+      whole = (sample.clicks ?? 1) >= 3 ? 'wider' : (sample.clicks ?? 1) === 2 ? 'whole' : false
       take(sample)
       return []
     },

@@ -72,6 +72,8 @@ import {
   frameOf,
   groundedPosition,
   invertRegion,
+  pairRegion,
+  pruneRegion,
   structureOf,
   toLocal,
   createProject,
@@ -208,7 +210,7 @@ commands.declare(HOST_OWNER, {
  * expands, outside every actor, to the one command that sets a selection, with the region worked out from the
  * document as it stands at the dispatch.
  */
-const regionOpArgs = z.object({ op: z.enum(['expand', 'contract', 'invert']) }).strict()
+const regionOpArgs = z.object({ op: z.enum(['expand', 'contract', 'invert', 'pair']) }).strict()
 export type RegionOpArgs = z.infer<typeof regionOpArgs>
 commands.declare(HOST_OWNER, {
   id: 'selection.region',
@@ -523,7 +525,7 @@ function regionSteps(doc: ReadonlyMapDoc, selection: Selection | null, args: Reg
   if (selection?.kind !== 'region') return []
   const voxel = structureOf(doc, selection.structure, 'voxel')
   if (!voxel) return []
-  const next = args.op === 'expand' ? expandRegion(voxel, selection) : args.op === 'contract' ? contractRegion(voxel, selection) : invertRegion(voxel, selection, span)
+  const next = args.op === 'expand' ? expandRegion(voxel, selection) : args.op === 'contract' ? contractRegion(voxel, selection) : args.op === 'pair' ? pruneRegion(voxel, pairRegion(selection)) : invertRegion(voxel, selection, span)
   return [{ id: 'selection.select', args: { selection: next ? { kind: 'region', ...next } : null } }]
 }
 

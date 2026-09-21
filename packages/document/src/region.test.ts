@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest'
 
 import { createMap, type MapDoc } from './document'
 import { FACE_TOP, edgeKey, faceKey } from './paint'
-import { combineRegions, contractRegion, describeRegion, elementAt, elementsUnder, matchRegion, expandRegion, invertRegion, pruneRegion, regionOf, voxelKey } from './region'
+import { combineRegions, contractRegion, describeRegion, elementAt, elementsUnder, matchRegion, pairRegion, expandRegion, invertRegion, pruneRegion, regionOf, voxelKey, widerMatch } from './region'
 import type { VoxelStructure } from './structure'
 import { SURFACE_CLIFF, SURFACE_TOP, type SurfaceAddress } from './surface'
-import { fillColumn } from './voxels'
+import { fillColumn, rampShape } from './voxels'
 
 /** A fresh map's ground is one tile up (layer 0); a 2 × 2 plateau stands two tiles over it at (3..4, 3..4), its top voxel on layer 2. */
 function plateau(): { doc: MapDoc; voxel: VoxelStructure } {
@@ -129,13 +129,68 @@ describe('the whole an element belongs to (design pass of 2026-09-20)', () => {
     expect(matchRegion(voxel, 'face', faceKey(4, 3, 2, FACE_TOP))).toHaveLength(3)
   })
 
-  it("is a voxel's island: what is connected without going below its layer, so a hill leaves its ground behind", () => {
+  it("is a voxel's layer by default, which can never take more than one storey; its island is the next whole out", () => {
     const { voxel } = plateau()
     expect(matchRegion(voxel, 'voxel', voxelKey(3, 3, 2))).toHaveLength(4)
-    expect(matchRegion(voxel, 'voxel', voxelKey(3, 3, 1))).toHaveLength(8)
-    // From the ground's own layer it is everything, which is what connected means there.
-    expect(matchRegion(voxel, 'voxel', voxelKey(0, 0, 0))).toHaveLength(64 + 8)
-    expect(matchRegion(voxel, 'voxel', voxelKey(3, 3, 1), { lo: 0, hi: 2 })).toHaveLength(4)
+    expect(matchRegion(voxel, 'voxel', voxelKey(3, 3, 1))).toHaveLength(4)
+    expect(widerMatch('voxel', voxelKey(3, 3, 1))).toBe('island')
+    // An island is what is connected without going below its layer, so a hill leaves its ground behind.
+    expect(matchRegion(voxel, 'voxel', voxelKey(3, 3, 1), 'island')).toHaveLength(8)
+    expect(matchRegion(voxel, 'voxel', voxelKey(0, 0, 0), 'island')).toHaveLength(64 + 8)
+    expect(matchRegion(voxel, 'voxel', voxelKey(0, 0, 0))).toHaveLength(64)
+    expect(matchRegion(voxel, 'voxel', voxelKey(3, 3, 1), 'island', { span: { lo: 0, hi: 2 } })).toHaveLength(4)
+  })
+
+  it("is an edge's loop on a triple-click: the run, round the corners, until it comes back", () => {
+    const { voxel } = plateau()
+    expect(widerMatch('edge', edgeKey(3, 3, 3, 'top'))).toBe('loop')
+    // A 2 x 2 plateau's rim: two edges a side. Its foot is another loop of eight.
+    expect(matchRegion(voxel, 'edge', edgeKey(3, 3, 3, 'top'), 'loop')).toHaveLength(8)
+    const foot = matchRegion(voxel, 'edge', edgeKey(3, 3, 3, 'foot'), 'loop')
+    expect(foot).toHaveLength(8)
+    expect(foot.every((key) => key.endsWith('foot'))).toBe(true)
+    // A notch is followed inside as well as out: an L of three cells has a rim of eight.
+    fillColumn(voxel, 4, 4, 2)
+    expect(matchRegion(voxel, 'edge', edgeKey(3, 3, 3, 'top'), 'loop')).toHaveLength(8)
+    // A taller cell is another rim at another height, and the loop goes round it rather than over it.
+    fillColumn(voxel, 4, 4, 8)
+    const lower = matchRegion(voxel, 'edge', edgeKey(3, 3, 3, 'top'), 'loop')
+    expect(lower).toContain(edgeKey(3, 3, 2, 'top'))
+    expect(lower).not.toContain(edgeKey(4, 4, 0, 'top'))
+  })
+
+  it('follows a slope when asked: down a ramp\'s side and onto the rim below, and stops at the ramp when not', () => {
+    const { voxel } = plateau()
+    // A ramp off the plateau's east side, descending east from its height to a tile lower, then a lower plateau beyond it.
+    fillColumn(voxel, 5, 3, 6, { material: 0, shape: rampShape(0) })
+    fillColumn(voxel, 6, 3, 4)
+    const following = matchRegion(voxel, 'edge', edgeKey(4, 3, 3, 'top'), 'run', { followSlopes: true })
+    expect(following).toEqual(expect.arrayContaining([edgeKey(3, 3, 3, 'top'), edgeKey(4, 3, 3, 'top'), edgeKey(5, 3, 3, 'top'), edgeKey(6, 3, 3, 'top')]))
+    const level = matchRegion(voxel, 'edge', edgeKey(4, 3, 3, 'top'), 'run', { followSlopes: false })
+    expect(level.sort()).toEqual([edgeKey(3, 3, 3, 'top'), edgeKey(4, 3, 3, 'top')])
+  })
+
+  it("is a top's surface and a side's wall on a triple-click", () => {
+    const { voxel } = plateau()
+    expect(widerMatch('face', faceKey(3, 3, 2, FACE_TOP))).toBe('surface')
+    expect(widerMatch('face', faceKey(4, 3, 1, 0))).toBe('wall')
+    // The plateau stands two tiles over the ground: a cliff, so its surface is its own four tops.
+    expect(matchRegion(voxel, 'face', faceKey(3, 3, 2, FACE_TOP), 'surface')).toHaveLength(4)
+    // A slab beside it, half a tile down, is the same ground; so is the next, another half down.
+    fillColumn(voxel, 5, 3, 5)
+    fillColumn(voxel, 6, 3, 4)
+    expect(matchRegion(voxel, 'face', faceKey(3, 3, 2, FACE_TOP), 'surface')).toHaveLength(6)
+    // The wall goes round the plateau's corners: a lone 2 x 2 plateau has eight side faces a layer, two layers clear of the ground.
+    const lone = plateau().voxel
+    expect(matchRegion(lone, 'face', faceKey(4, 3, 1, 0), 'wall')).toHaveLength(16)
+    expect(matchRegion(lone, 'face', faceKey(4, 3, 1, 0), 'surface')).toEqual([])
+  })
+
+  it('pairs every edge with its other end', () => {
+    const rim = regionOf('ground', 'edge', [edgeKey(3, 3, 3, 'top'), edgeKey(4, 3, 3, 'foot')])
+    expect(pairRegion(rim).keys).toEqual([edgeKey(3, 3, 3, 'foot'), edgeKey(3, 3, 3, 'top'), edgeKey(4, 3, 3, 'foot'), edgeKey(4, 3, 3, 'top')].sort())
+    const faces = regionOf('ground', 'face', [faceKey(1, 1, 0, FACE_TOP)])
+    expect(pairRegion(faces)).toBe(faces)
   })
 
   it('takes one edge for a press, the nearest of those round the cell, and the nearer end of a wall', () => {

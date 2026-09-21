@@ -245,6 +245,19 @@ const GLYPHS = {
       <path d="M12 2v9M9 8l3 3 3-3" />
     </>
   ),
+  // selection rules (design pass of 2026-09-20): a heavy line that goes down a ramp and on; a top and its foot
+  followSlopes: (
+    <>
+      <path d="M3 7h7l7 9h4" strokeWidth="3.2" />
+      <path d="M3 7v12h18v-3" strokeOpacity=".4" />
+    </>
+  ),
+  pair: (
+    <>
+      <path d="M5 6h14M5 18h14" strokeWidth="3.2" />
+      <path d="M12 9v6M10 11l2-2 2 2M10 13l2 2 2-2" />
+    </>
+  ),
   place: (
     <>
       <path d="M12 21s-6-6-6-11a6 6 0 0 1 12 0c0 5-6 11-6 11z" />

@@ -375,6 +375,28 @@ describe("Select's region half (rulings of 2026-09-12 and 2026-09-20)", () => {
     expect(keysOf(voxels.last())).toHaveLength(16 * 16)
   })
 
+  it('takes the next whole out on a triple-click: a voxel\'s island where a double-click took its layer', () => {
+    const { reader } = createDocument(createMap(16, 16))
+    const voxel = ground(reader.doc)
+    fillColumn(voxel, 5, 5, 6)
+    const seen: Array<Selection | null> = []
+    const deps: StrokeDeps = { reader, tools: () => REGION, setTools: () => undefined, select: (selection) => void seen.push(selection), contract: () => undefined }
+    const pressAt = (clicks: number): readonly string[] => {
+      createStrokeHandler(deps, { ...sample(5, 5), clicks }, null)?.begin({ ...sample(5, 5), clicks })
+      return keysOf(seen[seen.length - 1])
+    }
+    // The pillar's top voxel is alone on its layer; its island is the same, since nothing else reaches that high.
+    expect(pressAt(2)).toEqual(['5,5,2'])
+    expect(pressAt(3)).toEqual(['5,5,2'])
+    // From the ground's layer the double-click is one storey and the triple-click everything standing on it too.
+    const low = { ...sample(1, 1), clicks: 2 }
+    createStrokeHandler(deps, low, null)?.begin(low)
+    expect(keysOf(seen[seen.length - 1])).toHaveLength(16 * 16)
+    const lowest = { ...sample(1, 1), clicks: 3 }
+    createStrokeHandler(deps, lowest, null)?.begin(lowest)
+    expect(keysOf(seen[seen.length - 1])).toHaveLength(16 * 16 + 2)
+  })
+
   it('meets the selection as any press does: alt-double-click takes the whole away', () => {
     const all: Selection = { kind: 'region', structure: 'ground', element: 'face', keys: ['1,1,0,4', '2,1,0,4'] }
     const taking = selecting({ ...REGION, selectElement: 'face' }, all)

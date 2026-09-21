@@ -1102,3 +1102,11 @@ Each entry:
 - **SCOPE:** architectural
 - **WHAT:** The terrain selection has an element mode, as a 3D modeller's does: it selects edges, faces or voxels, and a verb acts on the kind of element selected. Voxels are what Move, Fill and Carve act on; faces are what paint and extrusion act on; edges are what fringes, pickets and rails act on. The selection is one typed thing on the view actor that says which element it holds, and it uses the addresses the document already has for a voxel, a face and an edge.
 - **WHY:** The terrain is made of all three and each kind of edit belongs to one of them. Selecting the thing itself is more exact than selecting voxels and having each verb guess which of their faces or edges was meant, and it keeps one selection model for sculpting, painting and trims.
+
+## A double-click on a voxel takes its layer, not its island
+- **WHEN:** 2026-09-21
+- **PROJECT:** papercut
+- **SYSTEM:** select
+- **SCOPE:** minor/local
+- **WHAT:** Of the rules for "the whole a voxel belongs to", the default, which a double-click takes, is Layer: the connected voxels of the clicked voxel's own layer. Island, everything connected without going below that layer, is the next whole out, which a triple-click takes. The edge and face defaults stay Run and Flat.
+- **WHY:** Layer is the safer default: it can never take more than one storey, where an island on level ground is the whole map, because everything at that layer is connected.

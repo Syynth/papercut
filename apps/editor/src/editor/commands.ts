@@ -30,9 +30,9 @@ export function run(host: Host, id: string, args?: unknown): void {
 
 /** The one write verb the panels get, routed to the actor that owns the parameters: the host owns the tool, the sprite and the snap; the rest is the terrain feature's. */
 export function setParams(host: Host, changes: Partial<EditorParams>): void {
-  const { tool, spriteName, snap, selectMode, selectElement, selectFootprint, selectSize, selectDepth, selectCombine, ...rest } = changes
+  const { tool, spriteName, snap, selectMode, selectElement, selectFootprint, selectSize, selectDepth, selectCombine, selectFollowSlopes, ...rest } = changes
   // The host's own fields, Select's among them; whatever was not set is left out, since the command's schema takes no `undefined`.
-  const own = Object.fromEntries(Object.entries({ tool, spriteName, snap, selectMode, selectElement, selectFootprint, selectSize, selectDepth, selectCombine }).filter(([, value]) => value !== undefined))
+  const own = Object.fromEntries(Object.entries({ tool, spriteName, snap, selectMode, selectElement, selectFootprint, selectSize, selectDepth, selectCombine, selectFollowSlopes }).filter(([, value]) => value !== undefined))
   if (Object.keys(own).length > 0) run(host, 'tools.set', own)
   if (Object.keys(rest).length > 0) run(host, 'terrain.params', rest)
 }

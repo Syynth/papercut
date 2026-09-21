@@ -139,7 +139,7 @@ export function Stage({ platform }: { platform: Platform }) {
         const range = host.children.view.getSnapshot().context.layers
         const span = range === null ? null : { lo: Math.floor(range.lo / 2), hi: Math.ceil(range.hi / 2) }
         const editing = !isPlaying(host.actor.getSnapshot()) && host.input.gesture() === 'none'
-        viewportRef.current?.setOptions({ regionPreview: editing ? regionUnder(host.reader.doc, host.children.tools.getSnapshot().context, pick, span, host.input.heldKeys().has('control')) : null })
+        viewportRef.current?.setOptions({ regionPreview: editing ? regionUnder(host.reader.doc, host.children.tools.getSnapshot().context, pick, span, host.input.heldKeys().has('control') ? 'whole' : false) : null })
       },
       onCameraChange: (camera) => observed.send({ type: 'camera', camera }),
       onStats: (stats) => observed.send({ type: 'stats', stats }),

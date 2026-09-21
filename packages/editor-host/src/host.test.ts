@@ -1296,6 +1296,10 @@ describe('deleting objects', () => {
     expect(dispatch('selection.region', { op: 'invert' })).toEqual({ ok: true })
     expect(selected()).not.toContain('3,3,0,4')
     expect(selected().filter((key) => key.endsWith(',0,4'))).toHaveLength(width * height - 1)
+    // Pair: a wall's top takes its foot. The map's rim is a wall, standing over the floor outside it.
+    dispatch('selection.select', { selection: { kind: 'region', structure: 'ground', element: 'edge', keys: ['0,3,2,top'] } })
+    expect(dispatch('selection.region', { op: 'pair' })).toEqual({ ok: true })
+    expect(selected()).toEqual(['0,3,2,foot', '0,3,2,top'])
     dispatch('selection.select', { selection: { kind: 'structure', id: 'ground' } })
     expect(dispatch('selection.region', { op: 'expand' })).toEqual({ ok: true })
     expect(host.children.view.getSnapshot().context.selection).toEqual({ kind: 'structure', id: 'ground' })
