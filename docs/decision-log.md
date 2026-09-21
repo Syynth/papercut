@@ -1126,3 +1126,12 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** The inspector can fold to a thin strip that keeps each section as an icon; clicking one unfolds the panel onto that section, and the backslash key folds and unfolds it. Folded or not is remembered across reloads. A context bar whose controls do not fit keeps what fits on one line and offers the rest in a More menu at its end, rather than wrapping to a second row or scrolling sideways. Select's four combine buttons leave the bar: shift adds, alt takes away, and a plain press replaces.
 - **WHY:** The Select bar overflowed and part of the cause was a sidebar that could not be collapsed. A strip rather than hiding the panel outright, because it stays discoverable and one click reopens the right section. A menu rather than a second row, because a row would take stage height whenever it appeared.
+
+## A tile may carry more than one set of corner tags
+- **WHEN:** 2026-09-21
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-tags
+- **SCOPE:** moderate
+- **STATUS:** tentative
+- **WHAT:** One tile on a sheet can be tagged with more than one arrangement, so a single piece of art answers several corners. Example: a cliff's body tile serving as both the solid wall and its top edge, when the rim is left to the floor above.
+- **WHY:** Kits like RPG Maker MZ draw fewer tiles than the fifteen arrangements, and some arrangements should reuse the same art. Today one tile holds one tag set, so the only way is to duplicate pixels in the sheet (found configuring MZ cliffs as walls).
