@@ -128,6 +128,8 @@ export interface DocumentReader {
   canRedo(): boolean
   undoLabel(): string | null
   redoLabel(): string | null
+  /** Where the document stands in its history: the serial of the last edit still applied, 0 before the first (`History.position`). */
+  historyPosition(): number
 }
 
 /**
@@ -209,6 +211,7 @@ export class EditorStore implements DocumentWriter {
       canRedo: () => this.stroke === null && this.history.canRedo(),
       undoLabel: () => this.history.undoLabel(),
       redoLabel: () => this.history.redoLabel(),
+      historyPosition: () => this.history.position(),
     }
   }
 

@@ -757,8 +757,42 @@ export function createHost({ document: source, project = createProject(), clock,
   const NOTHING: ReadonlySet<string> = new Set()
 
   function dispatch(id: string, args?: unknown): DispatchResult {
-    return dispatchAt(id, args, 0)
+    const result = dispatchAt(id, args, 0)
+    // The selection is not in the document, so the history cannot carry it; this does (the owner, 2026-09-21: undoing
+    // a nudge put the voxels back and left the selection where they had been). After an undo or a redo, what was
+    // selected when the document last stood here comes back; after anything else, what is selected now is remembered.
+    if (result.ok && (id === 'undo' || id === 'redo')) recallSelection()
+    else rememberSelection()
+    return result
   }
+
+  /** What was selected the last time the document stood at each point of its history, by `historyPosition`. */
+  const selectionAt = new Map<number, Selection | null>()
+  let rememberedGeneration = reader.generation
+  let recalling = false
+  function rememberSelection(): void {
+    // A stroke moves the selection before its edit exists: what is selected mid-drag belongs to no point in the history.
+    if (recalling || children.gesture.getSnapshot().value === 'stroke') return
+    if (reader.generation !== rememberedGeneration) {
+      // Another document: its history starts over, and nothing of the last one's applies.
+      selectionAt.clear()
+      rememberedGeneration = reader.generation
+    }
+    selectionAt.set(reader.historyPosition(), children.view.getSnapshot().context.selection)
+    // The history keeps a couple of hundred edits; so does this.
+    if (selectionAt.size > 400) for (const key of [...selectionAt.keys()].sort((a, b) => a - b).slice(0, selectionAt.size - 400)) selectionAt.delete(key)
+  }
+  function recallSelection(): void {
+    const position = reader.historyPosition()
+    if (!selectionAt.has(position)) return
+    recalling = true
+    children.view.send({ type: 'select', selection: selectionAt.get(position) ?? null })
+    recalling = false
+  }
+  children.view.subscribe(() => rememberSelection())
+  // A stroke's edit lands as the stroke closes, delivered before the gesture's own observers hear of it (pinned in
+  // `host.test.ts`): so when the gesture says the stroke is over, the history already stands where the stroke left it.
+  children.gesture.subscribe(() => rememberSelection())
 
   function dispatchAt(id: string, args: unknown, depth: number): DispatchResult {
     const resolution = resolveCommand(id, args, contextKeys())
