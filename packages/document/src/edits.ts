@@ -238,15 +238,29 @@ export class History {
   private undoStack: Edit[] = []
   private redoStack: Edit[] = []
   private limit: number
+  /** A number for every edit, given when it is pushed and never reused: what `position` answers with. */
+  private serials = new WeakMap<Edit, number>()
+  private nextSerial = 1
 
   constructor(limit = 200) {
     this.limit = limit
   }
 
   push(edit: Edit): void {
+    this.serials.set(edit, this.nextSerial++)
     this.undoStack.push(edit)
     if (this.undoStack.length > this.limit) this.undoStack.shift()
     this.redoStack.length = 0
+  }
+
+  /**
+   * Where the document stands in its own history: the serial of the last edit still applied, 0 before the first. Undo
+   * moves it back to the edit before and redo on again, so something kept beside the history — what was selected —
+   * can be keyed by it. A depth would not do: the stack drops its oldest entries at its limit, and every depth shifts.
+   */
+  position(): number {
+    const top = this.undoStack.at(-1)
+    return top ? (this.serials.get(top) ?? 0) : 0
   }
 
   canUndo(): boolean {

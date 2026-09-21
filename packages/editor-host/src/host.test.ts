@@ -1305,6 +1305,45 @@ describe('deleting objects', () => {
     expect(host.children.view.getSnapshot().context.selection).toEqual({ kind: 'structure', id: 'ground' })
   })
 
+  it('brings back what was selected when an edit is undone, and again when it is redone (the owner, 2026-09-21)', () => {
+    const { host, dispatch } = makeHost()
+    const doc = host.reader.doc
+    apply(host, 'Pillar', raise(doc, ground(doc), [[4, 4]], 4))
+    const selected = (): unknown => host.children.view.getSnapshot().context.selection
+    const region = (...keys: string[]) => ({ kind: 'region', structure: 'ground', element: 'voxel', keys })
+
+    // A nudge: the voxels and the selection go together, and come back together.
+    dispatch('selection.select', { selection: region('4,4,2') })
+    dispatch('selection.nudge', { dx: 1, dz: 0 })
+    dispatch('selection.nudge', { dx: 1, dz: 0 })
+    expect(selected()).toEqual(region('6,4,2'))
+    dispatch('undo')
+    expect(selected()).toEqual(region('5,4,2'))
+    dispatch('undo')
+    expect(selected()).toEqual(region('4,4,2'))
+    dispatch('redo')
+    expect(selected()).toEqual(region('5,4,2'))
+
+    // A drag under Move: one edit, and undoing it puts the selection back where the drag began.
+    dispatch('tools.set', { tool: 'select', selectMode: 'region', selectVerb: 'move' })
+    const at = (x: number, z: number): PointerPress['pick'] => ({ surface: { structure: 'ground', kind: 0 as SurfaceKind, x: Math.floor(x), y: Math.floor(z), dir: -1, level: 0 }, point: { x, y: 3, z }, plane: { x, z }, objectId: null }) as PointerPress['pick']
+    host.input.pointerDown({ x: 0, y: 0, button: 0, modifiers: NO_MODIFIERS, pick: at(5.5, 4.5) })
+    host.input.pointerMove({ x: 40, y: 0, modifiers: NO_MODIFIERS })
+    host.input.strokeMove(at(7.5, 4.5) as never, NO_MODIFIERS)
+    host.input.pointerUp({ x: 40, y: 0 })
+    expect(selected()).toEqual(region('7,4,2'))
+    dispatch('undo')
+    expect(selected()).toEqual(region('5,4,2'))
+    dispatch('redo')
+    expect(selected()).toEqual(region('7,4,2'))
+
+    // Selecting something else without editing is remembered for where the history stands, too.
+    dispatch('selection.select', { selection: null })
+    dispatch('undo')
+    dispatch('redo')
+    expect(selected()).toBeNull()
+  })
+
   it('selection.nudge moves the selection a cell along the world axes, by its kind', () => {
     const { host, dispatch } = makeHost()
     apply(host, 'Add', addObject(host.reader.doc, { ...OBJECT, position: [2, 0, 2], anchorCell: [2, 2] }))
