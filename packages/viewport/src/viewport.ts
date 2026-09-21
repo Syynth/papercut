@@ -558,6 +558,20 @@ export class Viewport {
     return { yaw: this.orbit.yaw, pitch: this.orbit.pitch, distance: this.orbit.distance }
   }
 
+  /** Where the free camera is, whole: its orbit and what it orbits. What the app keeps per map across a reload. */
+  viewState(): { yaw: number; pitch: number; distance: number; target: [number, number, number] } {
+    return { ...this.cameraState(), target: [this.orbit.target.x, this.orbit.target.y, this.orbit.target.z] }
+  }
+
+  /** Put the free camera back where `viewState` found it, letting go of any alignment in flight. */
+  restoreView(state: { yaw: number; pitch: number; distance: number; target: readonly [number, number, number] }): void {
+    this.glide = null
+    this.orbit.yaw = state.yaw
+    this.orbit.pitch = state.pitch
+    this.orbit.distance = state.distance
+    this.orbit.target.set(state.target[0], state.target[1], state.target[2])
+  }
+
   // --- scripting hooks --------------------------------------------------------
   //
   // Driven by scripts/tour.mjs and scripts/probe.mjs, which run the editor in a

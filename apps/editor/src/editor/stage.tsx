@@ -58,6 +58,7 @@ import { Kbd, LayerRange, MaterialLayers, Overlay, Pill, type MaterialLayerRow }
 import { Viewport, type SketchOverlay } from '@papercut/viewport'
 
 import { useArt } from './art'
+import { adoptMap, mapKeyOf, saveCamera, savedCamera } from './workspace'
 import { describeSelection } from './bars'
 import { run } from './commands'
 import { mergeParams } from './params'
@@ -142,7 +143,11 @@ export function Stage({ platform }: { platform: Platform }) {
         const editing = !isPlaying(host.actor.getSnapshot()) && host.input.gesture() === 'none'
         viewportRef.current?.setOptions({ regionPreview: editing ? regionUnder(host.reader.doc, host.children.tools.getSnapshot().context, pick, span, host.input.heldKeys().has('control') ? 'whole' : false) : null })
       },
-      onCameraChange: (camera) => observed.send({ type: 'camera', camera }),
+      onCameraChange: (camera) => {
+        observed.send({ type: 'camera', camera })
+        const key = mapKeyOf(host)
+        if (key !== null && viewportRef.current) saveCamera(key, viewportRef.current.viewState())
+      },
       onStats: (stats) => observed.send({ type: 'stats', stats }),
       // The view cube's second click on the view the camera is already at: a view setting, not a document edit.
       onProjectionToggle: () => {
@@ -163,11 +168,25 @@ export function Stage({ platform }: { platform: Platform }) {
       // widening the brush) moves the preview without the pointer moving.
       viewport.setOptions({ hover: terrain ? hover : null, brushPreview: terrain && editing ? brushCellsAt(host, hover) : NO_CELLS })
     }
+    // A map that opens comes back as it was left (`workspace.ts`): its camera, its layer view, what was selected. Once
+    // per map: after that the camera is the artist's, and Frame all frames. A frame later, because the viewport
+    // re-points itself at a newly loaded document on its next frame and would frame over an earlier restore.
+    let shown: string | null = null
+    const adopt = (): void => {
+      const key = mapKeyOf(host)
+      if (key === shown) return
+      shown = key
+      if (key === null) return
+      adoptMap(host, key)
+      const camera = savedCamera(key)
+      if (camera) requestAnimationFrame(() => requestAnimationFrame(() => (mapKeyOf(host) === key ? viewportRef.current?.restoreView(camera) : undefined)))
+    }
     const subscriptions = [
       observed.subscribe(pushHover),
       host.children.tools.subscribe(pushHover),
       host.actor.subscribe(pushHover),
       observed.on('frame', () => viewport.frameMap()),
+      host.children.project.subscribe(() => adopt()),
       observed.on('sweep', () => viewport.startSweep()),
     ]
 
@@ -177,6 +196,7 @@ export function Stage({ platform }: { platform: Platform }) {
     const scripting = window as unknown as Record<string, unknown>
     scripting.__viewport = viewport
     viewport.frameMap()
+    adopt()
     return () => {
       for (const subscription of subscriptions) subscription.unsubscribe()
       viewport.dispose()

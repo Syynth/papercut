@@ -1110,3 +1110,11 @@ Each entry:
 - **SCOPE:** minor/local
 - **WHAT:** Of the rules for "the whole a voxel belongs to", the default, which a double-click takes, is Layer: the connected voxels of the clicked voxel's own layer. Island, everything connected without going below that layer, is the next whole out, which a triple-click takes. The edge and face defaults stay Run and Flat.
 - **WHY:** Layer is the safer default: it can never take more than one storey, where an island on level ground is the whole map, because everything at that layer is connected.
+
+## What the artist has in hand survives a reload
+- **WHEN:** 2026-09-21
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui
+- **SCOPE:** moderate
+- **WHAT:** The state of the tools is durable across a refresh: the active tool, Select's settings, and every feature's parameters come back as they were. Per map, so do the camera, the layer view and what was selected. It is kept on the machine, beside the app preferences, and never in the project. A new tool setting is expected to be durable by default; a value that describes a gesture in flight, such as a ramp being dragged out, is the exception.
+- **WHY:** Having to constantly re-select things after every refresh is frustrating, and the editor is reloaded often while it is being built.
