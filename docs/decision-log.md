@@ -1135,3 +1135,11 @@ Each entry:
 - **STATUS:** tentative
 - **WHAT:** One tile on a sheet can be tagged with more than one arrangement, so a single piece of art answers several corners. Example: a cliff's body tile serving as both the solid wall and its top edge, when the rim is left to the floor above.
 - **WHY:** Kits like RPG Maker MZ draw fewer tiles than the fifteen arrangements, and some arrangements should reuse the same art. Today one tile holds one tag set, so the only way is to duplicate pixels in the sheet (found configuring MZ cliffs as walls).
+
+## A turn in a wall draws its seam art, and carries the wall on without it
+- **WHEN:** 2026-09-21
+- **PROJECT:** papercut
+- **SYSTEM:** terrain-model / geometry
+- **SCOPE:** moderate (carries out the deferred bend in terrain-spec §207 and the wall's seam slots)
+- **WHAT:** Where a wall turns a corner, the tile centred on the corner is folded across it, half on each face. The editor uses the material's convex seam art at an outside corner and its concave seam art at an inside corner. That art is tagged like the wall's own, as cap, body and foot, with the seam slot. Where no seam art is drawn, each face takes its ordinary wall art as if the wall ran straight on. A wall's end edges are drawn only where it really stops, never at a turn.
+- **WHY:** A kit that draws no corner art, like RPG Maker's cliffs, should still get walls that wrap unbroken round a plateau. A kit that does draw corners should be able to use them. Today every turn ends both faces with their edge art, which makes rounded ends at outside corners and wrong ones inside creases, and the seam slots are tagged but never read.

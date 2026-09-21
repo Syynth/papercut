@@ -33,7 +33,7 @@ export {
 } from './terrainset'
 export type { CornerTags, PatchCorner, Tag, TerrainSet } from './terrainset'
 export { cutGrid, fitsOf, gridCells, remapTags } from './grid'
-export { FRINGE, LANDING, ORDINARY, PICKET, RAIL, RAMP_RISE, SIDE, allSlots, archetypeOf, archetypes, arrangements, maskKind, requiredSlots, slotSize } from './archetype'
+export { CONCAVE, CONVEX, FRINGE, LANDING, ORDINARY, PICKET, RAIL, RAMP_RISE, SIDE, allSlots, archetypeOf, archetypes, arrangements, maskKind, requiredSlots, slotSize } from './archetype'
 export type { Archetype, Arrangement, Slot } from './archetype'
 export { CORNER_BLOCKS, conventionOf, conventions, layoutTags, terrainFromLayout } from './layout'
 export type { BlockShape, Convention, LayoutBlock, LayoutSpec, LayoutTile } from './layout'

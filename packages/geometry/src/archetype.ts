@@ -114,6 +114,14 @@ const RAMP_SLOTS: readonly Slot[] = [
   { id: LANDING, name: 'Landing', optional: true, note: 'an upright rail on level ground: the two bends where it meets the rail' },
 ]
 
+/**
+ * A wall's seams (decision of 2026-09-21): where it turns an outside corner, CONVEX; an inside one, CONCAVE. The tile
+ * centred on the corner is folded across it, half on each face, and is tagged as the wall's own tiles are — cap, body,
+ * foot — with the slot. Undrawn, each face takes the wall's ordinary art as though it ran straight on.
+ */
+export const CONVEX = 'convex'
+export const CONCAVE = 'concave'
+
 /** √2, because a ramp's surface spans the diagonal of the cell it descends through. */
 export const RAMP_RISE = Math.SQRT2
 
@@ -132,8 +140,8 @@ const ARCHETYPES: readonly Archetype[] = [
     aspect: { width: 1, height: 1 },
     slots: [
       { id: ORDINARY, name: 'Surface', ordinary: true, note: 'the wall itself' },
-      { id: 'convex', name: 'Convex seam', optional: true, note: 'an outside turn; mitred when undrawn' },
-      { id: 'concave', name: 'Concave seam', optional: true, note: 'an inside turn; mitred when undrawn' },
+      { id: CONVEX, name: 'Convex seam', optional: true, note: 'an outside turn; the wall carries on round it when undrawn' },
+      { id: CONCAVE, name: 'Concave seam', optional: true, note: 'an inside turn; the wall carries on round it when undrawn' },
       ...TRIM_SLOTS,
     ],
   },
