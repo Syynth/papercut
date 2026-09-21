@@ -186,6 +186,17 @@ pixel-identical to whole offset tiles, and the mesher may emit whole tiles
 there as an optimisation; where a height edge crosses a corner the split
 lands on it.
 
+A column is read as **spans** (2026-09-21): each run of voxels with air over
+it. Every span has a top; a span with air under it has an underside, a level
+floor seen from below and drawn in the shade; and a span's sides are walled
+wherever the column beside it has air, between the top of one of its spans
+and the underside of the next. So an overhang, a gap in a column and a block
+that floats are drawn as what they are, and the bedrock floor shows under a
+column that does not stand on it. A pick names which top it hit by the
+voxel's layer, and an underside is a surface kind of its own. A voxel inside
+a span is read as filling its cube whatever its shape: only a span's top
+voxel slopes.
+
 ### What a face sees at its corner
 
 From a top face's point of view, the four cells around a corner are:

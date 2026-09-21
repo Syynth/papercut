@@ -150,6 +150,23 @@ export function faceExposed(voxel: ReadonlyVoxel, x: number, z: number, y: numbe
 }
 
 /**
+ * Of the tops a column shows (`FACE_TOP`) or the undersides (`FACE_BOTTOM`), the layer of the one nearest `layer`, the
+ * higher of two as near; `null` when it shows none. A column has a top wherever a voxel has air over it, the bedrock
+ * floor at -1 among them, so a press on the ground under an overhang means that ground and not the ledge overhead.
+ * A layer under the floor is an address that names none — one made by hand, or by the layer view's cap — and takes
+ * the highest, the column's top as it always was.
+ */
+export function faceNear(voxel: ReadonlyVoxel, x: number, z: number, layer: number, dir: typeof FACE_TOP | typeof FACE_BOTTOM): number | null {
+  if (layer < -1) layer = Infinity
+  let best: number | null = null
+  for (let y = dir === FACE_TOP ? -1 : 1; y < voxel.layers; y++) {
+    const shows = dir === FACE_TOP ? (y < 0 || voxelAt(voxel, x, z, y) !== AIR) && voxelAt(voxel, x, z, y + 1) === AIR : faceExposed(voxel, x, z, y, FACE_BOTTOM)
+    if (shows && (best === null || Math.abs(y - layer) <= Math.abs(best - layer))) best = y
+  }
+  return best
+}
+
+/**
  * Whether column (x, z) walls its side `dir`: its top stands above the
  * neighbour's, the floor off the volume. What a fringe hangs from and a
  * picket stands against, and what an edge switch in `SurfacePaint.edges` is
@@ -170,8 +187,8 @@ export function columnHeights(voxel: ReadonlyVoxel): number[] {
 
 /**
  * Every face of one column that can draw, and so carries material layers:
- * each top with air above it — on an empty column, the bedrock floor at
- * `y = -1` — each exposed bottom, and each side whose neighbour at that
+ * each top with air above it — and the bedrock floor at `y = -1` where the
+ * column's lowest voxel is air — each exposed bottom, and each side whose neighbour at that
  * layer is not a full block. That last is wider than `faceExposed` on
  * purpose: a ramp or a slab beside a voxel leaves part of its side showing,
  * and the mesher draws that part. What `reconcileFaces` in `ops.ts` compares
@@ -179,7 +196,8 @@ export function columnHeights(voxel: ReadonlyVoxel): number[] {
  */
 export function exposedFacesOf(voxel: ReadonlyVoxel, x: number, z: number): string[] {
   const out: string[] = []
-  if (columnTopAt(voxel, x, z) < 0) out.push(faceKey(x, z, -1, FACE_TOP))
+  // The bedrock floor shows wherever nothing stands on it: under an empty column, and under one that floats.
+  if (voxelAt(voxel, x, z, 0) === AIR) out.push(faceKey(x, z, -1, FACE_TOP))
   for (let y = 0; y < voxel.layers; y++) {
     if (voxelAt(voxel, x, z, y) === AIR) continue
     for (let dir = 0; dir < 4; dir++) {

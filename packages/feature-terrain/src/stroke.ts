@@ -23,7 +23,7 @@
  * the command form of a verb cannot drift from each other either.
  */
 
-import { DIR_VECTORS, NO_RAMP, SURFACE_CLIFF, SURFACE_TOP, clearRampRun, frameOf, inBounds, rampDirAt, rampRun, rampRunBlocked, rampRunLength, toLocal, topHeight, type Cell, type Patch, type SurfaceAddress, structureOf, type ReadonlyVoxel } from '@papercut/document'
+import { DIR_VECTORS, NO_RAMP, SURFACE_CLIFF, SURFACE_TOP, clearRampRun, decodeExtra, frameOf, inBounds, rampDirAt, rampRun, rampRunBlocked, rampRunLength, toLocal, topHeight, type Cell, type Patch, type SurfaceAddress, structureOf, type ReadonlyVoxel } from '@papercut/document'
 import type { FeatureDeps, StrokeHandler, ToolContract } from './deps'
 import { eyedrop, paintPatches, sculptPatches, strokeCells, terrainLabel, type TerrainModifiers } from './verbs'
 
@@ -66,7 +66,8 @@ export function cellPast(from: Cell, point: { readonly x: number; readonly z: nu
 }
 
 /** The top of `cell`, as the address a sculpt verb targets when it was steered there by the plane rather than by a pick. */
-const topOf = (structure: string, [x, y]: Cell): SurfaceAddress => ({ structure, x, y, kind: SURFACE_TOP, dir: 0, level: 0 })
+/** A column's top, whichever layer it is at: a level under the floor names none, and means the highest. */
+const topOf = (structure: string, [x, y]: Cell): SurfaceAddress => ({ structure, x, y, kind: SURFACE_TOP, ...decodeExtra(0) })
 
 /**
  * The Ramp verb is a drag (spec §4): press on a cliff face and drag back onto

@@ -8,7 +8,7 @@ proposals to draw on rather than a plan. The boards are generated; their source 
 
 | Board | What it shows |
 | --- | --- |
-| `Inventory.dc.html` | Every terrain tool in the app today: what it does, and what it cannot. The mismatch: the map is voxels, the verbs set column heights. Corrected 2026-09-21: the mesher is column-based too, so a gap under a block is stored and not drawn |
+| `Inventory.dc.html` | Every terrain tool in the app today: what it does, and what it cannot. The mismatch: the map is voxels, the verbs set column heights. Corrected 2026-09-21: the mesher was column-based too, so a gap under a block was stored and not drawn. Since fixed the same day: the mesher reads a column as spans, and draws overhangs, gaps and floating blocks (the board still shows the state it was drawn in) |
 | `SelectFirst.dc.html` | **Decided 2026-09-20:** the selection drives the terrain tools. Select, then the verb acts on what is selected, with handles and a ghost; with nothing selected a press is a selection that lasts one press |
 | `Rule.dc.html` | The proposal in one board: four modes (Sculpt, Build, Edges, Paint), one Footprint control shared by all, and the pressed face sets the direction a verb acts in |
 | `Move.dc.html` | **Built 2026-09-21** as a drag (its axis handles and arrow-key nudge followed the same day; Rotate, Mirror and the overlap preview are not): Move: select voxels and drag them along any axis; what it leaves, what it lands on, its paint, what stands on it; and Move, Extrude and Raise as one family |
