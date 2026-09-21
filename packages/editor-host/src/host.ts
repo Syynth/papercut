@@ -66,14 +66,17 @@
 
 import {
   DOCUMENT_OWNER,
+  clampOffset,
   contractRegion,
   documentKeys,
   expandRegion,
   frameOf,
   groundedPosition,
   invertRegion,
+  offsetKeys,
   pairRegion,
   pruneRegion,
+  regionOf,
   structureOf,
   toLocal,
   createProject,
@@ -195,7 +198,7 @@ commands.declare(HOST_OWNER, {
  * document holds at the moment of the dispatch. World axes: `dx` is east,
  * `dz` south, in whole cells.
  */
-const nudgeArgs = z.object({ dx: z.int().min(-64).max(64), dz: z.int().min(-64).max(64) }).strict()
+const nudgeArgs = z.object({ dx: z.int().min(-64).max(64), dz: z.int().min(-64).max(64), /** Up, in voxels: a region of voxels is the one thing that can be nudged in height. */ dy: z.int().min(-64).max(64).exactOptional() }).strict()
 export type NudgeArgs = z.infer<typeof nudgeArgs>
 commands.declare(HOST_OWNER, {
   id: 'selection.nudge',
@@ -487,7 +490,7 @@ function hostLogic(source: DocumentSource, project: ProjectDoc, features: readon
 }
 
 /** What deleting the selection means, by what it is: the commands that do it, then the selection that remains. */
-function nudgeSteps(doc: ReadonlyMapDoc, selection: Selection | null, { dx, dz }: NudgeArgs): readonly { readonly id: string; readonly args?: unknown }[] {
+function nudgeSteps(doc: ReadonlyMapDoc, selection: Selection | null, { dx, dz, dy }: NudgeArgs): readonly { readonly id: string; readonly args?: unknown }[] {
   switch (selection?.kind) {
     case 'object': {
       const object = doc.objects[selection.id]
@@ -508,6 +511,18 @@ function nudgeSteps(doc: ReadonlyMapDoc, selection: Selection | null, { dx, dz }
       if (!sketch || !point) return []
       const [lx, lz] = toLocalDelta(frameOf(doc, sketch.id), dx, dz)
       return [{ id: 'sketch.point.update', args: { id: selection.structure, index: selection.index, changes: { x: point.x + lx, z: point.z + lz } } }]
+    }
+    case 'region': {
+      // Voxels move (design round of 2026-09-19); faces and edges are not things a nudge can carry.
+      const voxel = structureOf(doc, selection.structure, 'voxel')
+      if (!voxel || selection.element !== 'voxel') return []
+      const [lx, lz] = toLocalDelta(frameOf(doc, voxel.id), dx, dz)
+      const offset = clampOffset(voxel, selection.keys, { dx: Math.round(lx), dz: Math.round(lz), dy: dy ?? 0 })
+      if (offset.dx === 0 && offset.dz === 0 && offset.dy === 0) return []
+      return [
+        { id: 'voxels.move', args: { structure: selection.structure, keys: [...selection.keys], ...offset } },
+        { id: 'selection.select', args: { selection: { kind: 'region', ...regionOf(selection.structure, 'voxel', offsetKeys(selection.keys, offset)) } } },
+      ]
     }
     default:
       return []

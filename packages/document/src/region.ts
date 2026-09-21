@@ -518,6 +518,17 @@ export function invertRegion(voxel: ReadonlyVoxel, region: Region, span: LayerSp
   return keys.length ? regionOf(region.structure, region.element, keys) : null
 }
 
+/**
+ * Where a region of voxels is held from: the middle of its footprint, on top of its highest layer, in the volume's own
+ * cells and layers. What Move's axis handles stand on, and the line each of them drags along.
+ */
+export function regionAnchor(keys: readonly string[]): [number, number, number] | null {
+  if (keys.length === 0) return null
+  const cells = keys.map(parseVoxelKey)
+  const mid = (pick: (v: { x: number; z: number; y: number }) => number): number => (Math.min(...cells.map(pick)) + Math.max(...cells.map(pick)) + 1) / 2
+  return [mid((v) => v.x), Math.max(...cells.map((v) => v.y)) + 1, mid((v) => v.z)]
+}
+
 /** A region in words, for a bar: how many of what. */
 export function describeRegion(region: Region): string {
   const n = region.keys.length

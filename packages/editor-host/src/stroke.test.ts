@@ -473,6 +473,22 @@ describe('Move (design round of 2026-09-19)', () => {
     expect(copying.solid(5, 9)).toEqual([true, true, true])
   })
 
+  it('drags along one axis from a handle, read where the pointer\'s ray passes closest to it: up, which no drag over the ground can do', () => {
+    const { start, solid, seen } = dragging()
+    // The pillar's handles stand on its top, at (5.5, 3, 5.5). A camera to the south, looking north, level.
+    const through = (x: number, y: number, axis: 'x' | 'y' | 'z' | null): StrokeSample => ({ pick: { surface: null, point: null, objectId: null, axis, ray: { origin: { x, y, z: 20 }, direction: { x: 0, y: 0, z: -1 } } }, modifiers: { shift: false, alt: false, ctrl: false } })
+    const up = start(through(5.5, 3.4, 'y'))
+    up.send({ type: 'move', sample: through(9, 5.4, null) })
+    // Two layers up, and not a cell sideways however far the pointer wandered: a gap is left under it.
+    expect(solid(5, 5)).toEqual([true, false, false])
+    expect(seen[seen.length - 1]).toMatchObject({ keys: ['5,5,3', '5,5,4'] })
+    const east = dragging()
+    const along = east.start(through(5.5, 3, 'x'))
+    along.send({ type: 'move', sample: through(8.6, 7, null) })
+    expect(east.solid(8, 5)).toEqual([true, true, true])
+    expect(east.solid(5, 5)).toEqual([true, false, false])
+  })
+
   it('takes a region as usual when nothing that can move is selected', () => {
     const { reader } = createDocument(createMap(16, 16))
     const seen: Array<Selection | null> = []

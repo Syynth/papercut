@@ -8,10 +8,10 @@ proposals to draw on rather than a plan. The boards are generated; their source 
 
 | Board | What it shows |
 | --- | --- |
-| `Inventory.dc.html` | Every terrain tool in the app today: what it does, and what it cannot. The mismatch: the map is voxels, the verbs set column heights |
+| `Inventory.dc.html` | Every terrain tool in the app today: what it does, and what it cannot. The mismatch: the map is voxels, the verbs set column heights. Corrected 2026-09-21: the mesher is column-based too, so a gap under a block is stored and not drawn |
 | `SelectFirst.dc.html` | **Decided 2026-09-20:** the selection drives the terrain tools. Select, then the verb acts on what is selected, with handles and a ghost; with nothing selected a press is a selection that lasts one press |
 | `Rule.dc.html` | The proposal in one board: four modes (Sculpt, Build, Edges, Paint), one Footprint control shared by all, and the pressed face sets the direction a verb acts in |
-| `Move.dc.html` | **Built 2026-09-21** as a drag (its handles, Rotate, Mirror, nudge and the overlap preview are not): Move: select voxels and drag them along any axis; what it leaves, what it lands on, its paint, what stands on it; and Move, Extrude and Raise as one family |
+| `Move.dc.html` | **Built 2026-09-21** as a drag (its axis handles and arrow-key nudge followed the same day; Rotate, Mirror and the overlap preview are not): Move: select voxels and drag them along any axis; what it leaves, what it lands on, its paint, what stands on it; and Move, Extrude and Raise as one family |
 | `Sculpt.dc.html` | Raise, Extrude, Flatten and Smooth redone; how a stroke feels; what a new face starts as |
 | `Build.dc.html` | Block, the shape fills (Box, Wall, Cylinder, Dome, Stairs; Add or Carve; Solid or Hollow), and the layer view range, decided 2026-09-12 and now to be wired, for seeing inside |
 | `Pieces.dc.html` | Ramps, slabs and stairs: four ways in, one way out |

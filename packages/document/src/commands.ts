@@ -216,6 +216,22 @@ commands.declare(DOCUMENT_OWNER, { id: 'sketch.point.update', title: 'Edit Sketc
 commands.declare(DOCUMENT_OWNER, { id: 'sketch.point.delete', title: 'Delete Sketch Point', category: 'Sketch', args: sketchPointDelete })
 commands.declare(DOCUMENT_OWNER, { id: 'sketch.close', title: 'Close Sketch', category: 'Sketch', args: structureId })
 commands.declare(DOCUMENT_OWNER, { id: 'sketch.set', title: 'Edit Sketch', category: 'Sketch', args: sketchSet })
+/**
+ * Some of a volume's voxels carried by an offset, with their paint and what stands on them (`move.ts`). The drag under
+ * Select's Move does the same through a stroke; this is the one-shot form, which a nudge key and a test dispatch.
+ */
+const voxelsMove = z
+  .object({
+    structure: z.string().min(1),
+    keys: z.array(z.string().regex(/^\d+,\d+,\d+$/)).min(1),
+    dx: z.int().min(-256).max(256),
+    dz: z.int().min(-256).max(256),
+    dy: z.int().min(-64).max(64),
+    copy: z.boolean().exactOptional(),
+  })
+  .strict()
+export type VoxelsMoveArgs = z.infer<typeof voxelsMove>
+commands.declare(DOCUMENT_OWNER, { id: 'voxels.move', title: 'Move Voxels', category: 'Edit', args: voxelsMove })
 commands.declare(DOCUMENT_OWNER, { id: 'structure.delete', title: 'Delete Structure', category: 'Edit', args: structureId })
 commands.declare(DOCUMENT_OWNER, { id: 'structure.rename', title: 'Rename Structure', category: 'Edit', args: structureRename })
 commands.declare(DOCUMENT_OWNER, { id: 'structure.place', title: 'Place Structure', category: 'Edit', args: structurePlace })

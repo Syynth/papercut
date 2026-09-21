@@ -1327,6 +1327,22 @@ describe('deleting objects', () => {
     expect(dispatch('selection.nudge', { dx: 1, dz: 0 })).toEqual({ ok: true })
     expect(doc.structures.ground.placement).toEqual({ x: 0, z: 0, yaw: 0 })
 
+    // A region of voxels moves through the terrain itself, up and down as well, and the selection goes with it.
+    apply(host, 'Pillar', raise(doc, ground(doc), [[4, 4]], 4))
+    dispatch('selection.select', { selection: { kind: 'region', structure: 'ground', element: 'voxel', keys: ['4,4,2'] } })
+    expect(dispatch('selection.nudge', { dx: 1, dz: 0 })).toEqual({ ok: true })
+    expect(dispatch('selection.nudge', { dx: 0, dz: 0, dy: 1 })).toEqual({ ok: true })
+    expect(host.children.view.getSnapshot().context.selection).toEqual({ kind: 'region', structure: 'ground', element: 'voxel', keys: ['5,4,3'] })
+    const solid = (x: number, z: number, y: number): boolean => ground(doc).voxels.shape[(y * ground(doc).size.height + z) * ground(doc).size.width + x] !== -1
+    expect([solid(4, 4, 2), solid(5, 4, 3), solid(5, 4, 2)]).toEqual([false, true, false])
+    // The command a nudge comes to, dispatched as itself: back a cell and down a layer.
+    expect(dispatch('voxels.move', { structure: 'ground', keys: ['5,4,3'], dx: -1, dz: 0, dy: -1 })).toEqual({ ok: true })
+    expect([solid(5, 4, 3), solid(4, 4, 2)]).toEqual([false, true])
+    // Faces are not something a nudge can carry.
+    dispatch('selection.select', { selection: { kind: 'region', structure: 'ground', element: 'face', keys: ['1,1,0,4'] } })
+    expect(dispatch('selection.nudge', { dx: 1, dz: 0 })).toEqual({ ok: true })
+    expect(host.children.view.getSnapshot().context.selection).toMatchObject({ element: 'face', keys: ['1,1,0,4'] })
+
     // A sketch point, in its sketch's frame.
     dispatch('sketch.point.add', { id: island, point: { x: 1, z: 1, smooth: false } })
     dispatch('selection.select', { selection: { kind: 'sketchPoint', structure: island, index: 0 } })

@@ -63,6 +63,7 @@ import {
   widerMatch,
   placeStructureOnto,
   rectCells,
+  regionAnchor,
   regionOf,
   snapTo,
   structureAt,
@@ -122,6 +123,8 @@ export interface PickSample {
   readonly plane?: { readonly x: number; readonly z: number } | null
   /** The drawn sketch point under the pointer, hit-tested on screen by the viewport; absent from a pick without one. */
   readonly handle?: { readonly structure: string; readonly index: number } | null
+  /** The Move handle under the pointer, hit-tested on screen by the viewport: the axis it drags along. */
+  readonly axis?: 'x' | 'y' | 'z' | null
 }
 
 export const NO_PICK: PickSample = { surface: null, point: null, objectId: null }
@@ -342,7 +345,8 @@ function regionStroke(deps: StrokeDeps, selection: Selection | null): EditorStro
 /**
  * Move (design round of 2026-09-19): the selected voxels, dragged. The face pressed says which way they can go: a top,
  * and they slide over the ground, east and south; a cliff, and they slide along that wall and up and down it. Shift
- * holds the drag to whichever of its two ways it has gone further; alt at the press leaves a copy behind.
+ * holds the drag to whichever of its two ways it has gone further; alt at the press leaves a copy behind. One of the
+ * three HANDLES pressed instead, the drag goes along that axis alone, read where the pointer's ray passes closest to it.
  *
  * Every tick is worked out from the volume and the objects AS THEY WERE AT THE PRESS (`movePatches`), so dragging out
  * and back puts everything back, and the stroke's compaction makes the whole drag one undo step. The selection goes
@@ -355,24 +359,49 @@ function moveStroke(deps: StrokeDeps, selection: Extract<Selection, { kind: 'reg
   let pressed: { x: number; y: number; z: number } | null = null
   /** The side pressed, 0 to 3, or `null` for a top: which plane the drag is read on. */
   let wall: number | null = null
+  /** A handle pressed: the drag goes along that one axis, read off the line the handle stands on. */
+  let axis: { id: 'x' | 'y' | 'z'; origin: readonly [number, number, number]; from: number } | null = null
   let copy = false
   let last = ''
 
+  /** How far along a handle's line the pointer's ray comes closest to it, in world units from the handle's foot. */
+  const alongAxis = (id: 'x' | 'y' | 'z', origin: readonly [number, number, number], ray: NonNullable<PickSample['ray']>): number => {
+    const a = id === 'x' ? [1, 0, 0] : id === 'y' ? [0, 1, 0] : [0, 0, 1]
+    const d = [ray.direction.x, ray.direction.y, ray.direction.z]
+    const w = [origin[0] - ray.origin.x, origin[1] - ray.origin.y, origin[2] - ray.origin.z]
+    const dot = (p: readonly number[], q: readonly number[]): number => p[0] * q[0] + p[1] * q[1] + p[2] * q[2]
+    const b = dot(a, d)
+    // Looking straight down the handle, the pointer says nothing about how far along it is.
+    return Math.abs(1 - b * b) < 1e-6 ? 0 : (b * dot(d, w) - dot(a, w)) / (1 - b * b)
+  }
+
   const offsetAt = (sample: StrokeSample): VoxelOffset => {
-    if (!pressed) return { dx: 0, dz: 0, dy: 0 }
+    if (!pressed && !axis) return { dx: 0, dz: 0, dy: 0 }
     const voxel = structureOf(deps.reader.doc, selection.structure, 'voxel')
     if (!voxel) return { dx: 0, dz: 0, dy: 0 }
     const frame = frameOf(deps.reader.doc, voxel.id)
     const local = (x: number, z: number): [number, number] => toLocal(frame, x, z)
-    const [px, pz] = local(pressed.x, pressed.z)
+    const [px, pz] = pressed ? local(pressed.x, pressed.z) : [0, 0]
     let moved = { dx: 0, dz: 0, dy: 0 }
+    if (axis) {
+      if (!sample.pick.ray) return { dx: 0, dz: 0, dy: 0 }
+      const travelled = alongAxis(axis.id, axis.origin, sample.pick.ray) - axis.from
+      if (axis.id === 'y') moved = { dx: 0, dz: 0, dy: Math.round(travelled) }
+      else {
+        // A world step along the handle, as the volume's own cells see it.
+        const [ox, oz] = local(axis.origin[0], axis.origin[2])
+        const [tx, tz] = local(axis.origin[0] + (axis.id === 'x' ? travelled : 0), axis.origin[2] + (axis.id === 'z' ? travelled : 0))
+        moved = { dx: Math.round(tx - ox), dz: Math.round(tz - oz), dy: 0 }
+      }
+      return clampOffset(voxel, keys, moved)
+    }
     if (wall === null) {
       const at = sample.pick.plane ?? sample.pick.point
       if (at) {
         const [ax, az] = local(at.x, at.z)
         moved = { dx: Math.round(ax - px), dz: Math.round(az - pz), dy: 0 }
       }
-    } else if (sample.pick.ray) {
+    } else if (sample.pick.ray && pressed) {
       // Where the pointer's ray meets the upright plane of the wall that was pressed: along it, and up it.
       const { origin, direction } = sample.pick.ray
       const [nx, nz] = DIR_VECTORS[wall]
@@ -406,11 +435,19 @@ function moveStroke(deps: StrokeDeps, selection: Extract<Selection, { kind: 'reg
     begin(sample) {
       const { pick, modifiers } = sample
       const voxel = structureOf(deps.reader.doc, selection.structure, 'voxel')
-      if (!voxel || !pick.surface || pick.surface.structure !== selection.structure || !pick.point) return []
+      if (!voxel) return []
+      const anchor = regionAnchor(keys)
+      if (pick.axis && pick.ray && anchor) {
+        // A handle: the line it stands on, as it is at the press, and how far along it the press was.
+        const frame = frameOf(deps.reader.doc, voxel.id)
+        const [wx, wz] = toWorld(frame, anchor[0], anchor[2])
+        const origin = [wx, frame.y + anchor[1], wz] as const
+        axis = { id: pick.axis, origin, from: alongAxis(pick.axis, origin, pick.ray) }
+      } else if (!pick.surface || pick.surface.structure !== selection.structure || !pick.point) return []
       volume = snapshotVolume(voxel)
       objects = snapshotObjects(deps.reader.doc)
-      pressed = { x: pick.point.x, y: pick.point.y ?? 0, z: pick.point.z }
-      wall = pick.surface.kind === SURFACE_CLIFF ? pick.surface.dir : null
+      pressed = pick.point ? { x: pick.point.x, y: pick.point.y ?? 0, z: pick.point.z } : null
+      wall = !axis && pick.surface?.kind === SURFACE_CLIFF ? pick.surface.dir : null
       copy = modifiers.alt
       last = '0,0,0'
       return []

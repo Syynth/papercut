@@ -171,7 +171,7 @@ export {
 export type { Brush, BrushShape, Cell, EdgeRef, FaceRef, RampEdge, RampStep, SketchChanges } from './ops'
 export { clampOffset, movePatches, movedVolume, offsetKeys, snapshotObjects, snapshotVolume, volumePatches } from './move'
 export type { ObjectsSnapshot, VolumeSnapshot, VoxelOffset } from './move'
-export { DEFAULT_MATCH, MATCH_RULES, REGION_ELEMENTS, combineRegions, contractRegion, describeRegion, elementAt, elementsUnder, expandRegion, invertRegion, matchApplies, matchRegion, pairRegion, parseEdgeKey, parseVoxelKey, pruneRegion, regionOf, voxelKey, widerMatch } from './region'
+export { DEFAULT_MATCH, MATCH_RULES, REGION_ELEMENTS, combineRegions, contractRegion, describeRegion, elementAt, elementsUnder, expandRegion, invertRegion, matchApplies, matchRegion, pairRegion, parseEdgeKey, parseVoxelKey, pruneRegion, regionAnchor, regionOf, voxelKey, widerMatch } from './region'
 export type { LayerSpan, MatchOptions, Region, RegionCombine, RegionDepth, RegionElement, RegionMatch } from './region'
 export { FACE_BOTTOM, FACE_TOP, edgeKey, edgeOff, faceKey, faceLayers, parseFaceKey, tintKey, tintPaint } from './paint'
 export type { DocumentReader } from './store'
