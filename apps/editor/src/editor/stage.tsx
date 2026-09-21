@@ -25,6 +25,7 @@ import {
   NO_WATER,
   frameOf,
   levelBounds,
+  regionAnchor,
   structureOf,
   toWorld,
   type MaterialDef,
@@ -141,7 +142,11 @@ export function Stage({ platform }: { platform: Platform }) {
         const range = host.children.view.getSnapshot().context.layers
         const span = range === null ? null : { lo: Math.floor(range.lo / 2), hi: Math.ceil(range.hi / 2) }
         const editing = !isPlaying(host.actor.getSnapshot()) && host.input.gesture() === 'none'
-        viewportRef.current?.setOptions({ regionPreview: editing ? regionUnder(host.reader.doc, host.children.tools.getSnapshot().context, pick, span, host.input.heldKeys().has('control') ? 'whole' : false) : null })
+        // Under Move with voxels in hand a press moves them, so what a click would SELECT is not what hovering should show.
+        const tools = host.children.tools.getSnapshot().context
+        const held = host.children.view.getSnapshot().context.selection
+        const moving = tools.selectVerb === 'move' && held?.kind === 'region' && held.element === 'voxel'
+        viewportRef.current?.setOptions({ regionPreview: editing && !moving ? regionUnder(host.reader.doc, host.children.tools.getSnapshot().context, pick, span, host.input.heldKeys().has('control') ? 'whole' : false) : null })
       },
       onCameraChange: (camera) => {
         observed.send({ type: 'camera', camera })
@@ -211,6 +216,20 @@ export function Stage({ platform }: { platform: Platform }) {
   useEffect(() => {
     viewportRef.current?.setOptions({ showGrid, showMissing, fallback, materialLayers, gameCamera, projection, play, selection: selectionSubject(selection), region: selection?.kind === 'region' ? selection : null, layers })
   }, [showGrid, showMissing, fallback, materialLayers, gameCamera, projection, play, selection, layers])
+
+  // Move's three handles stand on the selected voxels while Move is on (`regionAnchor`), and follow them as they go.
+  const moveOn = useToolsSelector((snapshot) => snapshot.context.tool === 'select' && snapshot.context.selectMode === 'region' && snapshot.context.selectVerb === 'move')
+  useEffect(() => {
+    const voxel = moveOn && selection?.kind === 'region' && selection.element === 'voxel' ? structureOf(host.reader.doc, selection.structure, 'voxel') : undefined
+    const anchor = voxel && selection?.kind === 'region' ? regionAnchor(selection.keys) : null
+    if (!voxel || !anchor) {
+      viewportRef.current?.setOptions({ moveHandles: null })
+      return
+    }
+    const frame = frameOf(host.reader.doc, voxel.id)
+    const [wx, wz] = toWorld(frame, anchor[0], anchor[2])
+    viewportRef.current?.setOptions({ moveHandles: [wx, frame.y + anchor[1], wz] })
+  }, [host, moveOn, selection, playing])
 
   useEffect(() => {
     if (tool !== 'sketch') viewportRef.current?.setOptions({ sketch: null })

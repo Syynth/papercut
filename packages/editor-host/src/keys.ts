@@ -84,6 +84,9 @@ const CORE_BINDINGS: readonly KeyBinding[] = [
   { chord: 'arrowright', command: 'selection.nudge', args: { dx: 1, dz: 0 } },
   { chord: 'arrowup', command: 'selection.nudge', args: { dx: 0, dz: -1 } },
   { chord: 'arrowdown', command: 'selection.nudge', args: { dx: 0, dz: 1 } },
+  // Up and down a layer, for the one kind of selection that has a height to change: a region of voxels.
+  { chord: 'pageup', command: 'selection.nudge', args: { dx: 0, dz: 0, dy: 1 } },
+  { chord: 'pagedown', command: 'selection.nudge', args: { dx: 0, dz: 0, dy: -1 } },
 ]
 
 for (const binding of CORE_BINDINGS) keymap.declare(CORE_KEYMAP_OWNER, { ...binding, weight: 'core' })

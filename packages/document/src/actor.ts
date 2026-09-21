@@ -58,10 +58,13 @@ import type {
   SketchSetArgs,
   StructureIdArgs,
   StructurePlaceArgs,
+  VoxelsMoveArgs,
   StructureRenameArgs,
   StructureReparentArgs,
 } from './commands'
 import { createMap, type MapDoc } from './document'
+import { clampOffset, movePatches, snapshotObjects, snapshotVolume } from './move'
+import { structureOf } from './structure'
 import type { Patch } from './edits'
 import { deserialize } from './io'
 import {
@@ -272,6 +275,14 @@ export function documentLogic(writer: DocumentWriter, reader: DocumentReader) {
               const patches = placeStructure(reader.doc, id, placement)
               if (patches.length === 0) return undefined
               enq(() => writer.apply('Place structure', patches))
+            } else if (event.id === 'voxels.move') {
+              const { structure, keys, dx, dz, dy, copy } = event.args as VoxelsMoveArgs
+              const voxel = structureOf(reader.doc, structure, 'voxel')
+              if (!voxel) return undefined
+              const offset = clampOffset(voxel, keys, { dx, dz, dy })
+              const patches = movePatches(reader.doc, voxel, snapshotVolume(voxel), snapshotObjects(reader.doc), keys, offset, copy ?? false)
+              if (patches.length === 0) return undefined
+              enq(() => writer.apply('Move voxels', patches))
             } else if (event.id === 'structure.reparent') {
               const { id, parent } = event.args as StructureReparentArgs
               const patches = reparentStructure(reader.doc, id, parent)
