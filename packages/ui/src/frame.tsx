@@ -247,7 +247,8 @@ export function Verb({
 }) {
   return (
     <Tip title={title} kbd={kbd}>
-      <button type="button" className={`ui-verb ${active ? 'is-active' : ''}`} onClick={onClick} disabled={disabled} aria-pressed={active} aria-label={title}>
+      {/* A verb given `active` is a TOGGLE, and looks like one whether on or off: a well, as a segmented control's buttons have, lit the same way when on. One that only acts stays bare. */}
+      <button type="button" className={`ui-verb ${active !== undefined ? 'is-toggle' : ''} ${active ? 'is-active' : ''}`} onClick={onClick} disabled={disabled} aria-pressed={active} aria-label={title}>
         <Icon name={icon} size={17} />
       </button>
     </Tip>
