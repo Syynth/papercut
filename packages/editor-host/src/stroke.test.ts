@@ -426,17 +426,18 @@ describe("Select's region half (rulings of 2026-09-12 and 2026-09-20)", () => {
   })
 })
 
-describe('Move (design round of 2026-09-19)', () => {
-  const MOVE: ToolsSnapshot = { ...SCULPT, tool: 'select', selectMode: 'region', selectVerb: 'move' }
+describe('Move, a manipulator on the selection (design round of 2026-09-19; decision of 2026-09-21)', () => {
+  const REGION: ToolsSnapshot = { ...SCULPT, tool: 'select', selectMode: 'region' }
   const PILLAR: Selection = { kind: 'region', structure: 'ground', element: 'voxel', keys: ['5,5,1', '5,5,2'] }
-  /** A drag under Move, through the real stroke actor: the document it leaves, the selection, and the one edit it records. */
+  /** A press on one of the pillar's handles, or past it, from a camera to the south looking north, level. The handles stand on its top, at (5.5, 3, 5.5). */
+  const through = (x: number, y: number, axis: 'x' | 'y' | 'z' | null, modifiers: Partial<StrokeSample['modifiers']> = {}): StrokeSample => ({ pick: { surface: null, point: null, objectId: null, axis, ray: { origin: { x, y, z: 20 }, direction: { x: 0, y: 0, z: -1 } } }, modifiers: { shift: false, alt: false, ctrl: false, ...modifiers } })
+  /** A drag from a handle, through the real stroke actor: the document it leaves, the selection, and the one edit it records. */
   function dragging() {
     const { reader, logic } = createDocument(createMap(16, 16))
     const document = createActor(logic).start()
     fillColumn(ground(reader.doc), 5, 5, 6)
     const seen: Array<Selection | null> = []
-    const deps: StrokeDeps = { reader, tools: () => MOVE, setTools: () => undefined, select: (selection) => void seen.push(selection), contract: () => undefined }
-    const at = (x: number, z: number, modifiers: Partial<StrokeSample['modifiers']> = {}): StrokeSample => ({ pick: { surface: top(Math.floor(x), Math.floor(z)), point: { x, y: 3, z }, plane: { x, z }, objectId: null }, modifiers: { shift: false, alt: false, ctrl: false, ...modifiers } })
+    const deps: StrokeDeps = { reader, tools: () => REGION, setTools: () => undefined, select: (selection) => void seen.push(selection), contract: () => undefined }
     const start = (press: StrokeSample) => {
       const handler = createStrokeHandler(deps, press, PILLAR)
       if (!handler) throw new Error('Select declined the press')
@@ -445,55 +446,43 @@ describe('Move (design round of 2026-09-19)', () => {
       return stroke
     }
     const solid = (x: number, z: number): boolean[] => [0, 1, 2].map((y) => ground(reader.doc).voxels.shape[(y * 16 + z) * 16 + x] !== -1)
-    return { reader, at, start, solid, seen }
+    return { reader, deps, start, solid, seen }
   }
 
-  it('carries the selected voxels with the drag, takes the selection along, and puts everything back when the drag comes back', () => {
-    const { at, start, solid, seen } = dragging()
-    const stroke = start(at(5.5, 5.5))
-    stroke.send({ type: 'move', sample: at(8.5, 5.5) })
+  it('carries the selected voxels along the handle dragged, takes the selection along, and puts everything back when the drag comes back', () => {
+    const { start, solid, seen } = dragging()
+    const stroke = start(through(5.5, 3, 'x'))
+    stroke.send({ type: 'move', sample: through(8.6, 7, null) })
+    // Three cells east, and not a layer up however far the pointer wandered.
     expect(solid(5, 5)).toEqual([true, false, false])
     expect(solid(8, 5)).toEqual([true, true, true])
     expect(seen[seen.length - 1]).toEqual({ kind: 'region', structure: 'ground', element: 'voxel', keys: ['8,5,1', '8,5,2'] })
-    stroke.send({ type: 'move', sample: at(5.6, 5.4) })
+    stroke.send({ type: 'move', sample: through(5.6, 3, null) })
     expect(solid(5, 5)).toEqual([true, true, true])
     expect(solid(8, 5)).toEqual([true, false, false])
   })
 
-  it('holds to one way with shift, and leaves a copy with alt held at the press', () => {
-    const held = dragging()
-    const stroke = held.start(held.at(5.5, 5.5))
-    stroke.send({ type: 'move', sample: held.at(8.5, 6.6, { shift: true }) })
-    expect(held.solid(8, 5)).toEqual([true, true, true])
-    expect(held.solid(8, 6)).toEqual([true, false, false])
-    const copying = dragging()
-    const copy = copying.start(copying.at(5.5, 5.5, { alt: true }))
-    copy.send({ type: 'move', sample: copying.at(5.5, 9.5) })
-    expect(copying.solid(5, 5)).toEqual([true, true, true])
-    expect(copying.solid(5, 9)).toEqual([true, true, true])
-  })
-
-  it('drags along one axis from a handle, read where the pointer\'s ray passes closest to it: up, which no drag over the ground can do', () => {
+  it('goes up from the upright handle, leaving a gap under it, and leaves a copy with alt held at the press', () => {
     const { start, solid, seen } = dragging()
-    // The pillar's handles stand on its top, at (5.5, 3, 5.5). A camera to the south, looking north, level.
-    const through = (x: number, y: number, axis: 'x' | 'y' | 'z' | null): StrokeSample => ({ pick: { surface: null, point: null, objectId: null, axis, ray: { origin: { x, y, z: 20 }, direction: { x: 0, y: 0, z: -1 } } }, modifiers: { shift: false, alt: false, ctrl: false } })
     const up = start(through(5.5, 3.4, 'y'))
     up.send({ type: 'move', sample: through(9, 5.4, null) })
-    // Two layers up, and not a cell sideways however far the pointer wandered: a gap is left under it.
     expect(solid(5, 5)).toEqual([true, false, false])
     expect(seen[seen.length - 1]).toMatchObject({ keys: ['5,5,3', '5,5,4'] })
-    const east = dragging()
-    const along = east.start(through(5.5, 3, 'x'))
-    along.send({ type: 'move', sample: through(8.6, 7, null) })
-    expect(east.solid(8, 5)).toEqual([true, true, true])
-    expect(east.solid(5, 5)).toEqual([true, false, false])
+    const copying = dragging()
+    const copy = copying.start(through(5.5, 3, 'x', { alt: true }))
+    copy.send({ type: 'move', sample: through(9.5, 3, null) })
+    expect(copying.solid(5, 5)).toEqual([true, true, true])
+    expect(copying.solid(9, 5)).toEqual([true, true, true])
   })
 
-  it('takes a region as usual when nothing that can move is selected', () => {
-    const { reader } = createDocument(createMap(16, 16))
-    const seen: Array<Selection | null> = []
-    const deps: StrokeDeps = { reader, tools: () => MOVE, setTools: () => undefined, select: (selection) => void seen.push(selection), contract: () => undefined }
-    createStrokeHandler(deps, sample(3, 3), null)?.begin(sample(3, 3))
-    expect(seen[seen.length - 1]).toEqual({ kind: 'region', structure: 'ground', element: 'voxel', keys: ['3,3,0'] })
+  it('selects on a press anywhere else, the selected voxels themselves included: there is no Move to switch to', () => {
+    const { deps, solid, seen } = dragging()
+    // A press on the pillar's own top, and a drag off it: a new region, and the pillar stays where it is.
+    const handler = createStrokeHandler(deps, sample(5, 5), PILLAR)
+    handler?.begin(sample(5, 5))
+    handler?.move?.(sample(8, 5))
+    expect(solid(5, 5)).toEqual([true, true, true])
+    expect(solid(8, 5)).toEqual([true, false, false])
+    expect(seen[seen.length - 1]).toMatchObject({ kind: 'region', element: 'voxel', keys: expect.arrayContaining(['8,5,0']) as unknown })
   })
 })

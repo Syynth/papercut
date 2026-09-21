@@ -1324,12 +1324,13 @@ describe('deleting objects', () => {
     dispatch('redo')
     expect(selected()).toEqual(region('5,4,2'))
 
-    // A drag under Move: one edit, and undoing it puts the selection back where the drag began.
-    dispatch('tools.set', { tool: 'select', selectMode: 'region', selectVerb: 'move' })
-    const at = (x: number, z: number): PointerPress['pick'] => ({ surface: { structure: 'ground', kind: 0 as SurfaceKind, x: Math.floor(x), y: Math.floor(z), dir: -1, level: 0 }, point: { x, y: 3, z }, plane: { x, z }, objectId: null }) as PointerPress['pick']
-    host.input.pointerDown({ x: 0, y: 0, button: 0, modifiers: NO_MODIFIERS, pick: at(5.5, 4.5) })
+    // A drag from a move handle: one edit, and undoing it puts the selection back where the drag began.
+    dispatch('tools.set', { tool: 'select', selectMode: 'region' })
+    // The handles stand on the selection's top, at (5.5, 3, 4.5); a camera to the south, looking north, level.
+    const through = (x: number, axis: 'x' | null): PointerPress['pick'] => ({ surface: null, point: null, objectId: null, axis, ray: { origin: { x, y: 3, z: 20 }, direction: { x: 0, y: 0, z: -1 } } }) as PointerPress['pick']
+    host.input.pointerDown({ x: 0, y: 0, button: 0, modifiers: NO_MODIFIERS, pick: through(5.5, 'x') })
     host.input.pointerMove({ x: 40, y: 0, modifiers: NO_MODIFIERS })
-    host.input.strokeMove(at(7.5, 4.5) as never, NO_MODIFIERS)
+    host.input.strokeMove(through(7.5, null) as never, NO_MODIFIERS)
     host.input.pointerUp({ x: 40, y: 0 })
     expect(selected()).toEqual(region('7,4,2'))
     dispatch('undo')

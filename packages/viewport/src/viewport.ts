@@ -223,14 +223,17 @@ export interface SketchOverlay {
   readonly selected: number | null
 }
 
-/** Move's three handles: which way each points, and its colour — red east, green up, blue south, as every 3D tool has them. */
+/** The three move handles: which way each points, and its colour — red east, green up, blue south, as every 3D tool has them, a little muted. */
 const MOVE_AXES: ReadonlyArray<{ readonly id: MoveAxis; readonly direction: readonly [number, number, number]; readonly color: number }> = [
-  { id: 'x', direction: [1, 0, 0], color: 0xe5636f },
-  { id: 'y', direction: [0, 1, 0], color: 0x7bc47f },
-  { id: 'z', direction: [0, 0, 1], color: 0x5b8def },
+  { id: 'x', direction: [1, 0, 0], color: 0xd9727b },
+  { id: 'y', direction: [0, 1, 0], color: 0x86bd89 },
+  { id: 'z', direction: [0, 0, 1], color: 0x6f95e0 },
 ]
-/** How long a handle is, as a share of the view's height: about a ninth of it, wherever the camera stands. */
-const MOVE_HANDLE_SCREEN = 0.11
+/** How long a handle is, as a share of the view's height: about a twelfth of it, wherever the camera stands. */
+const MOVE_HANDLE_SCREEN = 0.085
+/** How solid a handle is drawn at rest, and under the pointer. */
+const MOVE_HANDLE_REST = 0.7
+const MOVE_HANDLE_HOVER = 1
 
 /** How solid the view cube is drawn while the pointer is elsewhere. */
 const CUBE_REST_OPACITY = 0.4
@@ -316,6 +319,8 @@ export class Viewport {
   private regionMesh: THREE.Mesh
   private regionLines: THREE.LineSegments
   private moveHandles = new THREE.Group()
+  /** The move handle under the pointer, as of the last pick: drawn solid, so it is plain a press there moves. */
+  private hoverAxis: MoveAxis | null = null
   private previewMesh: THREE.Mesh
   private previewLines: THREE.LineSegments
   private drawnPreview: Region | null = null
@@ -461,18 +466,26 @@ export class Viewport {
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.16, depthTest: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     )
     this.previewMesh.renderOrder = 898
-    // Move's handles: an arrow an axis, in the colours every 3D tool gives them, over everything so they can always be reached.
+    // The move handles: a FLAT arrow an axis, drawn quietly (decision of 2026-09-21): they stand on every voxel selection,
+    // so they are interface and not things in the scene. East and south lie on the level the selection stands on; up
+    // stands on end and turns about itself to face the camera. Over everything, so they can always be reached.
+    const outline = [[-0.028, 0.24], [0.028, 0.24], [0.028, 0.76], [0.1, 0.76], [0, 1], [-0.1, 0.76], [-0.028, 0.76]] as const
+    const shape = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x, y)))
+    const face = new THREE.ShapeGeometry(shape)
+    const rim = new THREE.BufferGeometry().setFromPoints(outline.map(([x, y]) => new THREE.Vector3(x, y, 0)))
     for (const axis of MOVE_AXES) {
-      // A shaft and a head, built along +Y and turned to the axis. Solid rather than a line, which is a pixel wide whatever is asked of it.
-      const material = new THREE.MeshBasicMaterial({ color: axis.color, depthTest: false, transparent: true, fog: false, toneMapped: false })
-      const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.78, 10), material)
-      shaft.position.y = 0.39
-      const head = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.26, 14), material)
-      head.position.y = 0.87
+      const fill = new THREE.Mesh(face, new THREE.MeshBasicMaterial({ color: axis.color, depthTest: false, transparent: true, opacity: MOVE_HANDLE_REST, side: THREE.DoubleSide, fog: false, toneMapped: false }))
+      // A dark hairline round it, so it reads on grass and on stone alike without being any louder.
+      const edge = new THREE.LineLoop(rim, new THREE.LineBasicMaterial({ color: 0x15171c, depthTest: false, transparent: true, opacity: 0.55, fog: false, toneMapped: false }))
+      fill.renderOrder = 960
+      edge.renderOrder = 961
       const arrow = new THREE.Group()
-      arrow.add(shaft, head)
-      arrow.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), new THREE.Vector3(...axis.direction))
-      for (const part of [shaft, head]) part.renderOrder = 960
+      arrow.add(fill, edge)
+      // The shape is drawn pointing along its own +Y, flat in its XY plane: turn +Y to the axis, and its face up for the two that lie down.
+      const along = new THREE.Vector3(...axis.direction)
+      const normal = axis.id === 'y' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0)
+      arrow.quaternion.setFromRotationMatrix(new THREE.Matrix4().makeBasis(new THREE.Vector3().crossVectors(along, normal), along, normal))
+      arrow.userData.axis = axis.id
       this.moveHandles.add(arrow)
     }
     this.moveHandles.visible = false
@@ -906,6 +919,12 @@ export class Viewport {
     if (handles) {
       this.moveHandles.position.set(handles[0], handles[1], handles[2])
       this.moveHandles.scale.setScalar(this.handleLength())
+      for (const arrow of this.moveHandles.children) {
+        // The upright one turns about itself to keep its face to the camera; the one under the pointer is drawn solid.
+        if (arrow.userData.axis === 'y') arrow.rotation.set(0, Math.atan2(this.camera.position.x - handles[0], this.camera.position.z - handles[2]), 0)
+        const fill = arrow.children[0] as THREE.Mesh<THREE.BufferGeometry, THREE.MeshBasicMaterial>
+        fill.material.opacity = arrow.userData.axis === this.hoverAxis ? MOVE_HANDLE_HOVER : MOVE_HANDLE_REST
+      }
     }
     this.regionMesh.visible = region !== null && !this.playing
     this.regionLines.visible = this.regionMesh.visible
@@ -1047,6 +1066,7 @@ export class Viewport {
     // Carrying something, the pick looks past it and through objects: what matters is where it would land.
     const through = event.ctrlKey || event.metaKey || (lookPast !== undefined && lookPast.size > 0)
     const pick = { ...this.picker.pick(this.scene, this.camera, x, y, through, lookPast), handle: this.handleAt(event), axis: this.axisAt(event) }
+    this.hoverAxis = pick.axis
     this.profile?.pick(performance.now() - started)
     return pick
   }
@@ -1085,9 +1105,9 @@ export class Viewport {
     for (const axis of MOVE_AXES) {
       const to = onScreen(origin[0] + axis.direction[0] * length, origin[1] + axis.direction[1] * length, origin[2] + axis.direction[2] * length)
       if (!to) continue
-      // The pointer's distance from the shaft as drawn; its first fifth is left to whatever is under the handles' meeting point.
+      // The pointer's distance from the shaft as drawn; its first quarter, where nothing is drawn, is left to whatever is under the handles' meeting point.
       const [dx, dy] = [to[0] - from[0], to[1] - from[1]]
-      const along = Math.max(0.2, Math.min(1, ((px - from[0]) * dx + (py - from[1]) * dy) / Math.max(1e-6, dx * dx + dy * dy)))
+      const along = Math.max(0.24, Math.min(1, ((px - from[0]) * dx + (py - from[1]) * dy) / Math.max(1e-6, dx * dx + dy * dy)))
       const distance = Math.hypot(px - (from[0] + dx * along), py - (from[1] + dy * along))
       if (distance < bestDistance) {
         bestDistance = distance

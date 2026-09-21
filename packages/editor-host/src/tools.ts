@@ -35,7 +35,6 @@ const toolSettings = z
     /** Select's two halves (ruling of 2026-09-12): objects and structures, or a region of a voxel volume. */
     selectMode: z.enum(['objects', 'region']).exactOptional(),
     /** What a drag does under Select's region half: take a region, or move the one there. */
-    selectVerb: z.enum(['select', 'move']).exactOptional(),
     /** What a region is of (ruling of 2026-09-20). */
     selectElement: z.enum(['voxel', 'face', 'edge']).exactOptional(),
     selectFootprint: z.enum(['brush', 'rect']).exactOptional(),
@@ -74,7 +73,6 @@ export interface ToolsContext {
   /** How the Select and Objects tools snap a drag; the sketch feature keeps its own for now. */
   readonly snap: SnapMode
   readonly selectMode: 'objects' | 'region'
-  readonly selectVerb: 'select' | 'move'
   readonly selectElement: RegionElement
   /** How a drag becomes a set of cells: under a brush, or in a rectangle from the press. */
   readonly selectFootprint: SelectFootprint
@@ -92,7 +90,7 @@ export interface ToolsContext {
 }
 
 /** How Select starts: on objects, and for a region, one voxel under a one-cell brush, replacing what was selected. */
-export const SELECT_DEFAULTS = { selectMode: 'objects', selectVerb: 'select', selectElement: 'voxel', selectFootprint: 'brush', selectSize: 1, selectDepth: 'surface', selectCombine: 'replace', selectFollowSlopes: true, selectMatch: { edge: 'run', face: 'flat', voxel: 'layer' }, selectEverywhere: false, selectStep: 1, selectBand: false, selectAnyLayer: false } as const satisfies Partial<ToolsContext>
+export const SELECT_DEFAULTS = { selectMode: 'objects', selectElement: 'voxel', selectFootprint: 'brush', selectSize: 1, selectDepth: 'surface', selectCombine: 'replace', selectFollowSlopes: true, selectMatch: { edge: 'run', face: 'flat', voxel: 'layer' }, selectEverywhere: false, selectStep: 1, selectBand: false, selectAnyLayer: false } as const satisfies Partial<ToolsContext>
 
 commands.declare(TOOLS_OWNER, { id: 'tools.set', title: 'Set Tool', category: 'Tools', args: toolSettings })
 
@@ -109,7 +107,6 @@ function applySettings(settings: ToolSettings): { context: Partial<ToolsContext>
   if (settings.spriteName !== undefined) next.spriteName = settings.spriteName
   if (settings.snap !== undefined) next.snap = settings.snap
   if (settings.selectMode !== undefined) next.selectMode = settings.selectMode
-  if (settings.selectVerb !== undefined) next.selectVerb = settings.selectVerb
   if (settings.selectElement !== undefined) next.selectElement = settings.selectElement
   if (settings.selectFootprint !== undefined) next.selectFootprint = settings.selectFootprint
   if (settings.selectSize !== undefined) next.selectSize = settings.selectSize
