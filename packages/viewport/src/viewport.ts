@@ -69,6 +69,7 @@ import {
   type PickResult,
   type SceneAssets,
   type LayerRange,
+  WATER_RENDER_ORDER,
 } from '@papercut/runtime'
 import type { SpriteAsset } from '@papercut/document'
 import type { LoadedSet } from '@papercut/runtime'
@@ -229,11 +230,39 @@ const MOVE_AXES: ReadonlyArray<{ readonly id: MoveAxis; readonly direction: read
   { id: 'y', direction: [0, 1, 0], color: 0x86bd89 },
   { id: 'z', direction: [0, 0, 1], color: 0x6f95e0 },
 ]
-/** How long a handle is, as a share of the view's height: about a twelfth of it, wherever the camera stands. */
-const MOVE_HANDLE_SCREEN = 0.085
-/** How solid a handle is drawn at rest, and under the pointer. */
-const MOVE_HANDLE_REST = 0.7
-const MOVE_HANDLE_HOVER = 1
+/** How long a handle is: half a tile, sized in the world so it belongs to the grid it moves things over (amended decision of 2026-09-21). */
+const MOVE_HANDLE_LENGTH = 0.5
+/** The least of the view's height a handle is drawn, however far off the camera is: so it can still be grabbed. */
+const MOVE_HANDLE_MIN_SCREEN = 0.045
+/** How solid a handle's centre is drawn at rest, and under the pointer. */
+const MOVE_HANDLE_REST = 0.2
+const MOVE_HANDLE_HOVER = 0.55
+/** Where along its axis an arrow starts and ends, in units of its own length: clear of where the three meet. */
+const MOVE_ARROW_FROM = 0.4
+const MOVE_ARROW_TO = MOVE_ARROW_FROM + 1
+/** The arrow, pointing along +Y: a wide shaft and a wider head that is half its length. */
+const MOVE_ARROW: ReadonlyArray<readonly [number, number]> = [[-0.17, MOVE_ARROW_FROM], [0.17, MOVE_ARROW_FROM], [0.17, MOVE_ARROW_FROM + 0.5], [0.38, MOVE_ARROW_FROM + 0.5], [0, MOVE_ARROW_TO], [-0.38, MOVE_ARROW_FROM + 0.5], [-0.17, MOVE_ARROW_FROM + 0.5]]
+/** How thick its outline is, in the same units. */
+const MOVE_ARROW_RIM = 0.055
+
+/** A counter-clockwise polygon drawn `by` inside itself: each edge moved in, and met with the next. */
+function insetPolygon(points: ReadonlyArray<readonly [number, number]>, by: number): Array<[number, number]> {
+  const n = points.length
+  const lines = points.map((p, i) => {
+    const q = points[(i + 1) % n]
+    const [dx, dy] = [q[0] - p[0], q[1] - p[1]]
+    const len = Math.hypot(dx, dy) || 1
+    // The inward normal of a counter-clockwise edge is to its left.
+    return { x: p[0] - (dy / len) * by, y: p[1] + (dx / len) * by, dx, dy }
+  })
+  return lines.map((b, i) => {
+    const a = lines[(i + n - 1) % n]
+    const cross = a.dx * b.dy - a.dy * b.dx
+    if (Math.abs(cross) < 1e-9) return [b.x, b.y]
+    const t = ((b.x - a.x) * b.dy - (b.y - a.y) * b.dx) / cross
+    return [a.x + a.dx * t, a.y + a.dy * t]
+  })
+}
 
 /** How solid the view cube is drawn while the pointer is elsewhere. */
 const CUBE_REST_OPACITY = 0.4
@@ -469,18 +498,28 @@ export class Viewport {
     // The move handles: a FLAT arrow an axis, drawn quietly (decision of 2026-09-21): they stand on every voxel selection,
     // so they are interface and not things in the scene. East and south lie on the level the selection stands on; up
     // stands on end and turns about itself to face the camera. Over everything, so they can always be reached.
-    const outline = [[-0.028, 0.24], [0.028, 0.24], [0.028, 0.76], [0.1, 0.76], [0, 1], [-0.1, 0.76], [-0.028, 0.76]] as const
-    const shape = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x, y)))
-    const face = new THREE.ShapeGeometry(shape)
-    const rim = new THREE.BufferGeometry().setFromPoints(outline.map(([x, y]) => new THREE.Vector3(x, y, 0)))
+    // Squat and wide, an outline in the axis's colour round a centre that is mostly seen through (amended the same day).
+    // Drawn in units of its own length: it starts a little out from where the three meet, and is one unit long.
+    const outline = MOVE_ARROW
+    const inner = insetPolygon(outline, MOVE_ARROW_RIM)
+    const whole = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x, y)))
+    const band = new THREE.Shape(outline.map(([x, y]) => new THREE.Vector2(x, y)))
+    band.holes.push(new THREE.Path([...inner].reverse().map(([x, y]) => new THREE.Vector2(x, y))))
+    const face = new THREE.ShapeGeometry(whole)
+    const rimFace = new THREE.ShapeGeometry(band)
+    const hairline = new THREE.BufferGeometry().setFromPoints(outline.map(([x, y]) => new THREE.Vector3(x, y, 0)))
     for (const axis of MOVE_AXES) {
-      const fill = new THREE.Mesh(face, new THREE.MeshBasicMaterial({ color: axis.color, depthTest: false, transparent: true, opacity: MOVE_HANDLE_REST, side: THREE.DoubleSide, fog: false, toneMapped: false }))
+      const flat = { depthTest: false, transparent: true, side: THREE.DoubleSide, fog: false, toneMapped: false } as const
+      const fill = new THREE.Mesh(face, new THREE.MeshBasicMaterial({ ...flat, color: axis.color, opacity: MOVE_HANDLE_REST }))
+      const rim = new THREE.Mesh(rimFace, new THREE.MeshBasicMaterial({ ...flat, color: axis.color, opacity: 0.95 }))
       // A dark hairline round it, so it reads on grass and on stone alike without being any louder.
-      const edge = new THREE.LineLoop(rim, new THREE.LineBasicMaterial({ color: 0x15171c, depthTest: false, transparent: true, opacity: 0.55, fog: false, toneMapped: false }))
-      fill.renderOrder = 960
-      edge.renderOrder = 961
+      const edge = new THREE.LineLoop(hairline, new THREE.LineBasicMaterial({ color: 0x15171c, depthTest: false, transparent: true, opacity: 0.5, fog: false, toneMapped: false }))
+      // After the water, which draws after every other overlay so that it tints them: a handle under a tint is a handle half seen.
+      fill.renderOrder = WATER_RENDER_ORDER + 100
+      rim.renderOrder = WATER_RENDER_ORDER + 101
+      edge.renderOrder = WATER_RENDER_ORDER + 102
       const arrow = new THREE.Group()
-      arrow.add(fill, edge)
+      arrow.add(fill, rim, edge)
       // The shape is drawn pointing along its own +Y, flat in its XY plane: turn +Y to the axis, and its face up for the two that lie down.
       const along = new THREE.Vector3(...axis.direction)
       const normal = axis.id === 'y' ? new THREE.Vector3(0, 0, 1) : new THREE.Vector3(0, 1, 0)
@@ -1075,16 +1114,14 @@ export class Viewport {
   private static readonly HANDLE_PX = 10
 
   /**
-   * How long Move's handles are, in world units, so that they are the same size on screen wherever the camera is: a
-   * handle a tile and a half long is a speck from across a map and a wall up close.
+   * How long a move handle is, in world units: half a tile, and never less of the view than can be grabbed, so from
+   * across a map they grow rather than shrink to a speck.
    */
   private handleLength(): number {
     const origin = this.options.moveHandles
-    if (!origin) return 1
-    if (this.camera instanceof THREE.OrthographicCamera) return ((this.camera.top - this.camera.bottom) / this.camera.zoom) * MOVE_HANDLE_SCREEN
-    const distance = this.camera.position.distanceTo(new THREE.Vector3(origin[0], origin[1], origin[2]))
-    const fov = this.camera instanceof THREE.PerspectiveCamera ? this.camera.fov : 50
-    return 2 * distance * Math.tan((fov * Math.PI) / 360) * MOVE_HANDLE_SCREEN
+    if (!origin) return MOVE_HANDLE_LENGTH
+    const view = this.camera instanceof THREE.OrthographicCamera ? (this.camera.top - this.camera.bottom) / this.camera.zoom : 2 * this.camera.position.distanceTo(new THREE.Vector3(origin[0], origin[1], origin[2])) * Math.tan(((this.camera instanceof THREE.PerspectiveCamera ? this.camera.fov : 50) * Math.PI) / 360)
+    return Math.max(MOVE_HANDLE_LENGTH, view * MOVE_HANDLE_MIN_SCREEN)
   }
 
   /** The Move handle under the pointer: the one whose drawn shaft the pointer is within a few pixels of, on screen. */
@@ -1100,16 +1137,19 @@ export class Viewport {
     const from = onScreen(origin[0], origin[1], origin[2])
     if (!from) return null
     let best: MoveAxis | null = null
-    let bestDistance = Viewport.HANDLE_PX
+    let bestDistance = Infinity
     const length = this.handleLength()
     for (const axis of MOVE_AXES) {
-      const to = onScreen(origin[0] + axis.direction[0] * length, origin[1] + axis.direction[1] * length, origin[2] + axis.direction[2] * length)
+      const to = onScreen(origin[0] + axis.direction[0] * length * MOVE_ARROW_TO, origin[1] + axis.direction[1] * length * MOVE_ARROW_TO, origin[2] + axis.direction[2] * length * MOVE_ARROW_TO)
       if (!to) continue
-      // The pointer's distance from the shaft as drawn; its first quarter, where nothing is drawn, is left to whatever is under the handles' meeting point.
+      // The pointer's distance from the arrow's centre line as drawn: only the part that is drawn, so where the three meet is left
+      // to whatever is under it, and within about the arrow's own half width, which is a good deal more than a few pixels up close.
       const [dx, dy] = [to[0] - from[0], to[1] - from[1]]
-      const along = Math.max(0.24, Math.min(1, ((px - from[0]) * dx + (py - from[1]) * dy) / Math.max(1e-6, dx * dx + dy * dy)))
+      const along = Math.max(MOVE_ARROW_FROM / MOVE_ARROW_TO, Math.min(1, ((px - from[0]) * dx + (py - from[1]) * dy) / Math.max(1e-6, dx * dx + dy * dy)))
       const distance = Math.hypot(px - (from[0] + dx * along), py - (from[1] + dy * along))
-      if (distance < bestDistance) {
+      // As wide as the arrow looks from here; looked at end on it is a sliver, and the few pixels still reach it.
+      const reach = Math.max(Viewport.HANDLE_PX, (Math.hypot(dx, dy) / MOVE_ARROW_TO) * 0.3)
+      if (distance < reach && distance < bestDistance) {
         bestDistance = distance
         best = axis.id
       }

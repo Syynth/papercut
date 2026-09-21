@@ -1157,5 +1157,5 @@ Each entry:
 - **PROJECT:** papercut
 - **SYSTEM:** editor-ui / viewport
 - **SCOPE:** minor/local
-- **WHAT:** The move handles are flat arrows lying in a plane, drawn quietly, rather than solid 3D cylinders and cones.
-- **WHY:** Handles that are always showing on a selection must not shout over the pixel-art terrain; solid 3D gizmos read as objects in the scene, flat arrows read as interface.
+- **WHAT:** The move handles are flat arrows lying in a plane, drawn quietly, rather than solid 3D cylinders and cones. Amended the same day: each is about half a tile long, sized in the world rather than on the screen (with a floor on its screen size, so it stays grabbable zoomed far out), squat and wide, with an outline in the axis colour and a mostly transparent centre.
+- **WHY:** Handles that are always showing on a selection must not shout over the pixel-art terrain; solid 3D gizmos read as objects in the scene, flat arrows read as interface. Sizing them to the tile grid ties them to what they move, and an outlined, see-through arrow leaves the art under it visible.
