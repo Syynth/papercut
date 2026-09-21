@@ -539,7 +539,9 @@ function courseCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, 
   const at = (along: number, c: number): Tag => {
     const cx = x + along * ux
     const cy = y + along * uy
-    if (!inBounds(voxel.size, cx, cy)) return own
+    // Off the volume the column continues as this one: a course there only where this cell has one, so the wall's top
+    // and foot stay edges out to the map's rim rather than reading the air above and the ground below as more wall.
+    if (!inBounds(voxel.size, cx, cy)) return c === course ? own : courseExists(cells, voxel, x, y, dir, c) ? slotted(cells.course(x, y, dir, c).keys[layer], x, y) : null
     return courseExists(cells, voxel, cx, cy, dir, c) ? slotted(cells.course(cx, cy, dir, c).keys[layer], cx, cy) : null
   }
   const before = atEnd ? 0 : -1
