@@ -159,7 +159,7 @@ export function Inspector({
     <>
       <InspectorHead>{TITLES[params.tool] ?? params.tool}</InspectorHead>
 
-      <Section title="Selection" summary={selected ? selected.name : structure ? structure.name : region ? describeRegion(region) : 'empty'} accent={selected !== null || structure !== null || region !== null} defaultOpen>
+      <Section icon="select" title="Selection" summary={selected ? selected.name : structure ? structure.name : region ? describeRegion(region) : 'empty'} accent={selected !== null || structure !== null || region !== null} defaultOpen>
         {selected ? (
           <ObjectProperties object={selected} deleteKbd={deleteKbd} onChange={onObject} onDelete={onDelete} />
         ) : structure ? (
@@ -174,13 +174,13 @@ export function Inspector({
       </Section>
 
       {selected ? (
-        <Section title="Facing & flip" summary={`${selected.facing.facings} facing${selected.facing.facings === 1 ? '' : 's'}`} defaultOpen={false}>
+        <Section icon="rotate" title="Facing & flip" summary={`${selected.facing.facings} facing${selected.facing.facings === 1 ? '' : 's'}`} defaultOpen={false}>
           <FacingProperties object={selected} onChange={onObject} />
         </Section>
       ) : null}
 
       {isTerrain ? (
-        <Section title={params.terrainMode === 'sculpt' ? 'Sculpt' : 'Paint'} summary={params.terrainMode === 'sculpt' && params.sculptVerb === 'ramp' ? 'ramp' : `${params.brush.size} · ${params.brush.shape}`}>
+        <Section icon={params.terrainMode === 'sculpt' ? 'sculpt' : 'paint'} title={params.terrainMode === 'sculpt' ? 'Sculpt' : 'Paint'} summary={params.terrainMode === 'sculpt' && params.sculptVerb === 'ramp' ? 'ramp' : `${params.brush.size} · ${params.brush.shape}`}>
           <FeaturePanels slot="inspector" tool={params.tool} doc={doc} materials={materials} params={params} platform={platform} selection={selection} />
         </Section>
       ) : null}
@@ -188,7 +188,7 @@ export function Inspector({
       {isTerrain ? <MaterialsPicker active={params.material} sets={terrain} /> : null}
 
       {isTerrain ? (
-        <Section title="Tile sets" summary={`${terrain.length} ${terrain.length === 1 ? 'sheet' : 'sheets'}`} defaultOpen={false}>
+        <Section icon="tile" title="Tile sets" summary={`${terrain.length} ${terrain.length === 1 ? 'sheet' : 'sheets'}`} defaultOpen={false}>
           <Note>A material&rsquo;s art is wherever tiles are tagged with it, on any of the project&rsquo;s images. The images are managed in Project settings.</Note>
           {terrainWarning ? <Note tone="warn">{terrainWarning}</Note> : null}
           <Actions>
@@ -197,24 +197,24 @@ export function Inspector({
         </Section>
       ) : null}
 
-      <Section title="Objects" summary={doc.objectOrder.length} defaultOpen={params.tool !== 'terrain'}>
+      <Section icon="objects" title="Objects" summary={doc.objectOrder.length} defaultOpen={params.tool !== 'terrain'}>
         <OutlinerList doc={doc} selectedId={selected?.id ?? null} onSelect={onSelect} onChange={onObjectChange} />
       </Section>
 
-      <Section title="Camera rig" summary={`${Math.abs(doc.camera.bounds.yawMax - doc.camera.bounds.yawMin)}° yaw`} open={levelOpen} onToggle={onLevelToggle}>
+      <Section icon="camera" title="Camera rig" summary={`${Math.abs(doc.camera.bounds.yawMax - doc.camera.bounds.yawMin)}° yaw`} open={levelOpen} onToggle={onLevelToggle}>
         <CameraRigProperties rig={doc.camera} onChange={onRig} />
       </Section>
 
-      <Section title="Atmosphere" summary={doc.atmosphere.preset} open={levelOpen} onToggle={onLevelToggle}>
+      <Section icon="atmosphere" title="Atmosphere" summary={doc.atmosphere.preset} open={levelOpen} onToggle={onLevelToggle}>
         <AtmosphereProperties atmosphere={doc.atmosphere} onChange={onAtmosphere} />
       </Section>
 
-      <Section title="Coverage" summary={flags === null ? undefined : flags === 0 ? 'clean' : `${flags} flagged`} accent={flags !== null && flags > 0} open={levelOpen} onToggle={onLevelToggle}>
+      <Section icon="grid" title="Coverage" summary={flags === null ? undefined : flags === 0 ? 'clean' : `${flags} flagged`} accent={flags !== null && flags > 0} open={levelOpen} onToggle={onLevelToggle}>
         {levelOpen ? <CoverageProperties onSelect={onSelect} onFix={onFix} /> : null}
       </Section>
 
       {message ? (
-        <Section title="Last action" defaultOpen>
+        <Section icon="check" title="Last action" defaultOpen>
           <Note>{message}</Note>
         </Section>
       ) : null}

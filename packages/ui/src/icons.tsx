@@ -349,6 +349,21 @@ const GLYPHS = {
       <path d="M12 4 21 8.5 12 13 3 8.5z" fill="currentColor" stroke="none" /><path d="M3 12.5 12 17l9-4.5M3 16.5 12 21l9-4.5" strokeWidth="3" />
     </>
   ),
+  // the frame's own: fold and unfold a panel, the bar's overflow, and the inspector sections that had no glyph
+  chevronLeft: <path d="m15 5-7 7 7 7" />,
+  more: (
+    <>
+      <circle cx="5" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1.6" fill="currentColor" stroke="none" />
+    </>
+  ),
+  atmosphere: (
+    <>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" />
+    </>
+  ),
   place: (
     <>
       <path d="M12 21s-6-6-6-11a6 6 0 0 1 12 0c0 5-6 11-6 11z" />

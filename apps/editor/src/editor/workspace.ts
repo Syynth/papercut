@@ -108,7 +108,7 @@ function mapEntry(key: string): SavedMap {
 }
 
 /** The view settings worth coming back to; the rest of the view actor is the machine's preferences, a notice, an open dialog. */
-const VIEW_KEPT = ['inspector', 'materialLayersShown', 'materialLayersOpen', 'levelOpen', 'gameCamera'] as const
+const VIEW_KEPT = ['inspector', 'inspectorCollapsed', 'materialLayersShown', 'materialLayersOpen', 'levelOpen', 'gameCamera'] as const
 
 /**
  * Bring the tools and the view back, and keep them from here on. Called once at boot, after the features are installed

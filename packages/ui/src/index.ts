@@ -51,6 +51,7 @@ export {
   Hint,
   IconSegmented,
   InspectorHead,
+  InspectorPanel,
   Item,
   Kbd,
   LayerRange,

@@ -14,7 +14,7 @@
  */
 
 import { Slider as MantineSlider, Tooltip } from '@mantine/core'
-import { useRef, useState, type PointerEvent, type ReactNode } from 'react'
+import { createContext, useContext, useEffect, useLayoutEffect, useRef, useState, type PointerEvent, type ReactNode } from 'react'
 
 import { Icon, type IconName } from './icons'
 
@@ -53,6 +53,7 @@ export function Frame({
   stage,
   inspector,
   status,
+  inspectorCollapsed = false,
 }: {
   top: ReactNode
   rail: ReactNode
@@ -60,16 +61,18 @@ export function Frame({
   stage: ReactNode
   inspector: ReactNode
   status: ReactNode
+  /** The inspector folded to its strip: the bar and the stage take its width. */
+  inspectorCollapsed?: boolean
 }) {
   return (
-    <div className="ui-frame">
+    <div className={`ui-frame ${inspectorCollapsed ? 'is-insp-collapsed' : ''}`}>
       <header className="ui-top">{top}</header>
       <nav className="ui-rail" aria-label="Tools">
         {rail}
       </nav>
-      <div className="ui-bar">{bar}</div>
+      <OverflowBar>{bar}</OverflowBar>
       <main className="ui-stage">{stage}</main>
-      <aside className="ui-insp">{inspector}</aside>
+      <aside className={`ui-insp ${inspectorCollapsed ? 'is-collapsed' : ''}`}>{inspector}</aside>
       <footer className="ui-status">{status}</footer>
     </div>
   )
@@ -362,8 +365,124 @@ function monogram(title: string): string {
 
 // --- inspector -----------------------------------------------------------------
 
+/**
+ * The context bar, with a "more" menu for what does not fit (the owner, 2026-09-21). The bar lays its controls out on
+ * one line and lets the rest wrap out of sight; the button at its end opens a panel holding exactly those. Nothing is
+ * measured but where each control landed, so a bar's contents need to know nothing about it.
+ */
+function OverflowBar({ children }: { children: ReactNode }) {
+  const row = useRef<HTMLDivElement>(null)
+  const more = useRef<HTMLDivElement>(null)
+  /** How many of the row's controls are on its first line: the rest are in the menu. */
+  const [shown, setShown] = useState<number | null>(null)
+  const [open, setOpen] = useState(false)
+
+  useLayoutEffect(() => {
+    const element = row.current
+    if (!element) return
+    const measure = (): void => {
+      const items = [...element.children] as HTMLElement[]
+      const first = items[0]?.offsetTop ?? 0
+      const fit = items.findIndex((item) => item.offsetTop > first + 4)
+      setShown(fit === -1 ? null : fit)
+    }
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(element)
+    const mutations = new MutationObserver(measure)
+    mutations.observe(element, { childList: true, subtree: true, characterData: true })
+    return () => {
+      observer.disconnect()
+      mutations.disconnect()
+    }
+  }, [])
+
+  // The menu holds the same controls again, the ones already on the bar hidden: by position, since the two are the same list.
+  useLayoutEffect(() => {
+    const items = more.current ? ([...more.current.children] as HTMLElement[]) : []
+    // By `display`, not the `hidden` attribute, which loses to a control's own display rule.
+    items.forEach((item, index) => {
+      item.style.display = shown !== null && index < shown ? 'none' : ''
+    })
+  })
+
+  useEffect(() => {
+    if (shown === null) setOpen(false)
+  }, [shown])
+  useEffect(() => {
+    if (!open) return
+    const close = (event: Event): void => {
+      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !(event.target instanceof Node && more.current?.parentElement?.contains(event.target))) setOpen(false)
+    }
+    window.addEventListener('pointerdown', close)
+    window.addEventListener('keydown', close)
+    return () => {
+      window.removeEventListener('pointerdown', close)
+      window.removeEventListener('keydown', close)
+    }
+  }, [open])
+
+  return (
+    <div className="ui-bar">
+      <div className="ui-bar-row" ref={row}>
+        {children}
+      </div>
+      {shown !== null ? (
+        <div className="ui-bar-more-anchor">
+          <button type="button" className={`ui-btn is-icon ${open ? 'is-active' : ''}`} title="More: the controls that do not fit on the bar" aria-label="More controls" aria-expanded={open} onClick={() => setOpen(!open)}>
+            <Icon name="more" />
+          </button>
+          {open ? (
+            <div className="ui-bar-more" ref={more}>
+              {children}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+/** What the inspector's pieces need to know about the panel they are in: whether it is folded, and how to open it on a section. */
+interface InspectorPanelState {
+  collapsed: boolean
+  setCollapsed(collapsed: boolean): void
+  /** The section to open and bring into view once the panel has unfolded; its title. */
+  wanted: string | null
+  want(title: string | null): void
+}
+
+const InspectorPanelContext = createContext<InspectorPanelState>({ collapsed: false, setCollapsed: () => undefined, wanted: null, want: () => undefined })
+
+/**
+ * The inspector, able to fold to a thin strip (the owner, 2026-09-21). Folded, its head is the button that unfolds it
+ * and each `Section` is its icon; a click on one unfolds the panel onto that section. The sections stay mounted either
+ * way, so what was open is open again.
+ */
+export function InspectorPanel({ collapsed, onCollapsedChange, children }: { collapsed: boolean; onCollapsedChange: (collapsed: boolean) => void; children: ReactNode }) {
+  const [wanted, want] = useState<string | null>(null)
+  return <InspectorPanelContext.Provider value={{ collapsed, setCollapsed: onCollapsedChange, wanted, want }}>{children}</InspectorPanelContext.Provider>
+}
+
 export function InspectorHead({ children }: { children: ReactNode }) {
-  return <div className="ui-insp-head">{children}</div>
+  const panel = useContext(InspectorPanelContext)
+  if (panel.collapsed) {
+    return (
+      <div className="ui-insp-head is-collapsed">
+        <button type="button" className="ui-btn is-icon" title="Show the inspector" aria-label="Show the inspector" onClick={() => panel.setCollapsed(false)}>
+          <Icon name="chevronLeft" />
+        </button>
+      </div>
+    )
+  }
+  return (
+    <div className="ui-insp-head">
+      <span>{children}</span>
+      <button type="button" className="ui-btn is-icon ui-insp-fold" title="Fold the inspector to a strip" aria-label="Fold the inspector" onClick={() => panel.setCollapsed(true)}>
+        <Icon name="chevronRight" />
+      </button>
+    </div>
+  )
 }
 
 /**
@@ -381,9 +500,12 @@ export function Section({
   defaultOpen = true,
   open: controlled,
   onToggle,
+  icon,
   children,
 }: {
   title: string
+  /** Its glyph on the folded inspector's strip; without one the strip shows the title's first letter. */
+  icon?: IconName
   summary?: ReactNode
   accent?: boolean
   defaultOpen?: boolean
@@ -393,8 +515,37 @@ export function Section({
 }) {
   const [own, setOwn] = useState(defaultOpen)
   const open = controlled ?? own
+  const panel = useContext(InspectorPanelContext)
+  const element = useRef<HTMLDetailsElement>(null)
+  // Asked for from the strip: once the panel has unfolded, open and come into view.
+  const wanted = !panel.collapsed && panel.wanted === title
+  useEffect(() => {
+    if (!wanted) return
+    setOwn(true)
+    onToggle?.(true)
+    element.current?.scrollIntoView({ block: 'start' })
+    panel.want(null)
+  }, [wanted, onToggle, panel])
+  if (panel.collapsed) {
+    const glance = typeof summary === 'string' || typeof summary === 'number' ? `${title}: ${summary}` : title
+    return (
+      <button
+        type="button"
+        className={`ui-btn is-icon ui-insp-strip ${accent ? 'is-accent' : ''}`}
+        title={glance}
+        aria-label={glance}
+        onClick={() => {
+          panel.want(title)
+          panel.setCollapsed(false)
+        }}
+      >
+        {icon ? <Icon name={icon} /> : <span className="ui-insp-initial">{title.slice(0, 1)}</span>}
+      </button>
+    )
+  }
   return (
     <details
+      ref={element}
       className="ui-sec"
       open={open}
       onToggle={(event) => {

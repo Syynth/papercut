@@ -212,12 +212,15 @@ export function SelectBar({
           {params.selectFootprint === 'brush' ? <BarScrub label="Size" title="Brush size: drag to change, click to type" value={params.selectSize} min={1} max={12} onChange={(selectSize) => set({ selectSize })} /> : null}
           <BarDivider />
           {/* What a double-click takes: the element's default rule (design pass of 2026-09-20). The other rules join it here as they are built. */}
-          <BarLabel>Match</BarLabel>
-          <IconSegmented
-            value={rule}
-            onChange={(next) => set({ selectMatch: { ...params.selectMatch, [params.selectElement]: next } })}
-            options={MATCH_RULES[params.selectElement].map((value) => ({ value, icon: MATCH[value].icon, title: `${MATCH[value].title}. Double-click takes it; triple-click takes the next whole out` }))}
-          />
+          {/* One unit, so the bar's overflow never leaves the label on the bar with its buttons in the menu. */}
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+            <BarLabel>Match</BarLabel>
+            <IconSegmented
+              value={rule}
+              onChange={(next) => set({ selectMatch: { ...params.selectMatch, [params.selectElement]: next } })}
+              options={MATCH_RULES[params.selectElement].map((value) => ({ value, icon: MATCH[value].icon, title: `${MATCH[value].title}. Double-click takes it; triple-click takes the next whole out` }))}
+            />
+          </span>
           {/* Only the switches the picked rule reads. */}
           {rule === 'run' || rule === 'loop' ? <Verb icon="followSlopes" active={params.selectFollowSlopes} title="Follow slopes: a run or a loop carries on down a ramp's side and onto the rim below" onClick={() => set({ selectFollowSlopes: !params.selectFollowSlopes })} /> : null}
           {rule === 'surface' ? <BarScrub label="Step" title="How big a change of height is still the same surface, in half-tiles: 0 is level ground only" unit="½" value={params.selectStep} min={0} max={8} onChange={(selectStep) => set({ selectStep })} /> : null}
@@ -234,17 +237,7 @@ export function SelectBar({
             ]}
           />
           <BarDivider />
-          <IconSegmented
-            value={params.selectCombine}
-            onChange={(selectCombine) => set({ selectCombine })}
-            options={[
-              { value: 'replace', icon: 'replace', title: 'Replace the selection' },
-              { value: 'add', icon: 'add', title: 'Add to the selection — holding shift does this too' },
-              { value: 'subtract', icon: 'subtract', title: 'Take from the selection — holding alt does this too' },
-              { value: 'intersect', icon: 'intersect', title: 'Keep only what both hold' },
-            ]}
-          />
-          <BarDivider />
+          {/* How a new region meets the one there is the modifiers' to say (design pass of 2026-09-20): shift adds, alt takes away, and a plain press replaces. The four buttons that said the same are gone from the bar. */}
           <BarGroup>
             <Verb icon="expand" title="Grow the region by what is beside it" disabled={!held} onClick={() => onRegion('expand')} />
             <Verb icon="contract" title="Shrink the region by its rim" disabled={!held} onClick={() => onRegion('contract')} />
