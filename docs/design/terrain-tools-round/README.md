@@ -23,7 +23,10 @@ proposals to draw on rather than a plan. The boards are generated; their source 
 
 Proposed, except step 1 of its build order, built on 2026-09-21: double-click takes the whole by each element's
 default rule (Run, Flat, Island), a one-cell brush takes one element, hover shows what a click would take and
-ctrl-hover what a double-click would, and Fill is retired. What was built before that is Region mode, the three elements, brush, rectangle and fill, surface and
+ctrl-hover what a double-click would, and Fill is retired. Step 2 followed the same day: triple-click takes the
+next whole out (an edge's Loop, a top's Surface or a side's Wall, a voxel's Island), Follow slopes and Pair are in
+the edge bar, and a voxel's default became Layer rather than Island (decision of 2026-09-21), so the boards' "Island"
+default is superseded. What was built before that is Region mode, the three elements, brush, rectangle and fill, surface and
 through, combine, and grow, shrink and invert. This pass maps the rest, with the aim that it stays simple: three
 gestures and one Match menu, and everything specialised is what a double-click means.
 

@@ -40,6 +40,8 @@ const toolSettings = z
     selectSize: z.int().min(1).max(12).exactOptional(),
     selectDepth: z.enum(['surface', 'through']).exactOptional(),
     selectCombine: z.enum(['replace', 'add', 'subtract', 'intersect']).exactOptional(),
+    /** Whether an edge's run or loop carries on down a ramp's side and onto the rim below. */
+    selectFollowSlopes: z.boolean().exactOptional(),
   })
   .strict()
 
@@ -64,11 +66,12 @@ export interface ToolsContext {
   readonly selectDepth: RegionDepth
   /** How a new region meets the one there; shift adds and alt subtracts whatever this says. */
   readonly selectCombine: RegionCombine
+  readonly selectFollowSlopes: boolean
   readonly features: Readonly<Record<string, FeatureParams>>
 }
 
 /** How Select starts: on objects, and for a region, one voxel under a one-cell brush, replacing what was selected. */
-export const SELECT_DEFAULTS = { selectMode: 'objects', selectElement: 'voxel', selectFootprint: 'brush', selectSize: 1, selectDepth: 'surface', selectCombine: 'replace' } as const satisfies Partial<ToolsContext>
+export const SELECT_DEFAULTS = { selectMode: 'objects', selectElement: 'voxel', selectFootprint: 'brush', selectSize: 1, selectDepth: 'surface', selectCombine: 'replace', selectFollowSlopes: true } as const satisfies Partial<ToolsContext>
 
 commands.declare(TOOLS_OWNER, { id: 'tools.set', title: 'Set Tool', category: 'Tools', args: toolSettings })
 
@@ -90,6 +93,7 @@ function applySettings(settings: ToolSettings): { context: Partial<ToolsContext>
   if (settings.selectSize !== undefined) next.selectSize = settings.selectSize
   if (settings.selectDepth !== undefined) next.selectDepth = settings.selectDepth
   if (settings.selectCombine !== undefined) next.selectCombine = settings.selectCombine
+  if (settings.selectFollowSlopes !== undefined) next.selectFollowSlopes = settings.selectFollowSlopes
   return { context: next }
 }
 

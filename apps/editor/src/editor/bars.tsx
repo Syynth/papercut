@@ -134,11 +134,11 @@ export function SnapControl({ value, onChange }: { value: SnapMode; onChange: (s
   )
 }
 
-const MATCH_NAME: Record<RegionMatch, string> = { run: 'Run', flat: 'Flat', island: 'Island' }
+const MATCH_NAME: Record<RegionMatch, string> = { run: 'Run', loop: 'Loop', flat: 'Flat', surface: 'Surface', wall: 'Wall', layer: 'Layer', island: 'Island' }
 const MATCH_HINT: Record<RegionElement, string> = {
-  edge: 'Double-click an edge for its run: the full straight edge, to where it turns or changes height',
-  face: 'Double-click a face for its flat: every connected face in the same plane',
-  voxel: 'Double-click a voxel for its island: everything connected to it, without going below its layer',
+  edge: 'Double-click an edge for its run, the full straight edge. Triple-click for its loop: on round the corners, all the way',
+  face: 'Double-click a face for its flat, every connected face in its plane. Triple-click for a top\'s surface, across half-tile steps, or a side\'s wall, round its corners',
+  voxel: 'Double-click a voxel for its layer, the connected voxels of one storey. Triple-click for its island: everything connected, without going below that layer',
 }
 
 export function SelectBar({
@@ -158,7 +158,7 @@ export function SelectBar({
   platform: Platform
   onDelete: () => void
   onClear: () => void
-  onRegion: (op: 'expand' | 'contract' | 'invert') => void
+  onRegion: (op: 'expand' | 'contract' | 'invert' | 'pair') => void
 }) {
   const named = describeSelection(doc, selection)
   const region = params.selectMode === 'region'
@@ -203,6 +203,7 @@ export function SelectBar({
           {/* What a double-click takes: the element's default rule (design pass of 2026-09-20). The other rules join it here as they are built. */}
           <BarLabel>Match</BarLabel>
           <BarValue title={MATCH_HINT[params.selectElement]}>{MATCH_NAME[DEFAULT_MATCH[params.selectElement]]}</BarValue>
+          {params.selectElement === 'edge' ? <Verb icon="followSlopes" active={params.selectFollowSlopes} title="Follow slopes: a run or a loop carries on down a ramp's side and onto the rim below" onClick={() => set({ selectFollowSlopes: !params.selectFollowSlopes })} /> : null}
           <BarDivider />
           <IconSegmented
             value={params.selectDepth}
@@ -228,6 +229,7 @@ export function SelectBar({
             <Verb icon="expand" title="Grow the region by what is beside it" disabled={!held} onClick={() => onRegion('expand')} />
             <Verb icon="contract" title="Shrink the region by its rim" disabled={!held} onClick={() => onRegion('contract')} />
             <Verb icon="invert" title="Select everything else of the same kind, within the layer view" disabled={!held} onClick={() => onRegion('invert')} />
+            {params.selectElement === 'edge' ? <Verb icon="pair" title="Pair: every top also takes its wall's foot, and every foot its top" disabled={!held} onClick={() => onRegion('pair')} /> : null}
             {/* Move is designed (docs/design/terrain-tools-round) and is the next piece of the selection work. */}
             <Verb icon="move" title="Move the region — not built yet" disabled onClick={() => undefined} />
           </BarGroup>
