@@ -211,6 +211,8 @@ export interface ViewportOptions {
   regionPreview: Region | null
   /** Where Move's three axis handles stand, in the world, or `null` when there is nothing to move: drawn over everything, and pressed to drag along one axis. */
   moveHandles: readonly [number, number, number] | null
+  /** A move being dragged, drawn as a ghost at the target over a dimmed source, with what it would replace in red (decision of 2026-10-09). */
+  moveGhost: MoveGhost | null
   /** The height range drawn, in half-tiles, or `null` for all of it — the layer view. */
   layers: LayerRange | null
   /** The sketch being drawn or edited: its points in world space, whether its outline closes, and which point is selected. */
@@ -223,6 +225,23 @@ export interface SketchOverlay {
   readonly closed: boolean
   readonly selected: number | null
 }
+
+/**
+ * A move being dragged: the voxels carried, where they are, how far they would go in the structure's own cells, and
+ * the voxels where they would land that are solid now. The shape the host's move preview has.
+ */
+export interface MoveGhost {
+  readonly structure: string
+  readonly keys: readonly string[]
+  readonly offset: { readonly dx: number; readonly dz: number; readonly dy: number }
+  readonly overlap: readonly string[]
+}
+
+/** The selection's fill as it normally is, and as it is over the source of a move: dimmed, the carried voxels being elsewhere. */
+const REGION_FILL = { color: 0xe9a23b, opacity: 0.42 }
+const REGION_SOURCE = { color: 0x15171c, opacity: 0.5 }
+/** What a move would replace: red, over everything, so a landing inside a hill still shows. */
+const OVERLAP_COLOR = 0xe5636f
 
 /** The three move handles: which way each points, and its colour — red east, green up, blue south, as every 3D tool has them, a little muted. */
 const MOVE_AXES: ReadonlyArray<{ readonly id: MoveAxis; readonly direction: readonly [number, number, number]; readonly color: number }> = [
@@ -281,6 +300,7 @@ const DEFAULT_OPTIONS: ViewportOptions = {
   region: null,
   regionPreview: null,
   moveHandles: null,
+  moveGhost: null,
   layers: null,
   sketch: null,
 }
@@ -356,6 +376,13 @@ export class Viewport {
   private drawnPreviewRevision = -1
   private drawnRegion: Region | null = null
   private drawnRegionRevision = -1
+  /** The ghost of the move being dragged: the carried voxels meshed on their own, and which voxels it was made of. */
+  private ghost: THREE.Group | null = null
+  private ghostOf: { structure: string; keys: readonly string[] } | null = null
+  private ghostBase = new THREE.Vector3()
+  private overlapMesh: THREE.Mesh
+  private overlapLines: THREE.LineSegments
+  private drawnOverlap: readonly string[] | null = null
   private overlay = new THREE.Group()
   /** The terrain grid, chunked like the terrain and updated chunk by chunk (`grid.ts`). */
   private grid = new TerrainGrid()
@@ -485,6 +512,13 @@ export class Viewport {
       new THREE.MeshBasicMaterial({ color: 0xe9a23b, transparent: true, opacity: 0.42, depthTest: true, depthWrite: false, side: THREE.DoubleSide, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
     )
     this.regionMesh.renderOrder = 899
+    // What a move would land on, over everything: after the water too, which would otherwise tint the warning away.
+    this.overlapMesh = new THREE.Mesh(new THREE.BufferGeometry(), new THREE.MeshBasicMaterial({ color: OVERLAP_COLOR, transparent: true, opacity: 0.22, depthTest: false, depthWrite: false, side: THREE.DoubleSide, fog: false, toneMapped: false }))
+    this.overlapLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: OVERLAP_COLOR, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false, fog: false, toneMapped: false }))
+    this.overlapMesh.renderOrder = WATER_RENDER_ORDER + 50
+    this.overlapLines.renderOrder = WATER_RENDER_ORDER + 51
+    this.overlapMesh.visible = false
+    this.overlapLines.visible = false
     // Its outline, so a region reads at a glance over busy art: every selected element's own border.
     this.regionLines = new THREE.LineSegments(new THREE.BufferGeometry(), new THREE.LineBasicMaterial({ color: 0xffd27a, transparent: true, opacity: 0.9, depthTest: true, depthWrite: false }))
     this.regionLines.renderOrder = 899
@@ -538,7 +572,7 @@ export class Viewport {
     this.sketchSelected = new THREE.Points(new THREE.BufferGeometry(), new THREE.PointsMaterial({ color: 0xffffff, size: 13, sizeAttenuation: false, depthTest: false }))
     this.sketchSelected.renderOrder = 952
 
-    this.overlay.add(this.moveHandles, this.previewMesh, this.previewLines, this.regionMesh, this.regionLines, this.brushMesh, this.hoverMesh, this.selectionBox, this.sketchLine, this.sketchPoints, this.sketchSelected)
+    this.overlay.add(this.moveHandles, this.overlapMesh, this.overlapLines, this.previewMesh, this.previewLines, this.regionMesh, this.regionLines, this.brushMesh, this.hoverMesh, this.selectionBox, this.sketchLine, this.sketchPoints, this.sketchSelected)
     this.overlay.add(this.grid.group)
     // Grid lines above the ceiling go with the terrain they outline.
     this.grid.clipWith(this.scene.section.plane)
@@ -954,9 +988,13 @@ export class Viewport {
     const preview = this.options.regionPreview
     const revision = this.reader.revision
     const handles = this.options.moveHandles
+    const ghost = this.playing ? null : this.options.moveGhost
+    // Where the move has got to, in the world: the handles, the ghost and the selection's outline all go there.
+    const travelled = ghost ? this.ghostTravel(ghost) : new THREE.Vector3()
+    this.updateGhost(ghost, travelled)
     this.moveHandles.visible = handles !== null && !this.playing
     if (handles) {
-      this.moveHandles.position.set(handles[0], handles[1], handles[2])
+      this.moveHandles.position.set(handles[0] + travelled.x, handles[1] + travelled.y, handles[2] + travelled.z)
       this.moveHandles.scale.setScalar(this.handleLength())
       for (const arrow of this.moveHandles.children) {
         // The upright one turns about itself to keep its face to the camera; the one under the pointer is drawn solid.
@@ -967,6 +1005,12 @@ export class Viewport {
     }
     this.regionMesh.visible = region !== null && !this.playing
     this.regionLines.visible = this.regionMesh.visible
+    // While a move is dragged the selection's fill stays on the source, dimmed, and its outline goes with the ghost.
+    const fill = this.regionMesh.material as THREE.MeshBasicMaterial
+    const look = ghost ? REGION_SOURCE : REGION_FILL
+    fill.color.setHex(look.color)
+    fill.opacity = look.opacity
+    this.regionLines.position.copy(travelled)
     this.previewMesh.visible = preview !== null && !this.playing
     this.previewLines.visible = this.previewMesh.visible
     if (region !== this.drawnRegion || revision !== this.drawnRegionRevision) {
@@ -979,6 +1023,42 @@ export class Viewport {
       this.drawnPreviewRevision = revision
       this.drawRegion(preview, this.previewMesh, this.previewLines)
     }
+  }
+
+  /** How far a move has carried its voxels, in the world: its offset in the structure's cells, turned with the structure. */
+  private ghostTravel(ghost: MoveGhost): THREE.Vector3 {
+    const frame = frameOf(this.reader.doc, ghost.structure)
+    const [ax, az] = toWorld(frame, 0, 0)
+    const [bx, bz] = toWorld(frame, ghost.offset.dx, ghost.offset.dz)
+    // A voxel layer is a world unit tall: two half-tiles.
+    return new THREE.Vector3(bx - ax, ghost.offset.dy, bz - az)
+  }
+
+  /**
+   * The ghost of a move (decision of 2026-10-09): the carried voxels meshed once, when the drag begins, and then only
+   * moved, since what is carried does not change while it is carried; and what it would land on, outlined in red.
+   */
+  private updateGhost(ghost: MoveGhost | null, travelled: THREE.Vector3): void {
+    if (ghost?.structure !== this.ghostOf?.structure || ghost?.keys !== this.ghostOf?.keys) {
+      if (this.ghost) {
+        this.overlay.remove(this.ghost)
+        this.scene.disposeGhost(this.ghost)
+      }
+      this.ghost = ghost ? this.scene.ghostOf(ghost.structure, ghost.keys) : null
+      this.ghostOf = ghost ? { structure: ghost.structure, keys: ghost.keys } : null
+      if (this.ghost) {
+        this.ghostBase.copy(this.ghost.position)
+        this.overlay.add(this.ghost)
+      }
+    }
+    if (this.ghost) this.ghost.position.copy(this.ghostBase).add(travelled)
+    const overlap = ghost && ghost.overlap.length > 0 ? ghost.overlap : null
+    if (overlap !== this.drawnOverlap) {
+      this.drawnOverlap = overlap
+      this.drawRegion(overlap && ghost ? { structure: ghost.structure, element: 'voxel', keys: [...overlap] } : null, this.overlapMesh, this.overlapLines)
+    }
+    this.overlapMesh.visible = overlap !== null
+    this.overlapLines.visible = overlap !== null
   }
 
   private drawRegion(region: Region | null, mesh: THREE.Mesh, outline: THREE.LineSegments): void {

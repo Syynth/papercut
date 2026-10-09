@@ -130,6 +130,8 @@ export interface DocumentReader {
   redoLabel(): string | null
   /** Where the document stands in its history: the serial of the last edit still applied, 0 before the first (`History.position`). */
   historyPosition(): number
+  /** Whether a stroke is open: begun and not yet ended, so its edit is not in the history yet. */
+  strokeOpen(): boolean
 }
 
 /**
@@ -212,6 +214,7 @@ export class EditorStore implements DocumentWriter {
       undoLabel: () => this.history.undoLabel(),
       redoLabel: () => this.history.redoLabel(),
       historyPosition: () => this.history.position(),
+      strokeOpen: () => this.stroke !== null,
     }
   }
 

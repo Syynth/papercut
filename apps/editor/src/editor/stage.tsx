@@ -15,7 +15,7 @@
  * the camera without holding the viewport.
  */
 
-import { useEffect, useMemo, useRef, type RefObject } from 'react'
+import { useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 
 import {
   HALF,
@@ -49,6 +49,7 @@ import {
   useViewportSelector,
   type BrushCells,
   type Host,
+  type MovePreview,
 } from '@papercut/editor-host'
 import { currentSketch, sketchPointHeight } from '@papercut/feature-sketch'
 // The brush preview draws the cells a terrain stroke will touch, so it calls the same function the stroke does. An app
@@ -228,6 +229,12 @@ export function Stage({ platform }: { platform: Platform }) {
     viewportRef.current?.setOptions({ moveHandles: [wx, frame.y + anchor[1], wz] })
   }, [host, moveOn, selection, playing])
 
+  // A move being dragged: the viewport draws its ghost, and the stage says how far it has gone (decision of 2026-10-09).
+  const movePreview = useViewportSelector((snapshot) => snapshot.context.movePreview)
+  useEffect(() => {
+    viewportRef.current?.setOptions({ moveGhost: movePreview })
+  }, [movePreview])
+
   useEffect(() => {
     if (tool !== 'sketch') viewportRef.current?.setOptions({ sketch: null })
   }, [tool])
@@ -253,6 +260,7 @@ export function Stage({ platform }: { platform: Platform }) {
     <>
       <canvas ref={canvasRef} className={`stage-canvas ${playing ? 'is-playing' : ''}`} />
       {tool === 'sketch' ? <SketchOverlaySync viewport={viewportRef} /> : null}
+      {movePreview && !playing ? <MoveReadout preview={movePreview} doc={host.reader.doc} /> : null}
       <Overlay at="top-left">
         <LevelSize />
       </Overlay>
@@ -293,6 +301,37 @@ export function Stage({ platform }: { platform: Platform }) {
         </Overlay>
       )}
     </>
+  )
+}
+
+/**
+ * How far a move has gone, beside the pointer while it is dragged (decision of 2026-10-09), in the world's directions
+ * — the handles are the world's axes — and that Escape lets go of it. It shows once the pointer has moved, since that
+ * is where it learns where the pointer is.
+ */
+function MoveReadout({ preview, doc }: { preview: MovePreview; doc: ReadonlyMapDoc }) {
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null)
+  useEffect(() => {
+    const follow = (event: PointerEvent): void => setAt({ x: event.clientX, y: event.clientY })
+    window.addEventListener('pointermove', follow)
+    return () => window.removeEventListener('pointermove', follow)
+  }, [])
+  if (!at) return null
+  const frame = frameOf(doc, preview.structure)
+  const [ax, az] = toWorld(frame, 0, 0)
+  const [bx, bz] = toWorld(frame, preview.offset.dx, preview.offset.dz)
+  const steps = (n: number, ahead: string, back: string): string | null => (n === 0 ? null : `${Math.abs(n)} ${n > 0 ? ahead : back}`)
+  const said = [steps(Math.round(bx - ax), 'east', 'west'), steps(Math.round(bz - az), 'south', 'north'), steps(preview.offset.dy, 'up', 'down')].filter((part) => part !== null)
+  return (
+    <div style={{ position: 'fixed', left: at.x + 18, top: at.y + 18, pointerEvents: 'none', zIndex: 20 }}>
+      <Pill warn={preview.overlap.length > 0}>
+        <span>{said.length === 0 ? 'where it was' : said.join(' · ')}</span>
+        {preview.overlap.length > 0 ? <span>replaces {preview.overlap.length}</span> : null}
+        <span>
+          <Kbd>esc</Kbd> cancel
+        </span>
+      </Pill>
+    </div>
   )
 }
 

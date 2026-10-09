@@ -70,6 +70,9 @@ import {
   toLocal,
   toWorld,
   topHeight,
+  voxelAt,
+  parseVoxelKey,
+  AIR,
   updateObject,
   type Cell,
   type DocumentReader,
@@ -90,6 +93,7 @@ import type { StrokeHandler, ToolContract } from '@papercut/registry'
 
 import type { ToolSettings, ToolsContext } from './tools'
 import type { Selection } from './view'
+import type { MovePreview } from './viewport'
 
 /** The keyboard state that rides on a pointer event. `button` is not here: it belongs to the press, not the motion. */
 export interface PointerModifiers {
@@ -148,6 +152,8 @@ export interface StrokeDeps {
   setTools(settings: ToolSettings): void
   /** The object tool's output. The host turns it into a `select` event to the view actor. */
   select(selection: Selection | null): void
+  /** A move being dragged, for the viewport to draw, or `null` when it ends. Absent from a test that has no view. */
+  preview?(preview: MovePreview | null): void
   /** The voxel layers the layer view leaves drawn, or `null` for all of them: what a region reaches through. Absent from a test that has no view. */
   layerSpan?(): LayerSpan | null
   /**
@@ -165,7 +171,14 @@ export interface StrokeDeps {
  * so the sample says what the carried thing would land on rather than
  * hitting the thing itself. A handler that carries nothing leaves it out.
  */
-export type EditorStrokeHandler = StrokeHandler<StrokeSample, Patch> & { carrying?(): ReadonlySet<string> }
+export type EditorStrokeHandler = StrokeHandler<StrokeSample, Patch> & {
+  carrying?(): ReadonlySet<string>
+  /**
+   * The stroke was let go of with Escape (decision of 2026-10-09). The stroke actor has already put back every patch the
+   * stroke applied; this is for what it did OUTSIDE the document — a selection it changed, a preview it showed.
+   */
+  cancel?(): void
+}
 
 /**
  * The handler for a left press at `sample` under the current tool, or
@@ -339,6 +352,8 @@ function regionStroke(deps: StrokeDeps, selection: Selection | null): EditorStro
       return []
     },
     end: () => [],
+    // Let go of: the selection is what it was at the press.
+    cancel: () => deps.select(selection),
   }
 }
 
@@ -384,15 +399,24 @@ function moveStroke(deps: StrokeDeps, selection: Extract<Selection, { kind: 'reg
     return clampOffset(voxel, keys, { dx: Math.round(tx - ox), dz: Math.round(tz - oz), dy: 0 })
   }
 
-  const move = (sample: StrokeSample): readonly Patch[] => {
+  const source = new Set(keys)
+  /**
+   * Where the drag has got to, shown and not made (decision of 2026-10-09): the terrain stays as it is until the
+   * release, and the viewport draws the voxels at the target from this, with what they would replace marked.
+   */
+  const show = (sample: StrokeSample): void => {
     const voxel = structureOf(deps.reader.doc, selection.structure, 'voxel')
-    if (!voxel || !volume) return []
+    if (!voxel || !volume) return
     const offset = offsetAt(sample)
     const id = `${offset.dx},${offset.dz},${offset.dy}`
-    if (id === last) return []
+    if (id === last) return
     last = id
-    deps.select({ kind: 'region', ...regionOf(selection.structure, 'voxel', offsetKeys(keys, offset)) })
-    return movePatches(deps.reader.doc, voxel, volume, objects, keys, offset, copy)
+    const overlap = offsetKeys(keys, offset).filter((key) => {
+      if (source.has(key)) return false
+      const { x, z, y } = parseVoxelKey(key)
+      return voxelAt(voxel, x, z, y) !== AIR
+    })
+    deps.preview?.({ structure: selection.structure, keys, offset, overlap })
   }
 
   return {
@@ -410,11 +434,25 @@ function moveStroke(deps: StrokeDeps, selection: Extract<Selection, { kind: 'reg
       volume = snapshotVolume(voxel)
       objects = snapshotObjects(deps.reader.doc)
       copy = modifiers.alt
-      last = '0,0,0'
+      last = ''
+      show(sample)
       return []
     },
-    move,
-    end: () => [],
+    move(sample) {
+      show(sample)
+      return []
+    },
+    // The release makes the move, as one edit, and the selection goes with the voxels.
+    end(sample) {
+      deps.preview?.(null)
+      const voxel = structureOf(deps.reader.doc, selection.structure, 'voxel')
+      if (!voxel || !volume) return []
+      const offset = offsetAt(sample)
+      if (offset.dx === 0 && offset.dz === 0 && offset.dy === 0) return []
+      deps.select({ kind: 'region', ...regionOf(selection.structure, 'voxel', offsetKeys(keys, offset)) })
+      return movePatches(deps.reader.doc, voxel, volume, objects, keys, offset, copy)
+    },
+    cancel: () => deps.preview?.(null),
   }
 }
 

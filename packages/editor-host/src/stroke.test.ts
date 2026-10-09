@@ -24,6 +24,7 @@ import { createActor, type InspectionEvent } from 'xstate'
 import { strokeLogic, type DocumentRef } from './stroke'
 import { SELECT_DEFAULTS } from './tools'
 import type { Selection } from './view'
+import type { MovePreview } from './viewport'
 import { createStrokeHandler, type StrokeDeps, type StrokeSample, type ToolsSnapshot } from './strokes'
 
 /** The root voxel volume a fresh level has, mutable for setup: `createMap` names it `ground`. */
@@ -292,6 +293,21 @@ describe('the stroke actor', () => {
     expect(dead[0]).toMatchObject({ reason: 'stopped', event: { type: 'move' } })
   })
 
+  it('puts everything back on Escape and records nothing: a cancelled drag never happened (decision of 2026-10-09)', () => {
+    const { reader, start } = rig()
+    const doc = reader.doc
+    const before = columnHeights(ground(doc))
+    const stroke = start(sample(4, 4))
+    stroke.send({ type: 'move', sample: sample(5, 4) })
+    stroke.send({ type: 'move', sample: sample(6, 4) })
+    expect(columnHeights(ground(doc))).not.toEqual(before)
+    stroke.send({ type: 'cancel' })
+    expect(columnHeights(ground(doc))).toEqual(before)
+    expect(reader.canUndo()).toBe(false)
+    expect(reader.strokeOpen()).toBe(false)
+    expect(stroke.getSnapshot().status).toBe('done')
+  })
+
   it('leaves each tick a Patch the document takes as-is', () => {
     // The handler contract types patches as the document's own `Patch`; a
     // consumer never constructs one, so this only checks the wiring's shape.
@@ -426,18 +442,19 @@ describe("Select's region half (rulings of 2026-09-12 and 2026-09-20)", () => {
   })
 })
 
-describe('Move, a manipulator on the selection (design round of 2026-09-19; decision of 2026-09-21)', () => {
+describe('Move, a manipulator on the selection (design round of 2026-09-19; decisions of 2026-09-21 and 2026-10-09)', () => {
   const REGION: ToolsSnapshot = { ...SCULPT, tool: 'select', selectMode: 'region' }
   const PILLAR: Selection = { kind: 'region', structure: 'ground', element: 'voxel', keys: ['5,5,1', '5,5,2'] }
   /** A press on one of the pillar's handles, or past it, from a camera to the south looking north, level. The handles stand on its top, at (5.5, 3, 5.5). */
   const through = (x: number, y: number, axis: 'x' | 'y' | 'z' | null, modifiers: Partial<StrokeSample['modifiers']> = {}): StrokeSample => ({ pick: { surface: null, point: null, objectId: null, axis, ray: { origin: { x, y, z: 20 }, direction: { x: 0, y: 0, z: -1 } } }, modifiers: { shift: false, alt: false, ctrl: false, ...modifiers } })
-  /** A drag from a handle, through the real stroke actor: the document it leaves, the selection, and the one edit it records. */
+  /** A drag from a handle, through the real stroke actor: the document it leaves, the selection, what it previews, and the one edit it records. */
   function dragging() {
     const { reader, logic } = createDocument(createMap(16, 16))
     const document = createActor(logic).start()
     fillColumn(ground(reader.doc), 5, 5, 6)
     const seen: Array<Selection | null> = []
-    const deps: StrokeDeps = { reader, tools: () => REGION, setTools: () => undefined, select: (selection) => void seen.push(selection), contract: () => undefined }
+    const previews: Array<MovePreview | null> = []
+    const deps: StrokeDeps = { reader, tools: () => REGION, setTools: () => undefined, select: (selection) => void seen.push(selection), preview: (preview) => void previews.push(preview), contract: () => undefined }
     const start = (press: StrokeSample) => {
       const handler = createStrokeHandler(deps, press, PILLAR)
       if (!handler) throw new Error('Select declined the press')
@@ -446,33 +463,65 @@ describe('Move, a manipulator on the selection (design round of 2026-09-19; deci
       return stroke
     }
     const solid = (x: number, z: number): boolean[] => [0, 1, 2].map((y) => ground(reader.doc).voxels.shape[(y * 16 + z) * 16 + x] !== -1)
-    return { reader, deps, start, solid, seen }
+    return { reader, deps, start, solid, seen, previews }
   }
 
-  it('carries the selected voxels along the handle dragged, takes the selection along, and puts everything back when the drag comes back', () => {
-    const { start, solid, seen } = dragging()
+  it('shows the move as it is dragged and makes it on release: one edit, and the selection goes with the voxels', () => {
+    const { reader, start, solid, seen, previews } = dragging()
+    // Something to land on: a column two voxels tall where the pillar is going.
+    fillColumn(ground(reader.doc), 8, 5, 4)
     const stroke = start(through(5.5, 3, 'x'))
     stroke.send({ type: 'move', sample: through(8.6, 7, null) })
-    // Three cells east, and not a layer up however far the pointer wandered.
+    // Three cells east, and not a layer up however far the pointer wandered: shown, and not made.
+    expect(previews.at(-1)).toEqual({ structure: 'ground', keys: ['5,5,1', '5,5,2'], offset: { dx: 3, dz: 0, dy: 0 }, overlap: ['8,5,1'] })
+    expect(solid(5, 5)).toEqual([true, true, true])
+    expect(solid(8, 5)).toEqual([true, true, false])
+    expect(seen).toEqual([])
+    stroke.send({ type: 'end', sample: through(8.6, 7, null) })
+    expect(previews.at(-1)).toBeNull()
     expect(solid(5, 5)).toEqual([true, false, false])
     expect(solid(8, 5)).toEqual([true, true, true])
-    expect(seen[seen.length - 1]).toEqual({ kind: 'region', structure: 'ground', element: 'voxel', keys: ['8,5,1', '8,5,2'] })
-    stroke.send({ type: 'move', sample: through(5.6, 3, null) })
+    expect(seen.at(-1)).toEqual({ kind: 'region', structure: 'ground', element: 'voxel', keys: ['8,5,1', '8,5,2'] })
+    expect(reader.undoLabel()).toBe('Move voxels')
+  })
+
+  it('marks only what it would land on that is solid and not itself, and makes nothing of a drag that comes back', () => {
+    const { reader, start, solid, previews } = dragging()
+    const stroke = start(through(5.5, 3.4, 'y'))
+    // One layer up: the upper voxel lands in air, the lower on the upper's own place, which it vacates.
+    stroke.send({ type: 'move', sample: through(5.5, 4.4, null) })
+    expect(previews.at(-1)).toMatchObject({ offset: { dx: 0, dz: 0, dy: 1 }, overlap: [] })
+    stroke.send({ type: 'move', sample: through(5.5, 3.4, null) })
+    stroke.send({ type: 'end', sample: through(5.5, 3.4, null) })
     expect(solid(5, 5)).toEqual([true, true, true])
-    expect(solid(8, 5)).toEqual([true, false, false])
+    expect(reader.canUndo()).toBe(false)
   })
 
   it('goes up from the upright handle, leaving a gap under it, and leaves a copy with alt held at the press', () => {
     const { start, solid, seen } = dragging()
     const up = start(through(5.5, 3.4, 'y'))
     up.send({ type: 'move', sample: through(9, 5.4, null) })
+    up.send({ type: 'end', sample: through(9, 5.4, null) })
     expect(solid(5, 5)).toEqual([true, false, false])
-    expect(seen[seen.length - 1]).toMatchObject({ keys: ['5,5,3', '5,5,4'] })
+    expect(seen.at(-1)).toMatchObject({ keys: ['5,5,3', '5,5,4'] })
     const copying = dragging()
     const copy = copying.start(through(5.5, 3, 'x', { alt: true }))
     copy.send({ type: 'move', sample: through(9.5, 3, null) })
+    copy.send({ type: 'end', sample: through(9.5, 3, null) })
     expect(copying.solid(5, 5)).toEqual([true, true, true])
     expect(copying.solid(9, 5)).toEqual([true, true, true])
+  })
+
+  it('lets go on Escape: nothing moved, nothing recorded, nothing left drawn', () => {
+    const { reader, start, solid, seen, previews } = dragging()
+    const stroke = start(through(5.5, 3, 'x'))
+    stroke.send({ type: 'move', sample: through(8.6, 3, null) })
+    stroke.send({ type: 'cancel' })
+    expect(previews.at(-1)).toBeNull()
+    expect(solid(5, 5)).toEqual([true, true, true])
+    expect(solid(8, 5)).toEqual([true, false, false])
+    expect(seen).toEqual([])
+    expect(reader.canUndo()).toBe(false)
   })
 
   it('selects on a press anywhere else, the selected voxels themselves included: there is no Move to switch to', () => {
