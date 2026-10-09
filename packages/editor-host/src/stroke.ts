@@ -109,6 +109,8 @@ export function strokeLogic(handler: EditorStrokeHandler, reader: DocumentReader
         begin: types<{ sample: StrokeSample }>(),
         move: types<{ sample: StrokeSample }>(),
         end: types<{ sample: StrokeSample }>(),
+        /** Let go of with Escape: everything the stroke applied is put back, and no edit is recorded. */
+        cancel: types<object>(),
       },
     },
   }).createMachine({
@@ -134,6 +136,18 @@ export function strokeLogic(handler: EditorStrokeHandler, reader: DocumentReader
             enq(() => {
               tick(context.compaction, handler.end(event.sample))
               document.send({ type: 'endStroke', ...compacted(context.compaction) })
+            })
+            return { target: 'done' }
+          },
+          // Escape mid-drag (decision of 2026-10-09). Each address goes back to the value it had at its first touch —
+          // the compaction map holds exactly that — as one more untracked tick, and the stroke closes with an empty
+          // record, which the store keeps no entry for. Then the handler undoes what it did outside the document.
+          cancel: ({ context }, enq) => {
+            enq(() => {
+              const back = [...context.compaction.values()].map(({ first }) => first)
+              if (back.length > 0) document.send({ type: 'strokePatch', patches: back })
+              document.send({ type: 'endStroke', patches: [], inverse: [] })
+              handler.cancel?.()
             })
             return { target: 'done' }
           },

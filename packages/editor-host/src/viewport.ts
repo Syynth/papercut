@@ -52,6 +52,20 @@ export interface FrameStats {
 
 export type BrushCells = ReadonlyArray<readonly [number, number]>
 
+/**
+ * A move being dragged, before it is made (decision of 2026-10-09): the voxels carried, where they are, how far they
+ * would go, and what they would land on. The viewport draws the ghost, dims the source and marks the overlap from it.
+ */
+export interface MovePreview {
+  readonly structure: string
+  /** The voxels carried, where they are now. */
+  readonly keys: readonly string[]
+  /** How far, in the structure's own cells: east, south, up. */
+  readonly offset: { readonly dx: number; readonly dz: number; readonly dy: number }
+  /** Of where they would land, the voxels that are solid now and would be replaced. */
+  readonly overlap: readonly string[]
+}
+
 export interface ViewportState {
   /** The surface under the pointer, or `null` over nothing. */
   readonly hover: SurfaceAddress | null
@@ -65,6 +79,8 @@ export interface ViewportState {
   readonly loadedTerrain: readonly LoadedTerrain[]
   /** What loading the project's sheets had to say: a missing file, a size mismatch, one line each. */
   readonly terrainWarning: string | null
+  /** A move being dragged, or `null`. */
+  readonly movePreview: MovePreview | null
 }
 
 /**
@@ -88,6 +104,7 @@ const INITIAL: ViewportState = {
   softwareRenderer: false,
   loadedTerrain: [],
   terrainWarning: null,
+  movePreview: null,
 }
 
 export function sameSurface(a: SurfaceAddress | null, b: SurfaceAddress | null): boolean {
@@ -118,6 +135,8 @@ export const viewportLogic = setup({
       renderer: types<{ software: boolean }>(),
       /** The project's terrain sets as loaded, and what loading them said. */
       terrain: types<{ sets: readonly LoadedTerrain[]; warning: string | null }>(),
+      /** A move being dragged, or the end of one. */
+      movePreview: types<{ preview: MovePreview | null }>(),
       command: types<{ id: string; args: unknown }>(),
     },
     emitted: {
@@ -143,6 +162,7 @@ export const viewportLogic = setup({
         renderer: ({ context, event }) => (context.softwareRenderer === event.software ? undefined : { context: { softwareRenderer: event.software } }),
         terrain: ({ context, event }) =>
           context.loadedTerrain === event.sets && context.terrainWarning === event.warning ? undefined : { context: { loadedTerrain: event.sets, terrainWarning: event.warning } },
+        movePreview: ({ context, event }) => (context.movePreview === event.preview ? undefined : { context: { movePreview: event.preview } }),
         command: ({ event }, enq) => {
           if (event.id === 'viewport.frame') enq.emit({ type: 'frame' })
           else if (event.id === 'viewport.sweep') enq.emit({ type: 'sweep' })

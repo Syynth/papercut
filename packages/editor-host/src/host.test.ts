@@ -1,11 +1,13 @@
 import { FORMAT_VERSION, HALF, addObject, createDocument, createMap, createProject, serializeProject, defaultFacing, frameOf, groundHeight, materialById, raise, slotMaterial, removeObject, serialize, tagOf, topHeight, type MapDoc, type MapObject, type Patch, type ProjectDoc, type ReadonlyMapDoc, type SurfaceAddress, type SurfaceKind, type Tag, type VoxelStructure } from '@papercut/document'
-import { commands, defineFeature, dispose, provideFeature, type HotHandle, reserveOwner, tools as toolDeclarations } from '@papercut/registry'
+import { commands, defineFeature, dispose, keymap, parseChords, provideFeature, resolve, type HotHandle, reserveOwner, tools as toolDeclarations } from '@papercut/registry'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { SimulatedClock, setup as setupMachine, types, type AnyActorRef } from 'xstate'
 
 import { createHost, type Feature, type Host } from './host'
 import { selectionSubject } from './view'
 import type { PointerPress } from './gesture'
+// The default keymap, installed on import: the Escape test below resolves the key the way the app does.
+import './keys'
 
 /** The root voxel volume a fresh level has, mutable for setup: `createMap` names it `ground`. */
 const ground = (doc: ReadonlyMapDoc | MapDoc): VoxelStructure => doc.structures.ground as VoxelStructure
@@ -1303,6 +1305,38 @@ describe('deleting objects', () => {
     dispatch('selection.select', { selection: { kind: 'structure', id: 'ground' } })
     expect(dispatch('selection.region', { op: 'expand' })).toEqual({ ok: true })
     expect(host.children.view.getSnapshot().context.selection).toEqual({ kind: 'structure', id: 'ground' })
+  })
+
+  it('lets go of a move on Escape, mid-drag: the voxels and the selection stay, nothing is recorded, and the drag is over (decision of 2026-10-09)', () => {
+    const { host, dispatch } = makeHost()
+    const doc = host.reader.doc
+    apply(host, 'Pillar', raise(doc, ground(doc), [[4, 4]], 4))
+    const before = host.reader.historyPosition()
+    const pillar = { kind: 'region', structure: 'ground', element: 'voxel', keys: ['4,4,2'] }
+    dispatch('selection.select', { selection: pillar })
+    dispatch('tools.set', { tool: 'select', selectMode: 'region' })
+    const escape = () => resolve({ bindings: keymap.all(), snapshot: host.contextKeys(), platform: 'other' }, [], parseChords('escape', 'other')[0])
+    // Between drags, Escape lets go of the selection, as it always has.
+    expect(escape()).toMatchObject({ command: 'selection.select' })
+    // A drag east from the handle, standing on the pillar's top at (4.5, 3, 4.5).
+    const through = (x: number, axis: 'x' | null): PointerPress['pick'] => ({ surface: null, point: null, objectId: null, axis, ray: { origin: { x, y: 3, z: 20 }, direction: { x: 0, y: 0, z: -1 } } }) as PointerPress['pick']
+    host.input.pointerDown({ x: 0, y: 0, button: 0, modifiers: NO_MODIFIERS, pick: through(4.5, 'x') })
+    host.input.pointerMove({ x: 40, y: 0, modifiers: NO_MODIFIERS })
+    host.input.strokeMove(through(6.5, null) as never, NO_MODIFIERS)
+    expect(host.children.viewport.getSnapshot().context.movePreview).toMatchObject({ offset: { dx: 2, dz: 0, dy: 0 } })
+    // Mid-drag the same key means the drag, and only the drag.
+    expect(escape()).toMatchObject({ command: 'stroke.cancel' })
+    expect(dispatch('stroke.cancel')).toEqual({ ok: true })
+    expect(host.input.gesture()).toBe('none')
+    expect(host.children.viewport.getSnapshot().context.movePreview).toBeNull()
+    expect(host.children.view.getSnapshot().context.selection).toEqual(pillar)
+    expect(topHeight(ground(host.reader.doc), 4, 4)).toBe(6)
+    expect(host.reader.historyPosition()).toBe(before)
+    // The rest of the drag, and its release, do nothing.
+    host.input.strokeMove(through(7.5, null) as never, NO_MODIFIERS)
+    host.input.pointerUp({ x: 60, y: 0 })
+    expect(topHeight(ground(host.reader.doc), 7, 4)).toBe(2)
+    expect(host.reader.historyPosition()).toBe(before)
   })
 
   it('brings back what was selected when an edit is undone, and again when it is redone (the owner, 2026-09-21)', () => {

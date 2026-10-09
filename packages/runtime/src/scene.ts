@@ -16,7 +16,11 @@
 
 import * as THREE from 'three'
 import {
+  AIR,
+  CHUNK_SIZE,
+  FACE_TOP,
   HALF,
+  NO_WATER,
   SURFACE_SKETCH_CAP,
   SURFACE_SKETCH_WALL,
   SURFACE_TOP,
@@ -40,7 +44,12 @@ import {
   type SpriteAsset,
   type DocumentTarget,
   columnHeights,
+  faceKey,
+  parseVoxelKey,
+  structureOf,
+  voxelIndex,
   type MaterialDef,
+  type MaterialLayers,
 } from '@papercut/document'
 import { DEFAULT_FALLBACK, createTerrainLook, meshSketch, meshTerrainChunk, type EdgeSpec, type LoadedSet, type MeshBuffers, type SketchMesh, type TerrainLook } from '@papercut/geometry'
 import { ObjectView, releaseReplaced, releaseTexture, rgbaTexture, spriteImages, type ObjectViewContext } from './billboard'
@@ -91,6 +100,10 @@ interface StructureView {
  * over a preview drawn on the lake bed and the preview reads as under water.
  */
 export const WATER_RENDER_ORDER = 1000
+/** A move's ghost draws after the terrain and before the water, so a lake tints it as it tints the ground. */
+const GHOST_RENDER_ORDER = 950
+/** How solid a move's ghost is. */
+const GHOST_OPACITY = 0.6
 /** Above the water, above the caps: a mark is a note on the scene, not part of it. */
 const MARK_RENDER_ORDER = 1010
 
@@ -174,6 +187,11 @@ export class RuntimeScene {
   private views = new Map<string, ObjectView>()
   private terrainMaterial: THREE.MeshStandardMaterial
   /** Fringe flaps and pickets: the atlas, one layer, seen from either side, cut out by alpha like the terrain. */
+  /**
+   * What a move carries, drawn see-through (decision of 2026-10-09): the terrain's own look, its layers stacked the
+   * same way, at a little over half strength. It writes no depth, so the ground it passes into still shows through it.
+   */
+  private ghostMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, transparent: true, opacity: GHOST_OPACITY, depthWrite: false, side: THREE.DoubleSide })
   private trimMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0, alphaTest: 0.5, side: THREE.DoubleSide })
   private waterMaterial: THREE.MeshStandardMaterial
   /** The marks on corners no tile answered: drawn over everything, sized in pixels, magenta so they cannot be mistaken for art. */
@@ -236,6 +254,7 @@ export class RuntimeScene {
     })
     this.section.solid(this.terrainMaterial)
     this.stackShown = stackLayers(this.terrainMaterial)
+    stackLayers(this.ghostMaterial)
     this.section.solid(this.trimMaterial)
     this.section.clip(this.waterMaterial)
 
@@ -345,6 +364,8 @@ export class RuntimeScene {
     this.terrainMaterial.needsUpdate = true
     this.trimMaterial.map = this.terrainMaterial.map
     this.trimMaterial.needsUpdate = true
+    this.ghostMaterial.map = this.terrainMaterial.map
+    this.ghostMaterial.needsUpdate = true
     if (this.atlasImage && this.atlasImage !== image) releaseTexture(this.atlasImage)
     this.atlasImage = image
     this.atlasVersion = atlas.version
@@ -771,6 +792,64 @@ export class RuntimeScene {
   }
 
   /** The world bounds of a target, for a highlight to frame; `null` when it is not in the scene or draws nothing. */
+  /**
+   * The voxels at `keys` of one voxel structure, meshed on their own with the paint they have, as a group placed where
+   * the structure is: what a move carries, for the viewport to draw at the target while the drag lasts (decision of
+   * 2026-10-09). `null` when there is no such structure or nothing to draw. The caller owns the group and disposes it
+   * with `disposeGhost`.
+   *
+   * Meshed alone, the voxels show faces they hide in the map — the side that was against a neighbour, the bottom that
+   * stood on the ground — and those have no paint. Each takes the paint of another face of its own voxel, so a carried
+   * block reads as the block it is, not as a magenta box. The bedrock floor every empty column shows is left out.
+   */
+  ghostOf(structureId: string, keys: readonly string[]): THREE.Group | null {
+    const voxel = structureOf(this.doc, structureId, 'voxel')
+    if (!voxel || keys.length === 0) return null
+    const shape = new Array<number>(voxel.voxels.shape.length).fill(AIR)
+    const faces: Record<string, MaterialLayers> = {}
+    const chunks = new Set<string>()
+    for (const key of keys) {
+      const { x, z, y } = parseVoxelKey(key)
+      if (x < 0 || z < 0 || x >= voxel.size.width || z >= voxel.size.height || y < 0 || y >= voxel.layers) continue
+      const index = voxelIndex(voxel, x, z, y)
+      if (voxel.voxels.shape[index] === AIR) continue
+      shape[index] = voxel.voxels.shape[index]
+      const own = [0, 1, 2, 3, 4, 5].map((dir) => voxel.paint.faces[faceKey(x, z, y, dir)])
+      const any = own.find((stack) => stack !== undefined) ?? voxel.paint.faces[faceKey(x, z, y, FACE_TOP)]
+      own.forEach((stack, dir) => {
+        const paint = stack ?? any
+        if (paint) faces[faceKey(x, z, y, dir)] = [...paint] as MaterialLayers
+      })
+      chunks.add(`${Math.floor(x / CHUNK_SIZE)},${Math.floor(z / CHUNK_SIZE)}`)
+    }
+    if (chunks.size === 0) return null
+    const alone: ReadonlyVoxel = { ...voxel, voxels: { ...voxel.voxels, shape }, paint: { ...voxel.paint, faces }, water: new Array<number>(voxel.water.length).fill(NO_WATER) }
+    const group = new THREE.Group()
+    for (const key of chunks) {
+      const { solid } = meshTerrainChunk(alone, key, this.look)
+      // Every column the voxels are not in is empty here, and an empty column shows the bedrock floor: a top at level -2.
+      const kept: number[] = []
+      for (let tri = 0; tri < solid.triangleCount; tri++) {
+        const at = tri * 4
+        if (solid.faceAddr[at] === SURFACE_TOP && decodeExtra(solid.faceAddr[at + 3]).level < 0) continue
+        kept.push(solid.indices[tri * 3], solid.indices[tri * 3 + 1], solid.indices[tri * 3 + 2])
+      }
+      if (kept.length === 0) continue
+      const geometry = buildGeometry({ ...solid, indices: new Uint32Array(kept), triangleCount: kept.length / 3 })
+      const mesh = new THREE.Mesh(geometry, this.ghostMaterial)
+      mesh.renderOrder = GHOST_RENDER_ORDER
+      group.add(mesh)
+    }
+    if (group.children.length === 0) return null
+    this.placeGroup(group, structureId)
+    return group
+  }
+
+  /** Let go of a group `ghostOf` made: its geometry is its own, its material the scene's. */
+  disposeGhost(group: THREE.Group): void {
+    for (const child of group.children) if (child instanceof THREE.Mesh) (child as THREE.Mesh<THREE.BufferGeometry>).geometry.dispose()
+  }
+
   boundsOf(target: DocumentTarget): THREE.Box3 | null {
     const node = this.nodeOf(target)
     if (!node) return null
@@ -787,6 +866,7 @@ export class RuntimeScene {
     for (const view of this.views.values()) view.dispose()
     this.views.clear()
     this.terrainMaterial.dispose()
+    this.ghostMaterial.dispose()
     this.trimMaterial.dispose()
     this.waterMaterial.dispose()
     this.markMaterial.dispose()

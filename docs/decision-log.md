@@ -1159,3 +1159,11 @@ Each entry:
 - **SCOPE:** minor/local
 - **WHAT:** The move handles are flat arrows lying in a plane, drawn quietly, rather than solid 3D cylinders and cones. Amended the same day: each is about half a tile long, sized in the world rather than on the screen (with a floor on its screen size, so it stays grabbable zoomed far out), squat and wide, with an outline in the axis colour and a mostly transparent centre.
 - **WHY:** Handles that are always showing on a selection must not shout over the pixel-art terrain; solid 3D gizmos read as objects in the scene, flat arrows read as interface. Sizing them to the tile grid ties them to what they move, and an outlined, see-through arrow leaves the art under it visible.
+
+## Move previews as a ghost until release
+- **WHEN:** 2026-10-09
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui / selection
+- **SCOPE:** moderate
+- **WHAT:** Dragging a move handle leaves the terrain unchanged until release. The selected voxels are drawn at the target as a translucent ghost with their real paint, the source is dimmed, and where the ghost lands on solid voxels it is outlined in red. Release commits one edit that replaces what it lands on; Escape cancels with nothing to undo. The offset reads out by the pointer.
+- **WHY:** Rewriting the terrain at every step showed a finished edit rather than a preview, and overwrote whatever the voxels passed over with no warning. A ghost shows source and target together and makes the overlap visible before it happens. The same handle-and-ghost pattern is what Extrude and Ramp will use, so it is built once.

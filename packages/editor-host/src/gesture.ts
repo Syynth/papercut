@@ -123,6 +123,8 @@ export function gestureLogic(deps: GestureDeps) {
         'stroke.move': types<{ sample: StrokeSample }>(),
         'key.down': types<{ key: string }>(),
         'key.up': types<{ key: string }>(),
+        /** A command routed to this actor: `stroke.cancel` is the one it answers. */
+        command: types<{ id: string; args: unknown }>(),
       },
     },
   }).createMachine({
@@ -194,6 +196,13 @@ export function gestureLogic(deps: GestureDeps) {
           },
           'pointer.up': ({ context }, enq) => {
             enq.sendTo(context.stroke, { type: 'end', sample: context.lastSample ?? { pick: NO_PICK, modifiers: { shift: false, alt: false, ctrl: false } } })
+            return { target: 'none', context: { handler: null } }
+          },
+          // Escape lets go of the stroke (decision of 2026-10-09). The rest of the drag lands in `none`, which ignores it,
+          // and so does the release: the pointer is still down, but there is nothing left for it to do.
+          command: ({ context, event }, enq) => {
+            if (event.id !== 'stroke.cancel') return undefined
+            enq.sendTo(context.stroke, { type: 'cancel' })
             return { target: 'none', context: { handler: null } }
           },
         },
