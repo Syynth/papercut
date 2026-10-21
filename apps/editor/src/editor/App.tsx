@@ -143,7 +143,7 @@ export default function App({ session }: { session: Session }) {
         inspectorCollapsed={inspectorCollapsed}
         inspector={
           <InspectorPanel collapsed={inspectorCollapsed} onCollapsedChange={(collapsed) => run(host, 'view.set', { inspectorCollapsed: collapsed })}>
-            <InspectorRegion platform={platform} />
+            <InspectorRegion platform={platform} session={session} />
           </InspectorPanel>
         }
         status={<StatusBar />}

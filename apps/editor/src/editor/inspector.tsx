@@ -22,6 +22,7 @@ import { run, setParams } from './commands'
 import type { LoadedSet } from '@papercut/geometry'
 
 import { MaterialsPicker } from './materials'
+import type { Session } from './session'
 import { TexturingSection } from './texturing'
 import { TilesPicker } from './tiles'
 
@@ -47,7 +48,7 @@ const materialsOf = (project: ReadonlyProjectDoc): readonly MaterialDef[] => pro
  * the tool parameters, selection, level toggle and last notice from their actors, and builds its own commands. Nothing
  * above it passes it state.
  */
-export function InspectorRegion({ platform }: { platform: Platform }) {
+export function InspectorRegion({ platform, session }: { platform: Platform; session?: Session }) {
   const host = useHost()
   const doc = useDocument(wholeDocument, { settled: true })
   const tools = useToolsSelector((snapshot) => snapshot.context)
@@ -65,6 +66,7 @@ export function InspectorRegion({ platform }: { platform: Platform }) {
 
   return (
     <Inspector
+      session={session}
       doc={doc}
       params={params}
       selection={selection}
@@ -100,6 +102,7 @@ export function InspectorRegion({ platform }: { platform: Platform }) {
 }
 
 export function Inspector({
+  session,
   doc,
   params,
   platform,
@@ -122,6 +125,8 @@ export function Inspector({
   onFix,
   message,
 }: {
+  /** What writes into the project folder: the Texturing section's stand-ins. */
+  session?: Session
   doc: ReadonlyMapDoc
   params: EditorParams
   platform: Platform
@@ -174,7 +179,7 @@ export function Inspector({
         )}
       </Section>
 
-      {region?.element === 'face' ? <TexturingSection key={region.keys.length === 1 ? region.keys[0] : region.keys.length} region={region} materials={materials} terrain={terrain} /> : null}
+      {region?.element === 'face' ? <TexturingSection key={region.keys.length === 1 ? region.keys[0] : region.keys.length} region={region} materials={materials} terrain={terrain} session={session ?? null} /> : null}
 
       {selected ? (
         <Section icon="rotate" title="Facing & flip" summary={`${selected.facing.facings} facing${selected.facing.facings === 1 ? '' : 's'}`} defaultOpen={false}>

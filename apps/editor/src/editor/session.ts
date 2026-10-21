@@ -15,9 +15,9 @@
  * hand the viewport the images. Nothing in an actor touches a file.
  */
 
-import { MAPS_DIR, PROJECT_FILE, createMap, slotMaterial, slotOf, plainGrid, serialize, serializeProject, sheetName, type Grid, type ImageEntry, type ImageKind, type MapDoc, type MaterialLayers, type Patch, type ReadonlyMapDoc, type RgbaImage } from '@papercut/document'
+import { MAPS_DIR, PROJECT_FILE, archetypeOfTag, createMap, materialOfTag, slotMaterial, slotOf, slotOfTag, plainGrid, serialize, serializeProject, sheetName, tagOf, type ArchetypeId, type Grid, type ImageEntry, type ImageKind, type MapDoc, type MaterialLayers, type Patch, type ReadonlyMapDoc, type RgbaImage, type Tag } from '@papercut/document'
 import type { Host } from '@papercut/editor-host'
-import { createSampleMap, generatePlaceholderTerrainSet } from '@papercut/fixtures'
+import { createSampleMap, generatePlaceholderTerrainSet, renderCornerBlock } from '@papercut/fixtures'
 import { conventionOf, remapTags, renderTemplate, terrainFromLayout, terrainOf, terrainSetFrom, type LoadedSet, type TerrainSet } from '@papercut/geometry'
 import { DecodedImageCache, MemoryFs, addImage, addMap, createProjectFolder, decodeImage, forget, hashBytes, joinPath, listImage, openProject, parseRecents, readMap, remember, writeMap, writeProject, type DecodedImage, type ImageCodec, type OpenedProject, type ProjectFs, type RecentProject, type StrayMap } from '@papercut/project'
 import { exportGltf } from '@papercut/runtime/export'
@@ -570,6 +570,111 @@ export async function newTemplateImage(host: Host, session: Session, spec: Templ
   host.dispatch('project.images.set', { images: next.images })
   await reloadImages(host, session, folder)
   return { columns: template.columns, rows: template.rows }
+}
+
+// --- stand-ins (the face inspector, 2026-10-21) ---------------------------------------
+//
+// A stand-in is a transition nobody drew, drawn by papercut in the placeholder's style so a missing corner stops
+// drawing the fallback. Stand-ins go on a sheet of their own and are ordinary tagged art: nothing outranks them, and
+// they are replaced by hand — painted over, or removed (decision "Stand-ins are replaced by hand, never outranked").
+
+/** The sheet stand-ins are written to, in `sheets/`. */
+export const STAND_IN_SHEET = 'stand-ins.png'
+/** How many tiles across the stand-in sheet is: the widest block, a triple. A fixed width keeps every tag's index where it was as blocks are added below. */
+const STAND_IN_COLUMNS = 6
+
+export interface StandInSpec {
+  /** The block's values, lowest first, as the layout orders them: `null` for nothing, then material ids by priority. */
+  readonly values: readonly (number | null)[]
+  /** The kind of face its art is for; `null` for any. */
+  readonly context: ArchetypeId | null
+  /** The slot its corners name, when they name one. */
+  readonly slot: string | null
+}
+
+/** What a stand-in block's corners spell, for finding it again: its values, kind of face and slot. */
+const standInOf = (tags: readonly Tag[]): string => {
+  const values = [...new Set(tags.map((t) => materialOfTag(t)))].sort((a, b) => (a ?? -1) - (b ?? -1)).join(',')
+  const named = tags.find((t) => t !== null) ?? null
+  return `${values}|${archetypeOfTag(named) ?? ''}|${slotOfTag(named) ?? ''}`
+}
+const specKey = (spec: StandInSpec): string => `${[...spec.values].sort((a, b) => (a ?? -1) - (b ?? -1)).join(',')}|${spec.context ?? ''}|${spec.slot ?? ''}`
+
+/**
+ * Draw the block a missing transition needs onto the stand-in sheet, below whatever is on it, and tag it: the corner
+ * blocks layout's pair or triple, in the placeholder's style and the materials' colours. Lists the sheet when it is
+ * the first. Returns how many tiles were tagged.
+ */
+export async function addStandIn(host: Host, session: Session, spec: StandInSpec): Promise<number> {
+  const { folder } = location(host)
+  const project = host.children.project.getSnapshot().context.project
+  const shape = conventionOf('corner-blocks')?.blockShape(spec.values.length)
+  if (!shape) throw new Error('No block draws four things meeting at a corner.')
+  const tile = project.resolution.texelDensity
+  const terrains = spec.values.map((id) => {
+    if (id === null) return null
+    const material = project.materials.find((m) => m.id === id)
+    return { id, name: material?.name ?? `Material ${id}`, color: material?.color ?? 0x808080 }
+  })
+  const art = renderCornerBlock(terrains, shape.cells, shape.columns, shape.rows, tile)
+
+  const existing = project.images.find((i) => sheetName(i.path) === STAND_IN_SHEET)
+  const before = existing ? (await decodeImage(session.codec, await session.fs.readFile(joinPath(folder, existing.path)))).image : null
+  const above = before ? Math.floor(before.height / tile) : 0
+  const width = STAND_IN_COLUMNS * tile
+  const height = (above + shape.rows) * tile
+  const data = new Uint8ClampedArray(width * height * 4)
+  if (before) for (let y = 0; y < Math.min(before.height, above * tile); y++) data.set(before.data.subarray(y * before.width * 4, y * before.width * 4 + Math.min(before.width, width) * 4), y * width * 4)
+  for (let y = 0; y < art.height; y++) data.set(art.data.subarray(y * art.width * 4, (y + 1) * art.width * 4), ((above * tile + y) * width) * 4)
+
+  const tiles: Record<string, [Tag, Tag, Tag, Tag]> = { ...(existing?.terrain.tiles ?? {}) }
+  let tagged = 0
+  for (const cell of shape.cells) {
+    // A pair of two materials leaves out its all-over tile, as the layout does: that is the material's own, drawn already.
+    if (spec.values[0] !== null && spec.values.length === 2 && cell.corners.every((v) => v === cell.corners[0])) continue
+    tiles[String((above + cell.row) * STAND_IN_COLUMNS + cell.column)] = cell.corners.map((v) => {
+      const id = spec.values[v]
+      return id === null ? null : tagOf(id, spec.slot, spec.context)
+    }) as [Tag, Tag, Tag, Tag]
+    tagged++
+  }
+  session.lastWriteAt = Date.now()
+  const next = await addImage(session.fs, folder, project, {
+    file: STAND_IN_SHEET,
+    bytes: await session.codec.encode({ width, height, data }),
+    grid: plainGrid(tile),
+    name: existing?.name ?? 'Stand-ins',
+    kind: 'tileset',
+    terrain: { tiles },
+  })
+  host.dispatch('project.images.set', { images: next.images })
+  await reloadImages(host, session, folder)
+  return tagged
+}
+
+/**
+ * Take a stand-in away: untag every tile of the stand-in sheet whose block spells the same transition, so the
+ * arrangement is missing again until real art is tagged for it. The pixels stay; only the tags go.
+ */
+export async function removeStandIn(host: Host, session: Session, spec: StandInSpec): Promise<number> {
+  const project = host.children.project.getSnapshot().context.project
+  const entry = project.images.find((i) => sheetName(i.path) === STAND_IN_SHEET)
+  if (!entry) return 0
+  const want = specKey(spec)
+  const tiles: Record<string, [Tag, Tag, Tag, Tag]> = {}
+  let removed = 0
+  for (const [index, tags] of Object.entries(entry.terrain.tiles)) {
+    if (standInOf(tags) === want) removed++
+    else tiles[index] = [...tags] as [Tag, Tag, Tag, Tag]
+  }
+  if (removed === 0) return 0
+  await writeImages(
+    host,
+    session,
+    project.images.map((i) => (i.id === entry.id ? { ...i, terrain: { tiles } } : i)),
+  )
+  resyncTerrainSets(host)
+  return removed
 }
 
 /** List a file already in `sheets/` — one the library found unlisted — with its grid, without copying it. */

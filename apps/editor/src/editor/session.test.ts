@@ -11,7 +11,7 @@ import { createHost, type Host } from '@papercut/editor-host'
 import { generatePlaceholderTerrainSet } from '@papercut/fixtures'
 import { DecodedImageCache, MemoryFs, createProjectFolder, rawImageCodec } from '@papercut/project'
 
-import { LibraryStore, StrayStore, SummaryStore, adoptMap, closeProject, createProjectAt, newMapIn, openMapAt, openProjectAt, recents, repaintAndDeleteMaterial, unlistMap, type Session } from './session'
+import { LibraryStore, STAND_IN_SHEET, StrayStore, SummaryStore, addStandIn, adoptMap, closeProject, createProjectAt, newMapIn, openMapAt, openProjectAt, recents, removeStandIn, repaintAndDeleteMaterial, unlistMap, type Session } from './session'
 
 function makeSession(): Session & { fs: MemoryFs } {
   return { fs: new MemoryFs(), codec: rawImageCodec, images: new DecodedImageCache(), dialogs: null, menu: null, lastWriteAt: 0, persistFailure: null, summaries: new SummaryStore(), library: new LibraryStore(), strays: new StrayStore() }
@@ -149,5 +149,30 @@ describe('switching and saving', () => {
     broken.fs = { ...session.fs, writeFile: () => Promise.reject(new Error('[EACCES] no')) } as Session['fs']
     await expect(closeProject(host, session)).rejects.toThrow(/Not closed/)
     expect(location(host).folder).toBe('/p/stuck')
+  })
+})
+
+describe('stand-ins (the face inspector, 2026-10-21)', () => {
+  it('draws a block onto the stand-in sheet and tags it, adds the next below it, and removes one by its tags', async () => {
+    const host = makeHost()
+    const session = makeSession()
+    await createProjectAt(host, session, { folder: '/p/stand', name: 'Stand', texelDensity: 4, firstMap: true, placeholder: true })
+    const entry = () => location(host).project.images.find((i) => i.path === `sheets/${STAND_IN_SHEET}`)
+    const sheets = () => host.children.viewport.getSnapshot().context.loadedTerrain.map((s) => s.set.sheet)
+
+    // The triple for Grass, Dirt and Path (ids 0, 1, 4): all 36 tiles, tagged as the layout spells them.
+    expect(await addStandIn(host, session, { values: [0, 1, 4], context: null, slot: null })).toBe(36)
+    expect(Object.keys(entry()?.terrain.tiles ?? {})).toHaveLength(36)
+    expect(sheets()).toContain(STAND_IN_SHEET)
+    // A pair of two materials, against a wall: its all-over tile is the material's own, and is left out. It goes below the first block.
+    expect(await addStandIn(host, session, { values: [0, 3], context: 'wall', slot: null })).toBe(14)
+    const tiles = entry()?.terrain.tiles ?? {}
+    expect(Object.keys(tiles)).toHaveLength(50)
+    expect(Math.min(...Object.keys(tiles).filter((i) => tiles[i].some((t) => t === '3@wall')).map(Number))).toBeGreaterThanOrEqual(6 * 6)
+
+    // Removing the triple untags its tiles and nothing else.
+    expect(await removeStandIn(host, session, { values: [0, 1, 4], context: null, slot: null })).toBe(36)
+    expect(Object.keys(entry()?.terrain.tiles ?? {})).toHaveLength(14)
+    expect(await removeStandIn(host, session, { values: [0, 1, 4], context: null, slot: null })).toBe(0)
   })
 })

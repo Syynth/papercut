@@ -12,11 +12,14 @@ import { useCallback, useMemo, useState } from 'react'
 import { FACE_BOTTOM, FACE_TOP, archetypeOfTag, faceLayers, materialById, materialOfTag, parseFaceKey, slotMaterial, slotOfTag, slotTile, tagOf, type ArchetypeId, type MaterialDef, type MaterialLayers, type ReadonlyMapDoc, type Tag } from '@papercut/document'
 import { useDocumentSelector, useHost, type Selection } from '@papercut/editor-host'
 import { arrangementKey, conventionOf, createTerrainLook, probeFace, wantedCorners, type CornerKeys, type FaceAt, type FaceLookup, type LoadedSet, type TerrainLook } from '@papercut/geometry'
-import { Action, BlockGrid, CheckLine, CornerCards, CornerDetail, DetailLine, FixOption, LayerChips, NearMiss, Note, Row, Section, type CornerCardData, type CornerStatus, type KeyCell, type LayerChip } from '@papercut/ui'
+import { renderCornerBlock } from '@papercut/fixtures'
+import { Action, BlockGrid, BlockPreview, CheckLine, CornerCards, CornerDetail, DetailLine, Dialog, DialogManifest, FixOption, LayerChips, NearMiss, Note, Row, Section, type CornerCardData, type CornerStatus, type KeyCell, type LayerChip } from '@papercut/ui'
 
 import { run } from './commands'
 import { requestPlacing } from './intent'
 import { tileUrl } from './preview'
+import { rgbaToDataUrl } from './rgba'
+import { STAND_IN_SHEET, addStandIn, removeStandIn, type Session, type StandInSpec } from './session'
 
 type Region = Extract<Selection, { kind: 'region' }>
 
@@ -51,11 +54,12 @@ function verdict(lookup: FaceLookup): { status: CornerStatus; note: string } {
   if (!answer.source) return { status: 'empty', note: 'nothing here' }
   if (lookup.via === 'side') return { status: 'ok', note: 'side art' }
   if (lookup.via === 'seam') return { status: 'ok', note: 'seam art' }
+  if (answer.source.sheet === STAND_IN_SHEET) return { status: 'standin', note: 'stand-in' }
   if (lookup.archetype !== 'floor' && answer.source.archetype === null) return { status: 'borrowed', note: 'floor art' }
   return { status: 'ok', note: `tile ${answer.source.index}` }
 }
 
-export function TexturingSection({ region, materials, terrain }: { region: Region; materials: readonly MaterialDef[]; terrain: readonly LoadedSet[] }) {
+export function TexturingSection({ region, materials, terrain, session }: { region: Region; materials: readonly MaterialDef[]; terrain: readonly LoadedSet[]; session: Session | null }) {
   const look = useMemo(() => createTerrainLook(materials, terrain), [materials, terrain])
   const only = region.keys.length === 1 ? region.keys[0] : null
 
@@ -163,8 +167,9 @@ export function TexturingSection({ region, materials, terrain }: { region: Regio
       <CornerCards cards={cards} active={chosen ? pieceId(chosen) : null} onPick={setCardPick} />
       {chosen ? <ChosenCorner lookup={chosen} label={pieceLabel(face, chosen)} cellOf={cellOf} nameOf={nameOf} terrain={terrain} wanted={wanted} /> : null}
       {chosen && chosen.keys && (verdict(chosen).status === 'missing' || verdict(chosen).status === 'borrowed') && !chosen.unpainted ? (
-        <Fixes lookup={chosen} keys={chosen.keys} missingHere={onLayer.filter((l) => verdict(l).status === verdict(chosen).status && l.keys !== null)} materials={materials} terrain={terrain} look={look} cellOf={cellOf} nameOf={nameOf} />
+        <Fixes lookup={chosen} keys={chosen.keys} missingHere={onLayer.filter((l) => verdict(l).status === verdict(chosen).status && l.keys !== null)} materials={materials} terrain={terrain} look={look} cellOf={cellOf} nameOf={nameOf} wanted={wanted} session={session} />
       ) : null}
+      {chosen && chosen.keys && verdict(chosen).status === 'standin' ? <ReplaceStandIn lookup={chosen} keys={chosen.keys} materials={materials} session={session} /> : null}
     </Section>
   )
 }
@@ -277,8 +282,9 @@ function nearMisses(keys: CornerKeys, archetype: ArchetypeId, terrain: readonly 
  * draws it and Place block…, set to it; splitting it across layers, when each layer's part is drawn already; and the
  * drawn tiles that come closest.
  */
-function Fixes({ lookup, keys, missingHere, materials, terrain, look, cellOf, nameOf }: { lookup: FaceLookup; keys: CornerKeys; missingHere: readonly FaceLookup[]; materials: readonly MaterialDef[]; terrain: readonly LoadedSet[]; look: TerrainLook; cellOf: (tag: Tag) => KeyCell; nameOf: (tag: Tag) => string }) {
+function Fixes({ lookup, keys, missingHere, materials, terrain, look, cellOf, nameOf, wanted, session }: { lookup: FaceLookup; keys: CornerKeys; missingHere: readonly FaceLookup[]; materials: readonly MaterialDef[]; terrain: readonly LoadedSet[]; look: TerrainLook; cellOf: (tag: Tag) => KeyCell; nameOf: (tag: Tag) => string; wanted: ReadonlyMap<string, number> | null; session: Session | null }) {
   const host = useHost()
+  const [generating, setGenerating] = useState(false)
   const template = templateFor(keys, materials)
   const ids = materialsIn(keys, materials)
   const name = (id: number): string => nameOf(tagOf(id))
@@ -322,7 +328,16 @@ function Fixes({ lookup, keys, missingHere, materials, terrain, look, cellOf, na
           <span>Four things meet at this corner, and the corner-blocks layout stops at three. Split it across layers instead.</span>
         </FixOption>
       ) : template ? (
-        <FixOption title={borrowed ? `Draw it as ${lookup.archetype} art` : 'The template'} primary actions={<Action title="Place block…" tone="accent" onClick={() => place(template)} />}>
+        <FixOption
+          title={borrowed ? `Draw it as ${lookup.archetype} art` : 'The template'}
+          primary
+          actions={
+            <>
+              <Action title="Place block…" onClick={() => place(template)} />
+              <Action title="Generate stand-in" tone="accent" disabled={session === null} onClick={() => setGenerating(true)} />
+            </>
+          }
+        >
           <BlockGrid columns={template.columns} cells={template.cells.map((corners) => corners.map((v) => cellOf(template.values[v] === null ? null : tagOf(template.values[v]))))} lit={lit} />
           <span>
             The {template.values.length === 2 ? 'pair' : 'triple'} block for {blockName}
@@ -341,6 +356,7 @@ function Fixes({ lookup, keys, missingHere, materials, terrain, look, cellOf, na
           ))}
         </FixOption>
       ) : null}
+      {template && template !== 'four' && session ? <StandInDialog opened={generating} onClose={() => setGenerating(false)} spec={specFor(template, lookup)} blockName={blockName} materials={materials} terrain={terrain} fixes={cornersFixed(template, lookup.archetype, materials, wanted)} session={session} /> : null}
       {near.length > 0 ? (
         <FixOption title="Near misses">
           <span>Drawn tiles that match three of the four corners.</span>
@@ -350,5 +366,108 @@ function Fixes({ lookup, keys, missingHere, materials, terrain, look, cellOf, na
         </FixOption>
       ) : null}
     </>
+  )
+}
+
+// --- stand-ins (decision "Stand-ins are replaced by hand, never outranked", 2026-10-21) ------------
+
+/** What a stand-in for a template is asked to draw: its values, and the kind of face and slot the corner names. */
+const specFor = (template: Template, lookup: FaceLookup): StandInSpec => ({ values: template.values, context: lookup.archetype === 'floor' ? null : lookup.archetype, slot: template.slot })
+
+/** How many corners of the map a block would answer: every missing arrangement, for this kind of face, that is one of its cells. */
+function cornersFixed(template: Template, archetype: ArchetypeId, materials: readonly MaterialDef[], wanted: ReadonlyMap<string, number> | null): number | null {
+  if (!wanted) return null
+  let total = 0
+  for (const [key, n] of wanted) {
+    const [kind, , ...tags] = key.split('|')
+    if (kind !== archetype) continue
+    const keys = tags.map((t) => (t === '' ? null : t)) as unknown as CornerKeys
+    const theirs = templateFor(keys, materials)
+    if (theirs && theirs !== 'four' && sameValues(theirs.values, template.values) && theirs.slot === template.slot) total += n
+  }
+  return total
+}
+
+/** Generate a stand-in: the block, previewed as it will be drawn, and exactly what writing it does. */
+function StandInDialog({ opened, onClose, spec, blockName, materials, terrain, fixes, session }: { opened: boolean; onClose: () => void; spec: StandInSpec; blockName: string; materials: readonly MaterialDef[]; terrain: readonly LoadedSet[]; fixes: number | null; session: Session }) {
+  const host = useHost()
+  const [busy, setBusy] = useState(false)
+  const shape = conventionOf('corner-blocks')?.blockShape(spec.values.length) ?? null
+  const tile = terrain.find((l) => l.set.sheet !== STAND_IN_SHEET)?.set.tile ?? terrain[0]?.set.tile ?? 16
+  const preview = useMemo(() => {
+    if (!shape || !opened) return null
+    const terrains = spec.values.map((id) => (id === null ? null : { id, name: '', color: materialById(materials, id)?.color ?? 0x808080 }))
+    return rgbaToDataUrl(renderCornerBlock(terrains, shape.cells, shape.columns, shape.rows, tile))
+  }, [shape, opened, spec, materials, tile])
+  if (!shape) return null
+  const already = terrain.some((l) => l.set.sheet === STAND_IN_SHEET)
+  const tiles = shape.cells.filter((cell) => !(spec.values[0] !== null && spec.values.length === 2 && cell.corners.every((v) => v === cell.corners[0]))).length
+  const generate = async (): Promise<void> => {
+    setBusy(true)
+    try {
+      const tagged = await addStandIn(host, session, spec)
+      run(host, 'view.set', { notice: `Drew a stand-in for ${blockName}: ${tagged} tiles on sheets/${STAND_IN_SHEET}. Paint over them, or remove the stand-in from the inspector, when real art is ready.` })
+      onClose()
+    } catch (error) {
+      run(host, 'view.set', { notice: error instanceof Error ? error.message : String(error) })
+    } finally {
+      setBusy(false)
+    }
+  }
+  return (
+    <Dialog
+      opened={opened}
+      onClose={onClose}
+      title="Generate a stand-in"
+      description={`Draws the block for ${blockName} in the placeholder's style and tags it, so these corners stop drawing the fallback. When real art is ready, paint over these tiles, or remove the stand-in from the inspector and tag your own block.`}
+      footer={
+        <>
+          <Action title="Cancel" onClick={onClose} />
+          <Action title="Generate" tone="accent" disabled={busy} onClick={() => void generate()} />
+        </>
+      }
+    >
+      {preview ? <BlockPreview src={preview} alt={`The ${shape.columns} × ${shape.rows} block for ${blockName}`} /> : null}
+      <DialogManifest
+        title="Will write"
+        rows={[
+          { name: `sheets/${STAND_IN_SHEET}`, note: already ? `the block added below the stand-ins already there` : `a new image, ${tile} px tiles`, tone: 'accent' },
+          { name: `${tiles} tiles`, note: `tagged ${blockName}${spec.context ? `, as ${spec.context} art` : ''}` },
+          ...(fixes === null ? [] : [{ name: `${fixes} ${fixes === 1 ? 'corner' : 'corners'}`, note: 'on this map stop drawing the fallback', tone: 'ok' as const }]),
+        ]}
+      />
+    </Dialog>
+  )
+}
+
+/** A corner a stand-in answers: replace it by hand, by painting over its tiles or by removing it for a block of your own. */
+function ReplaceStandIn({ lookup, keys, materials, session }: { lookup: FaceLookup; keys: CornerKeys; materials: readonly MaterialDef[]; session: Session | null }) {
+  const host = useHost()
+  const template = templateFor(keys, materials)
+  if (!template || template === 'four') return null
+  const spec = specFor(template, lookup)
+  const remove = async (): Promise<void> => {
+    if (!session) return
+    const removed = await removeStandIn(host, session, spec)
+    run(host, 'view.set', { notice: removed > 0 ? `Removed the stand-in: ${removed} tiles untagged on sheets/${STAND_IN_SHEET}. Its corners draw the fallback until a block of your own is tagged.` : 'No stand-in tiles spell this transition.' })
+  }
+  const place = (): void => {
+    const [first, second, third] = template.values
+    requestPlacing({ under: first === null ? null : first, over: second as number, third: third ?? null, context: spec.context, slot: spec.slot })
+    run(host, 'view.set', { settings: 'materials' })
+  }
+  return (
+    <FixOption
+      title="To replace it"
+      primary
+      actions={
+        <>
+          <Action title="Remove stand-in" disabled={session === null} onClick={() => void remove()} />
+          <Action title="Place block…" onClick={place} />
+        </>
+      }
+    >
+      <span>This corner is answered by a stand-in: generated, not drawn. Paint over its tiles on sheets/{STAND_IN_SHEET} and they keep their tags; or remove it and place a block of your own.</span>
+    </FixOption>
   )
 }

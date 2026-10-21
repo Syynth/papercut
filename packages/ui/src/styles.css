@@ -3393,3 +3393,21 @@ body {
   image-rendering: pixelated;
   border-radius: 2px;
 }
+
+.ui-corner.is-standin {
+  border-style: dashed;
+  border-color: var(--ui-accent);
+}
+
+.ui-corner-note.is-standin {
+  color: var(--ui-accent);
+}
+
+.ui-block-preview {
+  display: block;
+  width: 100%;
+  max-width: 216px;
+  image-rendering: pixelated;
+  border-radius: 4px;
+  background: repeating-conic-gradient(var(--ui-panel-2) 0 25%, var(--ui-panel) 0 50%) 0 0 / 8px 8px;
+}
