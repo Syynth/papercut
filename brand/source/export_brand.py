@@ -19,6 +19,7 @@ import io
 import math
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -568,6 +569,73 @@ def add_camera_and_animation(path, lift_world, bounds):
     g.save(path)
 
 
+# ---------------------------------------------------------------- favicon
+# The browser-tab icon: the cut p alone (no planes, no axes), the top half lifted
+# half as far as in the logo so the cut still shows in a compact shape, with heavier
+# outlines and no cut-face grid so it holds at 16px. One SVG carries both palettes and
+# shows the dark one when the browser is dark.
+FAVICON_LIFT = LIFT_SCREEN / 2
+FAVICON_WEIGHT = 2.2                 # outline widths, relative to the logo's
+
+
+def favicon_body(tag):
+    apply_palette(tag)
+    pid = f"fav{tag}"
+    G["PATH_SIMPLIFY"] = 0.4         # well under a pixel at favicon sizes
+    try:
+        G["make_board"](f"_{pid}.dc.html", pid, "X", "favicon", "", G["NAVY"], G["RED"], PAL["BG"], G["LEFT_FACE"],
+                        frame="bare", cut=CUT, slope=SLOPE, lift=(0.0, -FAVICON_LIFT), cardboard=False)
+    finally:
+        G["PATH_SIMPLIFY"] = 0.0
+    raw = open(os.path.join(G["WORK_DIR"], f"{pid}_preview.svg")).read()
+    css = re.search(r"<style>(.*?)</style>", raw).group(1)
+    for cls in ("sil", "edge"):
+        css = re.sub(rf"(\.{cls}{{[^}}]*stroke-width:)([\d.]+)",
+                     lambda m: f"{m.group(1)}{float(m.group(2)) * FAVICON_WEIGHT:.2f}", css)
+    mark = re.search(r"<defs>(.*)</defs>", raw, re.S).group(1)
+    mark = re.sub(r'<line[^>]*class="grid"[^>]*></line>', "", mark)
+    # a tenth of a unit is far below a pixel at favicon sizes; one decimal halves the file
+    mark = re.sub(r"(\d+\.\d)\d+", r"\1", mark)
+    return inline_css(mark, css)
+
+
+def export_favicon():
+    light, dark = favicon_body("light"), favicon_body("dark")
+    tmp = os.path.join(OUT, "_favicon_full.svg")
+    open(tmp, "w").write(f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400">{light}</svg>')
+    x0, y0, x1, y1 = alpha_bbox(tmp, 400, 400)
+    os.remove(tmp)
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+
+    def square(scale):
+        side = max(x1 - x0, y1 - y0) * scale
+        return (cx - side / 2, cy - side / 2, side, side)
+
+    vb = square(1.04)
+    themed = ('<style>#favicon-dark { display: none }'
+              '@media (prefers-color-scheme: dark) { #favicon-light { display: none } #favicon-dark { display: inline } }'
+              '</style>\n'
+              f'<g id="favicon-light">{light}</g>\n<g id="favicon-dark">{dark}</g>')
+    write_svg("papercut-favicon.svg", themed, 32, 32, vb, "papercut")
+    # PNG fallback for browsers without SVG favicons: the light one
+    light_svg = write_svg("_favicon-light.svg", light, 32, 32, vb, "papercut")
+    run("rsvg-convert", "-w", "32", "-h", "32", light_svg, "-o", os.path.join(OUT, "papercut-favicon-32.png"))
+    os.remove(light_svg)
+    # iOS home-screen icon: must be opaque, so the same mark on the paper tile
+    tvb = square(1.32)
+    tile = (f'<rect x="{tvb[0]:.2f}" y="{tvb[1]:.2f}" width="{tvb[2]:.2f}" height="{tvb[3]:.2f}" '
+            f'fill="{PALETTES["light"]["BG"]}"/>')
+    tile_svg = write_svg("_apple-touch.svg", tile + light, 180, 180, tvb, "papercut")
+    run("rsvg-convert", "-w", "180", "-h", "180", tile_svg, "-o", os.path.join(OUT, "papercut-apple-touch-icon.png"))
+    os.remove(tile_svg)
+    # the editor serves its icons from its public folder (Vite copies that as-is into
+    # the Pages build), so it gets copies of these three
+    public = os.path.join(HERE, "..", "..", "apps", "editor", "public")
+    if os.path.isdir(public):
+        for name in ("papercut-favicon.svg", "papercut-favicon-32.png", "papercut-apple-touch-icon.png"):
+            shutil.copyfile(os.path.join(OUT, name), os.path.join(public, name))
+
+
 def export_all(tag):
     apply_palette(tag)
     sfx = "" if tag == "light" else f"-{tag}"
@@ -616,5 +684,6 @@ def export_all(tag):
 if __name__ == "__main__":
     for tag in PALETTES:
         export_all(tag)
+    export_favicon()
     for f in sorted(os.listdir(OUT)):
         print(f, os.path.getsize(os.path.join(OUT, f)))

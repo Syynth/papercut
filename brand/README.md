@@ -17,6 +17,7 @@ Every file comes in a light version and a `-dark` version for dark backgrounds
 | `papercut-lockup-horizontal.svg` / `.png` | Mark beside the wordmark. |
 | `papercut-lockup-stacked.svg` / `.png` | Mark above the wordmark. |
 | `papercut-mark.glb` | The mark as a 3D scene. |
+| `papercut-favicon.svg` | The browser-tab icon: the cut p alone, half-lifted, with heavier outlines; dark when the browser is. With `papercut-favicon-32.png` and `papercut-apple-touch-icon.png` (on the paper tile, since iOS needs it opaque). Copied into `apps/editor/public/` for the editor and the Pages site. |
 | `preview-svg.html` | The animated SVGs, light and dark, with a replay button. |
 | `preview.html` | The 3D model, through its logo camera, with orbit and a light/dark switch. |
 

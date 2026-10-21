@@ -162,8 +162,13 @@ def to_screen(g, dx=0.0, dy=0.0):
     return affinity.affine_transform(g, [a, b, c, d, dx, dy])
 
 
+PATH_SIMPLIFY = 0.0   # >0 drops vertices closer than this to the outline (the favicon uses it)
+
+
 def path_d(g, nd=2):
     out = []
+    if PATH_SIMPLIFY:
+        g = g.simplify(PATH_SIMPLIFY, preserve_topology=True)
     for p in polys(g):
         for ring, _ in rings_of(p):
             cs = list(ring.coords)
@@ -299,7 +304,7 @@ def plane_geometry():
 
 def framing(kind, bot_cut):
     """Back-layer svg, mid-layer svg (between the halves), and geometry for fitting."""
-    if not kind:
+    if not kind or kind == "bare":         # "bare": the block alone, with no frame or marks
         return "", "", []
     corners = {(i, j, k): P3(i * W, j * H, k * DEPTH) for i in (0, 1) for j in (0, 1) for k in (0, 1)}
     lifted = [P3(i * W, j * H, k * DEPTH, True) for i in (0, 1) for j in (0, 1) for k in (0, 1)]
