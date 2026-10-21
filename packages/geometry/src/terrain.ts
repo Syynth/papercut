@@ -65,8 +65,11 @@ import {
   SURFACE_TOP,
   SURFACE_UNDER,
   SURFACE_WATER,
+  CHUNK_SIZE,
   chunkBounds,
+  chunkKey,
   cornerHeightsAt,
+  decodeExtra,
   encodeExtra,
   edgeOff,
   faceLayers,
@@ -113,6 +116,62 @@ export interface TerrainChunkMesh {
   /** The distinct combinations no tile answered in this chunk, by name — what is left to author, counted over the chunks on screen. */
   missing: string[]
 }
+
+/**
+ * One question a face asked the atlas while it was meshed: what one piece of it draws on one material layer, and what
+ * answered (the face inspector, 2026-10-21). Recorded by the mesher itself, so an inspector that reads these can never
+ * disagree with what the viewport draws.
+ */
+export interface FaceLookup {
+  /** The piece's pick address: surface kind, cell, and the extra (side and half-tile band) it is picked by. */
+  readonly address: readonly [number, number, number, number]
+  /** Which quarter of the face: bit 0 toward its end (east on a top), bit 1 toward its far side (south on a top, down a wall). */
+  readonly quarter: number
+  /** On a full ramp, the middle row's piece beside the run (0 or 1); `null` for every other piece. */
+  readonly middle: number | null
+  /** The point of the grid the looked-up tile is centred on, in world units. */
+  readonly point: readonly [number, number, number]
+  /** The material layer, bottom first. */
+  readonly layer: number
+  readonly archetype: ArchetypeId
+  readonly direction: number | null
+  /** How the piece was answered: a corner lookup, optional art asked first (a ramp's side, a wall's seam), or a tile pasted whole. */
+  readonly via: 'corner' | 'side' | 'seam' | 'pasted'
+  /** The four tags looked up, NW NE SW SE; `null` for a pasted tile. */
+  readonly keys: CornerKeys | null
+  /** What answered; `null` for a pasted tile. */
+  readonly answer: AtlasTile | null
+  /** A pasted tile's atlas tile, `-1` where it cannot draw; `null` when nothing is pasted. */
+  readonly pasted: number | null
+  /** The face holds nothing at all, so its bottom layer draws the fallback whatever answered. */
+  readonly unpainted: boolean
+}
+
+/** What a mesh build is asked to record: the lookups of the pieces whose address `want` accepts. */
+export interface TerrainProbe {
+  want(kind: number, x: number, y: number, extra: number): boolean
+  record(lookup: FaceLookup): void
+}
+
+/** Optional art a piece asks for before its corner: a ramp's side, a wall's seam; with the tags it was asked by. */
+interface FirstAnswer {
+  readonly answer: AtlasTile
+  readonly keys: CornerKeys
+  readonly archetype: ArchetypeId
+  readonly direction: number | null
+  readonly via: 'side' | 'seam'
+}
+
+/** Where a piece is, for a probe: its address, its quarter (and middle-row side) and the grid point its tile centres on. */
+interface ProbeAt {
+  readonly address: readonly [number, number, number, number]
+  readonly quarter: number
+  readonly middle: number | null
+  readonly point: readonly [number, number, number]
+}
+
+/** The address a piece has when nothing is probing: never read. */
+const NO_ADDRESS = [0, 0, 0, 0] as const
 
 /** Height treated as existing outside the map, so borders read as an island. */
 const OUTSIDE_HEIGHT = 0
@@ -714,7 +773,7 @@ function courseCorner(cells: Cells, voxel: ReadonlyVoxel, x: number, y: number, 
 
 // --- the chunk ------------------------------------------------------------------
 
-export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: TerrainLook): TerrainChunkMesh {
+export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: TerrainLook, probe?: TerrainProbe): TerrainChunkMesh {
   const bounds = chunkBounds(key, voxel.size.width, voxel.size.height)
   const solid = new BufferBuilder(true)
   const water = new BufferBuilder(false)
@@ -804,9 +863,11 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
     const [u0, v0, u1, v1] = atlas.uv(answer.tile, orient.corners[quadrant])
     return [orient.flipU ? u1 : u0, orient.flipV ? v1 : v0, orient.flipU ? u0 : u1, orient.flipV ? v0 : v1, orient.transpose ? 1 : 0]
   }
-  const quarterRects = (face: FaceKeys, archetype: ArchetypeId, quarter: number, cornerOf: (layer: number) => CornerKeys, markAt: () => void, piece?: { quadrant: number; pasted: (tile: number) => Rect; direction: number | null }, first?: (layer: number) => AtlasTile | null): Rect[] => {
+  const quarterRects = (face: FaceKeys, archetype: ArchetypeId, quarter: number, cornerOf: (layer: number) => CornerKeys, markAt: () => void, piece?: { quadrant: number; pasted: (tile: number) => Rect; direction: number | null }, first?: (layer: number) => FirstAnswer | null, at?: ProbeAt): Rect[] => {
     const rects: Rect[] = []
     const quadrant = piece ? piece.quadrant : QUADRANT_OF_QUARTER[quarter]
+    const direction = piece?.direction ?? null
+    const recording = at !== undefined && probe !== undefined && probe.want(...at.address) ? probe : null
     for (let layer = 0; layer < STACK; layer++) {
       const pasted = face.tiles[layer]
       if (pasted !== null) {
@@ -815,15 +876,31 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
           missing.add('pasted tile')
         }
         rects.push(pasted === -1 ? fallback : piece ? piece.pasted(pasted) : atlas.uv(pasted, quarter))
+        if (recording && at) recording.record({ ...at, layer, archetype, direction, via: 'pasted', keys: null, answer: null, pasted, unpainted: false })
         continue
       }
       // Optional art that answers first, when the face has some: a ramp's side, before the wall art it otherwise takes.
-      const answer = first?.(layer) ?? atlas.tileFor(cornerOf(layer), archetype, piece?.direction ?? null)
+      const early = first?.(layer) ?? null
+      const keys = early ? early.keys : cornerOf(layer)
+      const answer = early ? early.answer : atlas.tileFor(keys, archetype, direction)
       if (answer.missing) {
         markAt()
         if (answer.combo) missing.add(answer.combo)
       }
       rects.push(layer === 0 && face.empty ? fallback : oriented(answer, quadrant))
+      if (recording && at) {
+        recording.record({
+          ...at,
+          layer,
+          archetype: early ? early.archetype : archetype,
+          direction: early ? early.direction : direction,
+          via: early ? early.via : 'corner',
+          keys,
+          answer,
+          pasted: null,
+          unpainted: layer === 0 && face.empty,
+        })
+      }
     }
     return rects
   }
@@ -880,6 +957,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
           )
         }
         const face = span.face
+        const topAddress = probe ? ([SURFACE_TOP, x, y, encodeExtra(0, span.y1 * 2)] as const) : NO_ADDRESS
         /** The part of a pasted tile, which is a picture of the whole face, that falls in a piece of it. */
         const pastedPart = (fx0: number, fy0: number, fx1: number, fy1: number) => (tile: number): Rect => {
           const [u0, v0, u1, v1] = atlas.uv(tile, -1)
@@ -892,14 +970,15 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
           const vy = y + cy
           const cornerOf = (layer: number): CornerKeys => topCorner(cells, voxel, x, y, span, vx, vy, layer)
           const markAt = (): void => mark(vx, bilinear(cornerH, cx, cy) * HALF, vy)
+          const at: ProbeAt | undefined = probe ? { address: topAddress, quarter: q, middle: null, point: [vx, bilinear(cornerH, cx, cy) * HALF, vy] } : undefined
           if (run === null) {
-            emit(cx * 0.5, cy * 0.5, cx * 0.5 + 0.5, cy * 0.5 + 0.5, quarterRects(face, topArchetype, q, cornerOf, markAt))
+            emit(cx * 0.5, cy * 0.5, cx * 0.5 + 0.5, cy * 0.5 + 0.5, quarterRects(face, topArchetype, q, cornerOf, markAt, undefined, undefined, at))
             continue
           }
           // The quarter at a corner, a third of the run long instead of a half.
           const along0 = (run === 'y' ? cy : cx) * (2 / 3)
           const [fx0, fy0, fx1, fy1] = run === 'y' ? [cx * 0.5, along0, cx * 0.5 + 0.5, along0 + 1 / 3] : [along0, cy * 0.5, along0 + 1 / 3, cy * 0.5 + 0.5]
-          emit(fx0, fy0, fx1, fy1, quarterRects(face, topArchetype, q, cornerOf, markAt, { quadrant: QUADRANT_OF_QUARTER[q], pasted: pastedPart(fx0, fy0, fx1, fy1), direction: descends(run) }))
+          emit(fx0, fy0, fx1, fy1, quarterRects(face, topArchetype, q, cornerOf, markAt, { quadrant: QUADRANT_OF_QUARTER[q], pasted: pastedPart(fx0, fy0, fx1, fy1), direction: descends(run) }, undefined, at))
         }
         if (run !== null) {
           // The middle row: one piece on each side of the run's centre line.
@@ -921,7 +1000,8 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
             // The half of that tile on our side of the edge, and of that half the part nearer its start.
             const quadrant = run === 'y' ? (side === 0 ? 1 : 0) : side === 0 ? 2 : 0
             const markAt = (): void => mark((ax + bx) / 2, bilinear(cornerH, (ax + bx) / 2 - x, (ay + by) / 2 - y) * HALF, (ay + by) / 2)
-            emit(fx0, fy0, fx1, fy1, quarterRects(face, topArchetype, 0, cornerOf, markAt, { quadrant, pasted: pastedPart(fx0, fy0, fx1, fy1), direction: descends(run) }))
+            const at: ProbeAt | undefined = probe ? { address: topAddress, quarter: quadrant, middle: side, point: [(ax + bx) / 2, bilinear(cornerH, (ax + bx) / 2 - x, (ay + by) / 2 - y) * HALF, (ay + by) / 2] } : undefined
+            emit(fx0, fy0, fx1, fy1, quarterRects(face, topArchetype, 0, cornerOf, markAt, { quadrant, pasted: pastedPart(fx0, fy0, fx1, fy1), direction: descends(run) }, undefined, at))
           }
         }
       }
@@ -936,7 +1016,7 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
           const cx = q % 2
           const cy = q > 1 ? 1 : 0
           const [fx0, fy0, fx1, fy1] = [x + cx * 0.5, y + cy * 0.5, x + cx * 0.5 + 0.5, y + cy * 0.5 + 0.5]
-          const rects = quarterRects(face, 'floor', q, (layer) => underCorner(cells, voxel, x, y, span, x + cx, y + cy, layer), () => mark(x + cx, h, y + cy))
+          const rects = quarterRects(face, 'floor', q, (layer) => underCorner(cells, voxel, x, y, span, x + cx, y + cy, layer), () => mark(x + cx, h, y + cy), undefined, undefined, probe ? { address: [SURFACE_UNDER, x, y, encodeExtra(0, span.y0 * 2)], quarter: q, middle: null, point: [x + cx, h, y + cy] } : undefined)
           solid.polygon(
             [
               [fx0, h, fy0],
@@ -1156,12 +1236,24 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
                 (layer) => courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer),
                 () => mark(ox + u[0] * (atEnd ? 1 : 0), (atTop ? course + 1 : course) * 2 * HALF, oz + u[1] * (atEnd ? 1 : 0)),
                 undefined,
-                (layer) =>
+                (layer): FirstAnswer | null => {
                   // Under a slope the face is the ramp's SIDE: its own art when the material has some, drawn for the way
                   // the slope runs across the face — east when it falls toward the side's end, west toward its start — so
                   // art for one is mirrored for the other; the wall art above when it has none.
-                  (sloped ? atlas.slotTile(courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer, true), 'ramp', topStart > topEnd ? 0 : 2) : null) ??
-                  (turn ? atlas.slotTile(courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer, false, turn.seam), 'wall') : null),
+                  if (sloped) {
+                    const keys = courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer, true)
+                    const toward = topStart > topEnd ? 0 : 2
+                    const answer = atlas.slotTile(keys, 'ramp', toward)
+                    if (answer) return { answer, keys, archetype: 'ramp', direction: toward, via: 'side' }
+                  }
+                  if (turn) {
+                    const keys = courseCorner(cells, voxel, x, y, dir, course, atEnd, atTop, layer, false, turn.seam)
+                    const answer = atlas.slotTile(keys, 'wall')
+                    if (answer) return { answer, keys, archetype: 'wall', direction: null, via: 'seam' }
+                  }
+                  return null
+                },
+                probe ? { address: [SURFACE_CLIFF, x, y, encodeExtra(dir, level)], quarter: q, middle: null, point: [ox + u[0] * (atEnd ? 1 : 0), (atTop ? course + 1 : course) * 2 * HALF, oz + u[1] * (atEnd ? 1 : 0)] } : undefined,
               )
               solid.polygon(
                 piece.map(([t, h]) => [ox + u[0] * t, h * HALF, oz + u[1] * t] as const),
@@ -1211,4 +1303,56 @@ export function meshTerrainChunk(voxel: ReadonlyVoxel, key: string, look: Terrai
     marks: new Float32Array(marks),
     missing: [...missing],
   }
+}
+
+/** A face of a voxel volume as the paint addresses it: the cell, the voxel layer, and the side (`FACE_TOP`, `FACE_BOTTOM` or 0–3). */
+export interface FaceAt {
+  readonly x: number
+  readonly z: number
+  readonly y: number
+  readonly dir: number
+}
+
+/**
+ * Every lookup one face makes, recorded by meshing the chunk it is in (the face inspector, 2026-10-21): per piece
+ * and per material layer, the tags it asked for and what answered. A wall's face is both of its half-tile bands.
+ * Empty where the face is not drawn — air on that side, or covered.
+ */
+export function probeFace(voxel: ReadonlyVoxel, look: TerrainLook, face: FaceAt): FaceLookup[] {
+  const kind = face.dir === FACE_TOP ? SURFACE_TOP : face.dir === FACE_BOTTOM ? SURFACE_UNDER : SURFACE_CLIFF
+  const lookups: FaceLookup[] = []
+  const want = (k: number, x: number, y: number, extra: number): boolean => {
+    if (k !== kind || x !== face.x || y !== face.z) return false
+    const { dir, level } = decodeExtra(extra)
+    return kind === SURFACE_CLIFF ? dir === face.dir && Math.floor(level / 2) === face.y : level === face.y * 2
+  }
+  meshTerrainChunk(voxel, chunkKey(Math.floor(face.x / CHUNK_SIZE), Math.floor(face.z / CHUNK_SIZE)), look, { want, record: (lookup) => lookups.push(lookup) })
+  return lookups
+}
+
+/** A missing arrangement, by what it asked: its archetype, direction and four tags. */
+export function arrangementKey(lookup: Pick<FaceLookup, 'archetype' | 'direction' | 'keys'>): string {
+  return `${lookup.archetype}|${lookup.direction ?? ''}|${(lookup.keys ?? []).map((k) => k ?? '').join('|')}`
+}
+
+/**
+ * How many corners of the whole volume each missing arrangement is wanted at: every lookup no tile answered, by
+ * `arrangementKey`, counted once per grid point however many faces' quarters meet there.
+ */
+export function wantedCorners(voxel: ReadonlyVoxel, look: TerrainLook): Map<string, number> {
+  const points = new Map<string, Set<string>>()
+  const probe: TerrainProbe = {
+    want: () => true,
+    record: (lookup) => {
+      if (lookup.answer === null || !lookup.answer.missing) return
+      const key = arrangementKey(lookup)
+      let at = points.get(key)
+      if (!at) points.set(key, (at = new Set()))
+      at.add(`${lookup.layer}:${lookup.point.join(',')}`)
+    },
+  }
+  const across = Math.ceil(voxel.size.width / CHUNK_SIZE)
+  const down = Math.ceil(voxel.size.height / CHUNK_SIZE)
+  for (let cy = 0; cy < down; cy++) for (let cx = 0; cx < across; cx++) meshTerrainChunk(voxel, chunkKey(cx, cy), look, probe)
+  return new Map([...points].map(([key, at]) => [key, at.size]))
 }

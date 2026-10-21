@@ -45,9 +45,10 @@ export { createTerrainLook } from './look'
 export { projectSprites } from './sprites'
 export type { ProjectSprites } from './sprites'
 export type { TerrainLook, TrimSettings } from './look'
-export type { AtlasOptions, AtlasTile, CornerKeys, LoadedSet, MissingReport, TrimPart } from './atlas'
+export type { AtlasOptions, AtlasTile, CornerKeys, LoadedSet, MissingReport, TileSource, TrimPart } from './atlas'
 
-export { meshTerrainChunk } from './terrain'
+export { arrangementKey, meshTerrainChunk, probeFace, wantedCorners } from './terrain'
+export type { FaceAt, FaceLookup, TerrainProbe } from './terrain'
 export type { MeshBuffers, TerrainChunkMesh } from './terrain'
 
 export { meshSketch, outlineOf, triangulate, wallProfilePolyline, wallProfilePreset } from './sketch'

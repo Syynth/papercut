@@ -1175,3 +1175,11 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** The logo is the lowercase p from Bricolage Grotesque (heavy weight), extended into an isometric block and cut on a slanted plane through the bowl. The red top is lifted straight up off a navy base, and the cut face is white paper with a dashed tile grid. Behind the block are three paper-toned planes (floor, back wall, side wall). Red, green and blue axis lines run along where the planes meet and continue as dots past the planes' edges. The wordmark is "papercut" in Bricolage Grotesque heavy, with a thin cardboard edge.
 - **WHY:** The block and the cut together say what the app does: building 3D levels out of flat paper art. The planes, grid and coloured axes say "3D editor". Bricolage won over the serif because it's chunkier and friendlier, matching the blocky mark.
+
+## Stand-ins are replaced by hand, never outranked
+- **WHEN:** 2026-10-21
+- **PROJECT:** papercut
+- **SYSTEM:** editor-ui / terrain-model (face inspector)
+- **SCOPE:** moderate
+- **WHAT:** The face inspector can generate stand-in tiles for a missing arrangement. They go on a sheet of their own (`sheets/stand-ins.png`) and are an ordinary tagged image. There is no precedence rule: drawn art does not automatically win over a stand-in. A stand-in is replaced by drawing over its tiles (they keep their tags) or by removing it from the inspector, after which the real art's tiles answer. The inspector also reports how many corners on the map want each missing arrangement.
+- **WHY:** With the inspector showing which tile answers every face, finding and removing a stand-in is cheap, so a precedence system isn't worth building. It would also be a second resolution rule for the atlas to get wrong. Keeping stand-ins on their own sheet keeps them easy to find and replace, and the corner count says how much each missing tile matters.
