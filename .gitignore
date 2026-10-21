@@ -17,3 +17,7 @@ shots/
 
 # agent worktrees
 .claude/worktrees/
+
+# brand/source/export_brand.py (Python)
+__pycache__/
+brand/source/out/

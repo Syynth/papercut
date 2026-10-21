@@ -1159,3 +1159,11 @@ Each entry:
 - **SCOPE:** minor/local
 - **WHAT:** The move handles are flat arrows lying in a plane, drawn quietly, rather than solid 3D cylinders and cones. Amended the same day: each is about half a tile long, sized in the world rather than on the screen (with a floor on its screen size, so it stays grabbable zoomed far out), squat and wide, with an outline in the axis colour and a mostly transparent centre.
 - **WHY:** Handles that are always showing on a selection must not shout over the pixel-art terrain; solid 3D gizmos read as objects in the scene, flat arrows read as interface. Sizing them to the tile grid ties them to what they move, and an outlined, see-through arrow leaves the art under it visible.
+
+## papercut's logo is the sliced block p (L6·1f)
+- **WHEN:** 2026-10-20
+- **PROJECT:** papercut
+- **SYSTEM:** branding
+- **SCOPE:** moderate
+- **WHAT:** The logo is the lowercase p from Bricolage Grotesque (heavy weight), extended into an isometric block and cut on a slanted plane through the bowl. The red top is lifted straight up off a navy base, and the cut face is white paper with a dashed tile grid. Behind the block are three paper-toned planes (floor, back wall, side wall). Red, green and blue axis lines run along where the planes meet and continue as dots past the planes' edges. The wordmark is "papercut" in Bricolage Grotesque heavy, with a thin cardboard edge.
+- **WHY:** The block and the cut together say what the app does: building 3D levels out of flat paper art. The planes, grid and coloured axes say "3D editor". Bricolage won over the serif because it's chunkier and friendlier, matching the blocky mark.

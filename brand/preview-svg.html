@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>papercut mark as SVG</title>
+<style>
+  html, body { margin: 0; font: 14px/1.4 ui-monospace, monospace; color: #1F2430; background: #F3EDE0; }
+  main { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); min-height: 100vh; }
+  section { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; padding: 32px 16px; }
+  section.dark { background: #16191F; color: #F3EDE0; }
+  img { width: min(100%, 520px); height: auto; }
+  button { font: inherit; padding: 8px 14px; border: 2px solid currentColor; border-radius: 8px; background: transparent; color: inherit; cursor: pointer; }
+  @media (max-width: 720px) { main { grid-template-columns: minmax(0, 1fr); } }
+</style>
+</head>
+<body>
+<main>
+  <section>
+    <img src="papercut-mark-animated.svg" alt="papercut mark">
+    <button type="button" data-replay>Replay</button>
+  </section>
+  <section class="dark">
+    <img src="papercut-mark-animated-dark.svg" alt="papercut mark, dark mode">
+    <button type="button" data-replay>Replay</button>
+  </section>
+</main>
+<script>
+  // An SVG's CSS animation plays once when it loads; reloading the image replays it.
+  for (const button of document.querySelectorAll('[data-replay]')) {
+    button.addEventListener('click', () => {
+      for (const img of document.querySelectorAll('img')) {
+        img.src = img.src.split('?')[0] + '?' + Date.now();
+      }
+    });
+  }
+</script>
+</body>
+</html>
