@@ -3302,3 +3302,94 @@ body {
 .ui-detail-line.is-accent {
   color: var(--ui-accent);
 }
+
+.ui-fix {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--ui-line);
+  border-radius: 6px;
+  font-size: 12px;
+  color: var(--ui-ink-2);
+}
+
+.ui-fix.is-primary {
+  border-color: var(--ui-line-2);
+}
+
+.ui-fix-title {
+  font-weight: 600;
+  font-size: 13px;
+  color: var(--ui-ink);
+}
+
+.ui-fix-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.ui-block-grid {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  max-width: 180px;
+}
+
+.ui-block-cell {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  aspect-ratio: 1;
+  border-radius: 2px;
+  overflow: hidden;
+  opacity: 0.55;
+}
+
+.ui-block-cell > .is-none {
+  background: repeating-linear-gradient(135deg, var(--ui-panel-2) 0 2px, var(--ui-bg-2) 2px 4px);
+}
+
+.ui-block-cell.is-lit {
+  opacity: 1;
+  outline: 2px solid var(--ui-accent);
+  outline-offset: -1px;
+}
+
+.ui-check-line {
+  display: flex;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.ui-check-line.is-ok > span:first-child {
+  color: var(--ui-ok);
+}
+
+.ui-check-line.is-off > span:first-child {
+  color: var(--ui-warn);
+}
+
+.ui-near {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.ui-near-label {
+  flex: 1;
+  min-width: 0;
+  font: 11px var(--ui-font-mono);
+  color: var(--ui-ink-2);
+  overflow-wrap: anywhere;
+}
+
+.ui-near-thumb {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  image-rendering: pixelated;
+  border-radius: 2px;
+}

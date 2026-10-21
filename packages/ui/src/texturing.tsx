@@ -98,3 +98,50 @@ export function CornerDetail({ cells, title, tags, thumb, children }: { cells: r
 export function DetailLine({ tone = 'muted', children }: { tone?: 'muted' | 'warn' | 'ok' | 'accent'; children: ReactNode }) {
   return <span className={`ui-detail-line is-${tone}`}>{children}</span>
 }
+
+/** One way to fill a missing corner: a title, what it does, and its actions. */
+export function FixOption({ title, primary = false, children, actions }: { title: string; primary?: boolean; children: ReactNode; actions?: ReactNode }) {
+  return (
+    <div className={`ui-fix${primary ? ' is-primary' : ''}`}>
+      <span className="ui-fix-title">{title}</span>
+      {children}
+      {actions ? <div className="ui-fix-actions">{actions}</div> : null}
+    </div>
+  )
+}
+
+/** A template block as its cells, each its four corners; the cells this face is missing are lit. */
+export function BlockGrid({ columns, cells, lit }: { columns: number; cells: readonly (readonly KeyCell[])[]; lit: ReadonlySet<number> }) {
+  return (
+    <div className="ui-block-grid" style={{ gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` }}>
+      {cells.map((corners, i) => (
+        <span key={i} className={`ui-block-cell${lit.has(i) ? ' is-lit' : ''}`}>
+          {corners.map((cell, k) => (
+            <span key={k} className={cell.color === null ? 'is-none' : undefined} style={cell.color === null ? undefined : { background: cell.color }} />
+          ))}
+        </span>
+      ))}
+    </div>
+  )
+}
+
+/** A line with a tick or a cross: whether what it names is drawn. */
+export function CheckLine({ ok, children }: { ok: boolean; children: ReactNode }) {
+  return (
+    <span className={`ui-check-line${ok ? ' is-ok' : ' is-off'}`}>
+      <span aria-hidden="true">{ok ? '✓' : '✗'}</span>
+      <span>{children}</span>
+    </span>
+  )
+}
+
+/** A drawn tile offered as a near miss: its key, what it is, its thumbnail. */
+export function NearMiss({ cells, label, thumb }: { cells: readonly KeyCell[]; label: string; thumb?: string }) {
+  return (
+    <span className="ui-near">
+      <CornerKey cells={cells} size={26} />
+      <span className="ui-near-label">{label}</span>
+      {thumb ? <img className="ui-near-thumb" src={thumb} alt="" /> : null}
+    </span>
+  )
+}

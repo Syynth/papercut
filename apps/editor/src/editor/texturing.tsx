@@ -9,11 +9,13 @@
 
 import { useCallback, useMemo, useState } from 'react'
 
-import { FACE_BOTTOM, FACE_TOP, archetypeOfTag, faceLayers, materialById, materialOfTag, parseFaceKey, slotMaterial, slotOfTag, slotTile, type ArchetypeId, type MaterialDef, type MaterialLayers, type ReadonlyMapDoc, type Tag } from '@papercut/document'
-import { useDocumentSelector, type Selection } from '@papercut/editor-host'
-import { arrangementKey, createTerrainLook, probeFace, wantedCorners, type FaceAt, type FaceLookup, type LoadedSet } from '@papercut/geometry'
-import { CornerCards, CornerDetail, DetailLine, LayerChips, Note, Row, Section, type CornerCardData, type CornerStatus, type KeyCell, type LayerChip } from '@papercut/ui'
+import { FACE_BOTTOM, FACE_TOP, archetypeOfTag, faceLayers, materialById, materialOfTag, parseFaceKey, slotMaterial, slotOfTag, slotTile, tagOf, type ArchetypeId, type MaterialDef, type MaterialLayers, type ReadonlyMapDoc, type Tag } from '@papercut/document'
+import { useDocumentSelector, useHost, type Selection } from '@papercut/editor-host'
+import { arrangementKey, conventionOf, createTerrainLook, probeFace, wantedCorners, type CornerKeys, type FaceAt, type FaceLookup, type LoadedSet, type TerrainLook } from '@papercut/geometry'
+import { Action, BlockGrid, CheckLine, CornerCards, CornerDetail, DetailLine, FixOption, LayerChips, NearMiss, Note, Row, Section, type CornerCardData, type CornerStatus, type KeyCell, type LayerChip } from '@papercut/ui'
 
+import { run } from './commands'
+import { requestPlacing } from './intent'
 import { tileUrl } from './preview'
 
 type Region = Extract<Selection, { kind: 'region' }>
@@ -139,7 +141,8 @@ export function TexturingSection({ region, materials, terrain }: { region: Regio
   const pieces = new Set(lookups.filter((l) => verdict(l).status === 'missing').map((l) => `${l.layer}:${pieceId(l)}`))
   const borrowing = lookups.some((l) => verdict(l).status === 'borrowed')
   const unpainted = lookups.some((l) => l.unpainted)
-  const total = new Set(lookups.map((l) => `${l.layer}:${pieceId(l)}`)).size
+  // Counted over the layers that hold anything here: an empty layer's corners are nothing, not something to draw.
+  const total = new Set(lookups.filter((l) => layers[l.layer].live).map((l) => `${l.layer}:${pieceId(l)}`)).size
   const summary = unpainted ? 'unpainted' : pieces.size > 0 ? `${pieces.size} of ${total} missing` : borrowing ? 'borrowing floor art' : 'answered'
 
   const archetype = (lookups.find((l) => l.layer === 0 && l.via !== 'pasted') ?? lookups[0]).archetype
@@ -159,6 +162,9 @@ export function TexturingSection({ region, materials, terrain }: { region: Regio
       />
       <CornerCards cards={cards} active={chosen ? pieceId(chosen) : null} onPick={setCardPick} />
       {chosen ? <ChosenCorner lookup={chosen} label={pieceLabel(face, chosen)} cellOf={cellOf} nameOf={nameOf} terrain={terrain} wanted={wanted} /> : null}
+      {chosen && chosen.keys && (verdict(chosen).status === 'missing' || verdict(chosen).status === 'borrowed') && !chosen.unpainted ? (
+        <Fixes lookup={chosen} keys={chosen.keys} missingHere={onLayer.filter((l) => verdict(l).status === verdict(chosen).status && l.keys !== null)} materials={materials} terrain={terrain} look={look} cellOf={cellOf} nameOf={nameOf} />
+      ) : null}
     </Section>
   )
 }
@@ -201,5 +207,148 @@ function ChosenCorner({ lookup, label, cellOf, nameOf, terrain, wanted }: { look
       ) : null}
       {status === 'borrowed' ? <DetailLine tone="accent">It is art tagged for any face: nothing is tagged as {lookup.archetype} art for this corner, so the floor’s tile stands in.</DetailLine> : null}
     </CornerDetail>
+  )
+}
+
+// --- what would fill it -------------------------------------------------------------
+
+/** The block of the corner-blocks layout that would draw an arrangement: its values, its cells, and the cell for it. */
+export interface Template {
+  /** Material ids, `null` for nothing, in the block's order: nothing first, then by the project's priority. */
+  readonly values: readonly (number | null)[]
+  readonly columns: number
+  /** Each cell's four corners, as indexes into `values`. */
+  readonly cells: readonly (readonly number[])[]
+  readonly slot: string | null
+}
+
+const orderOf = (materials: readonly MaterialDef[], id: number): number => materials.findIndex((m) => m.id === id)
+
+/** The distinct materials an arrangement names, by priority. */
+function materialsIn(keys: CornerKeys, materials: readonly MaterialDef[]): number[] {
+  const ids = new Set<number>()
+  for (const key of keys) {
+    const id = materialOfTag(key)
+    if (id !== null) ids.add(id)
+  }
+  return [...ids].sort((a, b) => orderOf(materials, a) - orderOf(materials, b))
+}
+
+/** The block for an arrangement; `four` where four things meet, which no block draws; `null` where corners name different slots. */
+export function templateFor(keys: CornerKeys, materials: readonly MaterialDef[]): Template | 'four' | null {
+  const slots = new Set(keys.filter((k) => k !== null).map((k) => slotOfTag(k)))
+  if (slots.size > 1) return null
+  const values = [...(keys.includes(null) ? [null] : []), ...materialsIn(keys, materials)]
+  if (values.length > 3) return 'four'
+  if (values.length < 2) return null
+  const shape = conventionOf('corner-blocks')?.blockShape(values.length)
+  if (!shape) return null
+  return { values, columns: shape.columns, cells: shape.cells.map((c) => [...c.corners]), slot: [...slots][0] ?? null }
+}
+
+/** Which cell of a block an arrangement is, or -1. */
+export function cellOfArrangement(template: Template, keys: CornerKeys): number {
+  const index = keys.map((k) => template.values.indexOf(k === null ? null : materialOfTag(k)))
+  return template.cells.findIndex((corners) => corners.every((v, i) => v === index[i]))
+}
+
+const sameValues = (a: readonly (number | null)[], b: readonly (number | null)[]): boolean => a.length === b.length && a.every((v, i) => v === b[i])
+
+/** The same corner as `keys` with another material in a tag's place: what a layer would hold if the corner were split across layers. */
+const retag = (key: Tag, material: number): Tag => (key === null ? null : tagOf(material, slotOfTag(key), archetypeOfTag(key) ?? null))
+
+/** Drawn tiles that match three of an arrangement's four corners, by material and slot, for this kind of face or any. */
+function nearMisses(keys: CornerKeys, archetype: ArchetypeId, terrain: readonly LoadedSet[]): { loaded: LoadedSet; index: number; tags: CornerKeys }[] {
+  const same = (a: Tag, b: Tag): boolean => a === b || (a !== null && b !== null && materialOfTag(a) === materialOfTag(b) && slotOfTag(a) === slotOfTag(b))
+  const out: { loaded: LoadedSet; index: number; tags: CornerKeys }[] = []
+  for (const loaded of terrain) {
+    for (const [index, tags] of loaded.set.tiles) {
+      const named = tags.map((t) => archetypeOfTag(t)).find((a) => a)
+      if (named && named !== archetype) continue
+      if (tags.filter((t, i) => same(t, keys[i])).length === 3) out.push({ loaded, index, tags })
+      if (out.length === 3) return out
+    }
+  }
+  return out
+}
+
+/**
+ * The ways to fill a corner nobody drew (or one a wall borrows floor art for), best first: the template block that
+ * draws it and Place block…, set to it; splitting it across layers, when each layer's part is drawn already; and the
+ * drawn tiles that come closest.
+ */
+function Fixes({ lookup, keys, missingHere, materials, terrain, look, cellOf, nameOf }: { lookup: FaceLookup; keys: CornerKeys; missingHere: readonly FaceLookup[]; materials: readonly MaterialDef[]; terrain: readonly LoadedSet[]; look: TerrainLook; cellOf: (tag: Tag) => KeyCell; nameOf: (tag: Tag) => string }) {
+  const host = useHost()
+  const template = templateFor(keys, materials)
+  const ids = materialsIn(keys, materials)
+  const name = (id: number): string => nameOf(tagOf(id))
+  const borrowed = verdict(lookup).status === 'borrowed'
+
+  const place = (block: Template): void => {
+    const [first, second, third] = block.values
+    const spelled = first === null ? { under: null, over: second as number, third: third ?? null } : { under: first, over: second as number, third: third ?? null }
+    requestPlacing({ ...spelled, context: lookup.archetype === 'floor' ? null : lookup.archetype, slot: block.slot })
+    run(host, 'view.set', { settings: 'materials' })
+  }
+
+  // Every corner of this face that the same block would draw, lit together.
+  const lit = new Set<number>()
+  if (template && template !== 'four') {
+    for (const other of missingHere) {
+      if (!other.keys) continue
+      const theirs = templateFor(other.keys, materials)
+      if (theirs && theirs !== 'four' && sameValues(theirs.values, template.values)) lit.add(cellOfArrangement(template, other.keys))
+    }
+    lit.add(cellOfArrangement(template, keys))
+    lit.delete(-1)
+  }
+  const blockName = template && template !== 'four' ? [...template.values.map((v) => (v === null ? 'the edge' : name(v)))].join(', ').replace(/, ([^,]*)$/, ' and $1') : ''
+
+  // Split across layers: the lowest material under all of it, each other material alone on a layer of its own above.
+  const layers =
+    ids.length >= 2
+      ? [
+          { label: `Layer 1: ${name(ids[0])}${keys.includes(null) ? ' · edge' : ''}`, keys: keys.map((k) => retag(k, ids[0])) as unknown as CornerKeys },
+          ...ids.slice(1).map((id, i) => ({ label: `Layer ${i + 2}: ${name(id)} · edge`, keys: keys.map((k) => (k !== null && materialOfTag(k) === id ? k : null)) as unknown as CornerKeys })),
+        ].map((plan) => ({ ...plan, drawn: look.atlas.slotTile(plan.keys, lookup.archetype, lookup.direction) !== null }))
+      : []
+
+  const near = borrowed ? [] : nearMisses(keys, lookup.archetype, terrain)
+
+  return (
+    <>
+      {template === 'four' ? (
+        <FixOption title="No block draws this" primary>
+          <span>Four things meet at this corner, and the corner-blocks layout stops at three. Split it across layers instead.</span>
+        </FixOption>
+      ) : template ? (
+        <FixOption title={borrowed ? `Draw it as ${lookup.archetype} art` : 'The template'} primary actions={<Action title="Place block…" tone="accent" onClick={() => place(template)} />}>
+          <BlockGrid columns={template.columns} cells={template.cells.map((corners) => corners.map((v) => cellOf(template.values[v] === null ? null : tagOf(template.values[v]))))} lit={lit} />
+          <span>
+            The {template.values.length === 2 ? 'pair' : 'triple'} block for {blockName}
+            {lookup.archetype === 'floor' ? '' : `, tagged as ${lookup.archetype} art`}. Lit: the {lit.size === 1 ? 'cell this corner needs' : `${lit.size} cells this face needs`}.
+          </span>
+        </FixOption>
+      ) : null}
+      {layers.length > 0 && !borrowed ? (
+        <FixOption title="Or layer it">
+          <span>Paint {name(ids[0])} under it on one layer and {ids.slice(1).map(name).join(' and ')} on {ids.length > 2 ? 'layers' : 'a layer'} above, so each layer wants only its own edge.</span>
+          {layers.map((plan) => (
+            <CheckLine key={plan.label} ok={plan.drawn}>
+              {plan.label}
+              {plan.drawn ? ', drawn' : ', not drawn either'}
+            </CheckLine>
+          ))}
+        </FixOption>
+      ) : null}
+      {near.length > 0 ? (
+        <FixOption title="Near misses">
+          <span>Drawn tiles that match three of the four corners.</span>
+          {near.map((n) => (
+            <NearMiss key={`${n.loaded.set.sheet}:${n.index}`} cells={n.tags.map(cellOf)} label={`${n.loaded.set.sheet}, tile ${n.index}`} thumb={tileUrl(n.loaded, n.index)} />
+          ))}
+        </FixOption>
+      ) : null}
+    </>
   )
 }

@@ -28,6 +28,7 @@ import { Action, AssetPicker, ColorInput, CoverageMark, FaceMarks, Field, FloatS
 import { run } from './commands'
 import { assembleAcross, coverageOf, cropOf, directionsOffered, facesOf, maskAt, pairingFace, subjectTags, type Coverage, type Found, type Subject } from './coverage'
 import { Fixture } from './fixture-view'
+import { takePlacing } from './intent'
 import { useDeleteMaterial } from './materials'
 import { PatchPreview, SheetCrop, TileGrid } from './preview'
 import type { Session } from './session'
@@ -84,24 +85,27 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
   const host = useHost()
   const materials = useProject(materialsOf)
   const summaries = useSyncExternalStore(session.summaries.subscribe, session.summaries.get)
-  const [other, setOther] = useState<number | null>(null)
-  const [view, setView] = useState<View>('preview')
-  const [context, setContext] = useState<Context>(null)
+  // Opened from the face inspector's Place block… (2026-10-21), the transition comes spelled and the section starts
+  // out placing its block on a sheet. Taken once, as the section opens; its own controls take over from there.
+  const [request] = useState(takePlacing)
+  const [other, setOther] = useState<number | null>(request ? (request.under ?? request.third) : null)
+  const [view, setView] = useState<View>(request ? 'tag' : 'preview')
+  const [context, setContext] = useState<Context>(request ? request.context : null)
   /** The small preview on the Tag stage: which side it shows, and whether it is folded away. */
   const [mini, setMini] = useState<'2d' | '3d'>('2d')
   const [miniOpen, setMiniOpen] = useState(true)
   /** The arrangement the pointer is over, in the patch or in the crop; each lights the other. */
   const [lit, setLit] = useState<number | null>(null)
   const [tool, setTool] = useState<'corners' | 'erase'>('corners')
-  const [slot, setSlot] = useState<string | null>(null)
+  const [slot, setSlot] = useState<string | null>(request ? request.slot : null)
   /** The direction the art being worked on is drawn for; `null` is every direction, which is what art that has no run wants. */
   const [direction, setDirection] = useState<TagDirection | null>(null)
-  const [spell, setSpell] = useState<Spell>(() => ({ under: null, over: materialById(materials, selected)?.id ?? materials[0]?.id ?? null, third: null }))
+  const [spell, setSpell] = useState<Spell>(() => (request ? { under: request.under, over: request.over, third: request.third } : { under: null, over: materialById(materials, selected)?.id ?? materials[0]?.id ?? null, third: null }))
   /**
    * Placing transitions is a MODE of the Tag stage (decision of 2026-09-19): entered by New transition…, left by Done
    * or Esc. While it lasts the pointer is armed and its controls are a toolbar on the stage.
    */
-  const [placing, setPlacing] = useState(false)
+  const [placing, setPlacing] = useState(request !== null)
   /** A tile to scroll to once the Tag view has the sheet up. */
   const [reveal, setReveal] = useState<Found | null>(null)
   /** What no tile answers on the 3D fixture, named once each: what its marks are. */
@@ -205,6 +209,11 @@ export function MaterialsSection({ session, selected, onSelect, sets, tagSets }:
   /** The sheet that holds the subject's art, when one does: where the Tag view opens. */
   const preferred = useMemo(() => [...(cover?.tiles.values() ?? [])].find((f) => f !== null && tagSets.includes(f.loaded))?.loaded.set.sheet ?? null, [cover, tagSets])
   const tagger = useTagger({ session, sets: tagSets, active: view === 'tag', tool: placing ? 'block' : tool, brush, values, armed: placing && values.length > 1, onPlaced: () => undefined, context, slot, direction, selected: material ? material.id : null, nameOfTag, colourOf, preferred })
+
+  // The subject the request names is the selected material: the settings own that, so it is asked for once opened.
+  useEffect(() => {
+    if (request && selected !== request.over) onSelect(request.over)
+  }, [request, selected, onSelect])
 
   // Esc leaves the placing mode, before anything else hears it: it must not close the settings under the artist.
   useEffect(() => {
