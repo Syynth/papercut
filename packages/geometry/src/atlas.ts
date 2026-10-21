@@ -63,6 +63,14 @@ const ARCHETYPE_INDEX: Record<ArchetypeId, number> = { floor: 1, wall: 2, ramp: 
 /** What the fallback is until the settings say otherwise. */
 export const DEFAULT_FALLBACK = 0xff00ff
 
+const sourceOf = (found: { loaded: LoadedSet; index: number }, archetype: ArchetypeId | null, direction: string | null): TileSource => ({
+  sheet: found.loaded.set.sheet,
+  ...(found.loaded.imageId === undefined ? {} : { imageId: found.loaded.imageId }),
+  index: found.index,
+  archetype,
+  direction,
+})
+
 /** Which of a trim's tiles: its straight edge, or, for a fringe, the outer corner where a rim runs in from one side and stops. */
 export type TrimPart = 'edge' | 'from-left' | 'from-right'
 
@@ -110,6 +118,21 @@ export interface AtlasTile {
   missing: boolean
   /** The missing combination's name (`MissingReport.combo`), for the mesher to report per chunk. */
   combo?: string
+  /** Where an authored answer was drawn, for the face inspector to point at (2026-10-21). */
+  source?: TileSource
+}
+
+/** Which sheet tile answered a corner, and how it was found. */
+export interface TileSource {
+  /** The sheet the tile is on, and the project image it was loaded from; no image for a generated set. */
+  readonly sheet: string
+  readonly imageId?: number
+  /** The tile's index on its sheet's grid. */
+  readonly index: number
+  /** The archetype its tags name: the face's own, or `null` for art tagged for any face (borrowed by this one). */
+  readonly archetype: ArchetypeId | null
+  /** The direction its tags name, when it was found by direction. */
+  readonly direction: string | null
 }
 
 export interface MissingReport {
@@ -339,11 +362,11 @@ export class TerrainAtlas {
           const art: Tag[] = [null, null, null, null]
           for (let i = 0; i < 4; i++) art[orient ? orient.corners[i] : i] = withDirection(named[i], TAG_DIRECTIONS[from])
           const found = this.authored.get(cornerKey(art as unknown as CornerKeys))
-          if (found) return { tile: this.sheetTile(found.loaded, found.index), missing: false, ...(orient ? { orient } : {}) }
+          if (found) return { tile: this.sheetTile(found.loaded, found.index), missing: false, ...(orient ? { orient } : {}), source: sourceOf(found, a, TAG_DIRECTIONS[from]) }
         }
       }
       const found = this.authored.get(cornerKey(named))
-      if (found) return { tile: this.sheetTile(found.loaded, found.index), missing: false }
+      if (found) return { tile: this.sheetTile(found.loaded, found.index), missing: false, source: sourceOf(found, a, null) }
     }
     return null
   }

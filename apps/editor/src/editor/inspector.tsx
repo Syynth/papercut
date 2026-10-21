@@ -22,6 +22,7 @@ import { run, setParams } from './commands'
 import type { LoadedSet } from '@papercut/geometry'
 
 import { MaterialsPicker } from './materials'
+import { TexturingSection } from './texturing'
 import { TilesPicker } from './tiles'
 
 import { FeaturePanels } from './bars'
@@ -172,6 +173,8 @@ export function Inspector({
           <Note>Nothing selected. Click anything with Select: an object, a sketch, the ground — or switch Select to Region to take voxels, faces or edges of the terrain.</Note>
         )}
       </Section>
+
+      {region?.element === 'face' ? <TexturingSection key={region.keys.length === 1 ? region.keys[0] : region.keys.length} region={region} materials={materials} terrain={terrain} /> : null}
 
       {selected ? (
         <Section icon="rotate" title="Facing & flip" summary={`${selected.facing.facings} facing${selected.facing.facings === 1 ? '' : 's'}`} defaultOpen={false}>

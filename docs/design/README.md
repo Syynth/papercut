@@ -58,3 +58,6 @@
   terrain tools for voxels: surface verbs that act along the pressed face's normal, a Build mode of blocks and
   shape fills, ramps and pieces, and one Edges mode for fringes, pickets and rails. Proposed, with its open
   questions on the last board.
+- [`texture-series/`](texture-series/README.md) — the 2026-10-21 start on an original texture style for the
+  default kit and a showcase sample: the three scenes it should build, what the placeholder set lacks, and the
+  shapes the system cannot express yet. Tabled the same day for the face inspector.

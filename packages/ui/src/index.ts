@@ -80,6 +80,8 @@ export { Checkbox, Door, Doors, ErrorLine, RecentList, RecentRow, StartupScreen,
 export { CoverageMark, FaceMarks, FloatStage, MaterialRow, StageFloat, StagePanel, StageToolbar, SubjectRow, FieldGrid, SettingsBlock, SettingsDialog, Tagger, TaggerItem, Library, LibraryTab, LibraryItem, LibraryGroup, Derived, PairInput, AssetPicker, SettingsRailItem, SettingsRailNote, SettingsScope, SettingsSearch, SheetPreview, Status, Swatch, Table, TableRow } from './settings'
 
 export { BarScrub, Scrub } from './scrub'
+export { CornerCards, CornerDetail, CornerKey, DetailLine, LayerChips } from './texturing'
+export type { CornerCardData, CornerStatus, KeyCell, LayerChip } from './texturing'
 export type { ScrubProps } from './scrub'
 
 export { ICON_NAMES, Icon, isIconName } from './icons'
