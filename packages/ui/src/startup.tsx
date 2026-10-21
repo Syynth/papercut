@@ -3,24 +3,19 @@
  * the mark and the name, two doors, the recent projects, and whether to
  * reopen the last one on launch. Mirrors brink's, in this vocabulary.
  *
- * Presentation only: the app hands in what the doors and the rows do. The
- * mark is drawn here rather than shipped as an asset, so it recolours with
- * the tokens and there is nothing to load before the screen shows.
+ * Presentation only: the app hands in what the doors and the rows do, and
+ * the mark and the name above them. The mark is the brand's (`brand/`), an
+ * image the app owns; the name is text, or the brand's wordmark.
  */
 
 import type { ReactNode } from 'react'
 
-export function StartupScreen({ name, tagline, children }: { name: string; tagline: string; children: ReactNode }) {
+export function StartupScreen({ mark, name, tagline, children }: { mark: ReactNode; name: ReactNode; tagline: string; children: ReactNode }) {
   return (
     <div className="ui-startup">
       <div className="ui-startup-column">
         <div className="ui-startup-lockup">
-          <svg width="84" height="84" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg" className="ui-startup-mark" aria-label={name}>
-            <path d="M60,0 C12,0 0,12 0,60 C0,108 12,120 60,120 C108,120 120,108 120,60 C120,12 108,0 60,0 Z" fill="var(--ui-panel)" />
-            <path d="M34 26 H72 L90 44 V94 H34 Z" fill="var(--ui-accent)" />
-            <path d="M72 26 V44 H90 Z" fill="var(--ui-accent-ink)" />
-            <path d="M44 58 H80 M44 70 H80 M44 82 H66" stroke="var(--ui-accent-ink)" strokeWidth="4" strokeLinecap="round" fill="none" />
-          </svg>
+          <div className="ui-startup-mark">{mark}</div>
           <div className="ui-startup-name">{name}</div>
           <div className="ui-startup-tagline">{tagline}</div>
         </div>

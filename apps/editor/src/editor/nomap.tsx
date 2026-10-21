@@ -11,6 +11,7 @@ import { useHost, useProject } from '@papercut/editor-host'
 import type { StrayMap } from '@papercut/project'
 import { Door, Doors, RecentList, RecentRow, StartupScreen, StartupSection } from '@papercut/ui'
 
+import { BrandMark } from './brand'
 import { run } from './commands'
 import { adoptMap, openMapAt, type Session } from './session'
 
@@ -45,7 +46,7 @@ export function NoMapStage({ session }: { session: Session }) {
   const notify = (notice: string): void => run(host, 'view.set', { notice })
   const attempt = (work: Promise<unknown>): void => void work.catch((error: unknown) => notify(error instanceof Error ? error.message : String(error)))
   return (
-    <StartupScreen name={project} tagline="No map is open.">
+    <StartupScreen mark={<BrandMark />} name={project} tagline="No map is open.">
       <Doors>
         <Door tone="ok" title="New Map…" body="An empty 32 × 32 map, listed and opened." onClick={() => run(host, 'view.set', { dialog: 'new-map' })} />
         <Door tone="accent" title="Project Settings…" body="Images, terrain sets and materials: the setup a map is painted with." onClick={() => run(host, 'view.set', { settings: 'general' })} />

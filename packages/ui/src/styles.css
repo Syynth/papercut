@@ -1588,7 +1588,12 @@ body {
 
 .ui-startup-mark {
   margin-bottom: 9px;
-  filter: drop-shadow(0 10px 26px rgba(0, 0, 0, 0.5));
+}
+
+.ui-startup-mark > img {
+  display: block;
+  width: 200px;
+  height: auto;
 }
 
 .ui-startup-name {
@@ -1596,6 +1601,12 @@ body {
   font-weight: 600;
   letter-spacing: 0.01em;
   color: var(--ui-ink);
+}
+
+.ui-startup-name > img {
+  display: block;
+  width: 180px;
+  height: auto;
 }
 
 .ui-startup-tagline {

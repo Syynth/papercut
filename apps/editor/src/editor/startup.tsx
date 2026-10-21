@@ -13,6 +13,7 @@ import { useHost, useViewSelector } from '@papercut/editor-host'
 import { slugOf } from '@papercut/project'
 import { Action, Checkbox, Dialog, DialogManifest, Door, Doors, ErrorLine, Field, NumberInput, RecentList, RecentRow, Segmented, StartupScreen, StartupSection, TextInput } from '@papercut/ui'
 
+import { BrandMark, Wordmark } from './brand'
 import { run } from './commands'
 import { MEMORY_PROJECTS_DIR, createProjectAt, memoryProjects, openProjectAt, recents, reopenLast, setReopenLast, type Session } from './session'
 
@@ -50,7 +51,7 @@ export function Startup({ session }: { session: Session }) {
   }
 
   return (
-    <StartupScreen name="papercut" tagline="Open a project to begin.">
+    <StartupScreen mark={<BrandMark moving />} name={<Wordmark />} tagline="Open a project to begin.">
       <Doors>
         <Door tone="ok" title="New Project…" body="Pick a folder — your art can already be in it. Creates papercut.json and the placeholder sheet." onClick={() => run(host, 'view.set', { dialog: 'new-project' })} />
         <Door tone="accent" title="Open…" body="Open a project folder — the one papercut.json sits in." onClick={() => void onOpen()} />
