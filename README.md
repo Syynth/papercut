@@ -1,3 +1,10 @@
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="brand/papercut-lockup-horizontal-dark.png">
+    <img src="brand/papercut-lockup-horizontal.png" alt="papercut" width="560">
+  </picture>
+</p>
+
 # Level editor — prototype
 
 An exploratory prototype for the editor described in
