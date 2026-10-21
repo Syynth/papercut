@@ -257,3 +257,58 @@ export const PLACEHOLDER_PAIRS: ReadonlyArray<readonly [number, number]> = [
 export function generatePlaceholderTerrainSet(tile = 16): PlaceholderTerrainSet {
   return generateTerrainSetArt('ground.png', PLACEHOLDER_TERRAINS, PLACEHOLDER_PAIRS, tile)
 }
+
+/** A cell of a layout block: its place in the block and its four corners, NW NE SW SE, as indexes into the block's values. */
+export interface BlockCell {
+  readonly column: number
+  readonly row: number
+  readonly corners: readonly number[]
+}
+
+/**
+ * Draw one block of a layout in the placeholder's style: a stand-in for a transition nobody drew (the face
+ * inspector, 2026-10-21; decision "Stand-ins are replaced by hand, never outranked"). `values` go lowest first, as a
+ * layout block's do: value 0 fills every tile — or nothing does, where it is `null`, the edge — and each later value
+ * is drawn over the ones before it as a rounded, rimmed shape over the quadrants at or past it. A pair block is the
+ * placeholder's pair tiles laid out another way; a triple stacks its third value over its second the same way.
+ */
+export function renderCornerBlock(values: readonly (PlaceholderTerrain | null)[], cells: readonly BlockCell[], columns: number, rows: number, tile = 16): RgbaImage {
+  const width = columns * tile
+  const height = rows * tile
+  const data = new Uint8ClampedArray(width * height * 4)
+  const rounding = Math.max(1, Math.round((tile * 3) / 16))
+  const put = (i: number, rgb: [number, number, number]): void => {
+    data[i] = rgb[0]
+    data[i + 1] = rgb[1]
+    data[i + 2] = rgb[2]
+    data[i + 3] = 255
+  }
+  for (const cell of cells) {
+    const x0 = cell.column * tile
+    const y0 = cell.row * tile
+    const seed = x0 * 31 + y0
+    const base = values[0]
+    if (base) {
+      const [fill, light, dark] = [channels(base.color), shade(base.color, 1.25), shade(base.color, 0.68)]
+      for (let y = 0; y < tile; y++) for (let x = 0; x < tile; x++) put(((y0 + y) * width + x0 + x) * 4, speckled(fill, light, dark, base, x, y, seed + 3))
+    }
+    for (let v = 1; v < values.length; v++) {
+      const over = values[v]
+      if (!over) continue
+      const quadrants = new Uint8Array(tile * tile)
+      for (let y = 0; y < tile; y++) for (let x = 0; x < tile; x++) quadrants[y * tile + x] = cell.corners[(y >= tile / 2 ? 2 : 0) + (x >= tile / 2 ? 1 : 0)] >= v ? 1 : 0
+      let region = morph(morph(quadrants, tile, rounding, false), tile, rounding, true)
+      region = morph(morph(region, tile, rounding, true), tile, rounding, false)
+      const core = morph(region, tile, 1, false)
+      const [fill, light, dark] = [channels(over.color), shade(over.color, 1.25), shade(over.color, 0.68)]
+      for (let y = 0; y < tile; y++) {
+        for (let x = 0; x < tile; x++) {
+          const m = y * tile + x
+          if (!region[m]) continue
+          put(((y0 + y) * width + x0 + x) * 4, core[m] ? speckled(fill, light, dark, over, x, y, seed + v) : dark)
+        }
+      }
+    }
+  }
+  return { width, height, data }
+}

@@ -215,6 +215,14 @@ tags the two bends that join it to the rail.
 Terrain sets live in the project file, never in sidecars beside the images
 (decision of 2026-09-17).
 
+## Stand-in
+
+A transition nobody drew, drawn by papercut in the placeholder's style so its corners stop drawing the fallback:
+generated from the face inspector's Texturing section, as the corner-blocks layout's block for it, onto
+`sheets/stand-ins.png`, and tagged like any art. Nothing outranks it and nothing replaces it automatically: it is
+replaced by hand, painted over (its tiles keep their tags) or removed from the inspector for a block of the artist's
+own (decision of 2026-10-21).
+
 ## Corner
 
 Where four faces of the same grid meet — four cells of the ground, or four

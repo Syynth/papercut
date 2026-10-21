@@ -22,8 +22,8 @@
  */
 
 export { createSampleMap, createSampleProject } from './sample'
-export { PLACEHOLDER_PAIRS, PLACEHOLDER_TERRAINS, generatePlaceholderTerrainSet, generateTerrainSetArt } from './terrainset'
-export type { PlaceholderTerrain, PlaceholderTerrainSet } from './terrainset'
+export { PLACEHOLDER_PAIRS, PLACEHOLDER_TERRAINS, generatePlaceholderTerrainSet, generateTerrainSetArt, renderCornerBlock } from './terrainset'
+export type { BlockCell, PlaceholderTerrain, PlaceholderTerrainSet } from './terrainset'
 export { RAIL_ART, RAIL_MATERIALS, RAIL_SHEET, bendTile, generateRailSet, railSheetSvg, railTile, sideTile } from './rails'
 export type { RailArt, RailShape } from './rails'
 export { bakedDir } from './baked-dir'

@@ -25,7 +25,7 @@ export function CornerKey({ cells, size = 34 }: { cells: readonly KeyCell[]; siz
   )
 }
 
-export type CornerStatus = 'ok' | 'missing' | 'borrowed' | 'pasted' | 'empty'
+export type CornerStatus = 'ok' | 'missing' | 'borrowed' | 'standin' | 'pasted' | 'empty'
 
 export interface CornerCardData {
   readonly id: string
@@ -42,7 +42,7 @@ export function CornerCards({ cards, active, onPick }: { cards: readonly CornerC
   return (
     <div className="ui-corners">
       {cards.map((card) => (
-        <button key={card.id} type="button" className={`ui-corner${card.id === active ? ' is-active' : ''}`} onClick={() => onPick(card.id)} aria-pressed={card.id === active}>
+        <button key={card.id} type="button" className={`ui-corner is-${card.status}${card.id === active ? ' is-active' : ''}`} onClick={() => onPick(card.id)} aria-pressed={card.id === active}>
           <CornerKey cells={card.cells} />
           <span className="ui-corner-text">
             <span className="ui-corner-name">{card.label}</span>
@@ -75,6 +75,11 @@ export function LayerChips({ layers, active, onPick }: { layers: readonly LayerC
       ))}
     </div>
   )
+}
+
+/** A generated block, previewed at a size its pixels read at. */
+export function BlockPreview({ src, alt }: { src: string; alt: string }) {
+  return <img className="ui-block-preview" src={src} alt={alt} />
 }
 
 /** The chosen corner spelled out: its key large, what it wants, and what answered or did not. */
