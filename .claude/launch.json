@@ -24,6 +24,18 @@
         "docs/design"
       ],
       "port": 5175
+    },
+    {
+      "name": "brand",
+      "runtimeExecutable": "python3",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "5176",
+        "--directory",
+        "brand"
+      ],
+      "port": 5176
     }
   ]
 }

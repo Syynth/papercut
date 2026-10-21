@@ -1167,3 +1167,11 @@ Each entry:
 - **SCOPE:** moderate
 - **WHAT:** Dragging a move handle leaves the terrain unchanged until release. The selected voxels are drawn at the target as a translucent ghost with their real paint, the source is dimmed, and where the ghost lands on solid voxels it is outlined in red. Release commits one edit that replaces what it lands on; Escape cancels with nothing to undo. The offset reads out by the pointer.
 - **WHY:** Rewriting the terrain at every step showed a finished edit rather than a preview, and overwrote whatever the voxels passed over with no warning. A ghost shows source and target together and makes the overlap visible before it happens. The same handle-and-ghost pattern is what Extrude and Ramp will use, so it is built once.
+
+## papercut's logo is the sliced block p (L6·1f)
+- **WHEN:** 2026-10-20
+- **PROJECT:** papercut
+- **SYSTEM:** branding
+- **SCOPE:** moderate
+- **WHAT:** The logo is the lowercase p from Bricolage Grotesque (heavy weight), extended into an isometric block and cut on a slanted plane through the bowl. The red top is lifted straight up off a navy base, and the cut face is white paper with a dashed tile grid. Behind the block are three paper-toned planes (floor, back wall, side wall). Red, green and blue axis lines run along where the planes meet and continue as dots past the planes' edges. The wordmark is "papercut" in Bricolage Grotesque heavy, with a thin cardboard edge.
+- **WHY:** The block and the cut together say what the app does: building 3D levels out of flat paper art. The planes, grid and coloured axes say "3D editor". Bricolage won over the serif because it's chunkier and friendlier, matching the blocky mark.

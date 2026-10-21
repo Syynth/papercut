@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>papercut mark in 3D</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #F3EDE0; font: 14px/1.4 ui-monospace, monospace; color: #1F2430; }
+  canvas { display: block; }
+  .bar { position: fixed; left: 16px; bottom: 16px; display: flex; gap: 8px; }
+  button { font: inherit; padding: 8px 14px; border: 2px solid #1F2430; border-radius: 8px; background: #FFFDF7; cursor: pointer; }
+</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"}}</script>
+</head>
+<body>
+<div class="bar">
+  <button type="button" id="play">Play split</button>
+  <button type="button" id="orbit">Orbit: off</button>
+  <button type="button" id="theme">Dark</button>
+</div>
+<script type="module">
+// Loads papercut-mark.glb through its own "logo_iso" camera, which reproduces the 2D
+// logo, and plays its "split" clip. Orbit turns on a copy of that orthographic camera
+// you can drag around the model; turning it off snaps back to the logo view.
+import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ?theme=dark loads the dark-mode model on a dark ground
+const dark = new URLSearchParams(location.search).get('theme') === 'dark';
+const ground = dark ? 0x16191F : 0xF3EDE0;
+document.body.style.background = dark ? '#16191F' : '#F3EDE0';
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setPixelRatio(window.devicePixelRatio);
+renderer.setClearColor(ground);
+document.body.appendChild(renderer.domElement);
+
+const scene = new THREE.Scene();
+scene.add(new THREE.HemisphereLight(0xffffff, 0xcfc4b0, 1.8));
+const sun = new THREE.DirectionalLight(0xffffff, 1.4);
+sun.position.set(-2, 5, 3);
+scene.add(sun);
+
+const gltf = await new GLTFLoader().loadAsync(dark ? './papercut-mark-dark.glb' : './papercut-mark.glb');
+scene.add(gltf.scene);
+const isoCam = gltf.cameras[0];
+const orbitCam = isoCam.clone();
+const controls = new OrbitControls(orbitCam, renderer.domElement);
+// orbit around the point the logo camera is aimed at
+const aim = new THREE.Vector3(0, 0, -1).applyQuaternion(isoCam.quaternion);
+const centre = new THREE.Box3().setFromObject(gltf.scene).getCenter(new THREE.Vector3());
+const along = centre.clone().sub(isoCam.position).dot(aim);
+controls.target.copy(isoCam.position.clone().addScaledVector(aim, along));
+controls.enabled = false;
+let camera = isoCam;
+
+const mixer = new THREE.AnimationMixer(gltf.scene);
+const split = mixer.clipAction(gltf.animations[0]);
+split.setLoop(THREE.LoopOnce);
+split.clampWhenFinished = true;
+split.play();
+
+const MAG = Math.max(isoCam.right, isoCam.top);
+function resize() {
+  const w = window.innerWidth, h = window.innerHeight, a = w / h;
+  renderer.setSize(w, h);
+  for (const cam of [isoCam, orbitCam]) {           // keep the logo framing at any aspect
+    cam.left = -MAG * Math.max(a, 1); cam.right = MAG * Math.max(a, 1);
+    cam.top = MAG / Math.min(a, 1); cam.bottom = -MAG / Math.min(a, 1);
+    cam.updateProjectionMatrix();
+  }
+}
+window.addEventListener('resize', resize);
+resize();
+
+const themeButton = document.getElementById('theme');
+themeButton.textContent = dark ? 'Light' : 'Dark';
+themeButton.onclick = () => { location.search = dark ? '' : '?theme=dark'; };
+document.getElementById('play').onclick = () => { split.reset().play(); };
+document.getElementById('orbit').onclick = (e) => {
+  controls.enabled = !controls.enabled;
+  if (controls.enabled) {                          // start orbiting from the logo view
+    orbitCam.position.copy(isoCam.position);
+    orbitCam.quaternion.copy(isoCam.quaternion);
+    orbitCam.zoom = 1;
+    orbitCam.updateProjectionMatrix();
+    controls.update();
+  }
+  camera = controls.enabled ? orbitCam : isoCam;
+  e.target.textContent = `Orbit: ${controls.enabled ? 'on' : 'off'}`;
+};
+
+const clock = new THREE.Clock();
+renderer.setAnimationLoop(() => {
+  mixer.update(clock.getDelta());
+  controls.update();
+  renderer.render(scene, camera);
+});
+window.__ready = { nodes: gltf.scene.children.map(c => c.name), anims: gltf.animations.map(a => `${a.name}:${a.duration.toFixed(2)}`), camera: isoCam.type };
+</script>
+</body>
+</html>
