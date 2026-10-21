@@ -177,6 +177,8 @@ const runCommands = z
 commands.declare(HOST_OWNER, { id: 'mode.play', title: 'Enter Play Mode', category: 'Mode', when: hostKeys.mode.is('edit') })
 commands.declare(HOST_OWNER, { id: 'mode.edit', title: 'Leave Play Mode', category: 'Mode', when: hostKeys.mode.is('play') })
 commands.declare(HOST_OWNER, { id: 'commands.run', title: 'Run Commands', category: 'Commands', args: runCommands })
+/** Let go of the drag under way, as if it had never started (decision of 2026-10-09): Escape, mid-stroke. */
+commands.declare(GESTURE_OWNER, { id: 'stroke.cancel', title: 'Cancel Drag', category: 'Edit', when: gestureKeys.stroking.is(true) })
 /**
  * "Delete what is selected" is a UI intent, and the UI is what turns it into
  * arguments: this expands to `objects.delete({ ids })` plus `selection.set`,
@@ -380,6 +382,7 @@ function hostLogic(source: DocumentSource, project: ProjectDoc, features: readon
         tools: () => tools.getSnapshot().context,
         setTools: (settings) => tools.send({ type: 'settings', settings }),
         select: (selection) => view.send({ type: 'select', selection }),
+        preview: (preview) => viewport.send({ type: 'movePreview', preview }),
         // The layer view is kept in half-tiles and a voxel is two of them: the layers a region may reach through.
         layerSpan: () => {
           const range = view.getSnapshot().context.layers
@@ -772,7 +775,9 @@ export function createHost({ document: source, project = createProject(), clock,
   let recalling = false
   function rememberSelection(): void {
     // A stroke moves the selection before its edit exists: what is selected mid-drag belongs to no point in the history.
-    if (recalling || children.gesture.getSnapshot().value === 'stroke') return
+    // Nor does what a stroke selects as it closes — a move selects the voxels where they land on its release, a moment
+    // before its edit lands — so an open stroke in the document counts as well as one in the gesture.
+    if (recalling || children.gesture.getSnapshot().value === 'stroke' || reader.strokeOpen()) return
     if (reader.generation !== rememberedGeneration) {
       // Another document: its history starts over, and nothing of the last one's applies.
       selectionAt.clear()

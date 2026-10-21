@@ -52,7 +52,7 @@ export { PROJECT_OWNER, projectKeys } from './project'
 export type { MaterialsSetArgs, MapsSetArgs, ProjectContext, ProjectCurrentArgs, ProjectLoadArgs, ProjectSettings, ImagesSetArgs } from './project'
 export { VIEW_OWNER, selectionSubject, viewKeys } from './view'
 export { VIEWPORT_OWNER, sameSurface } from './viewport'
-export type { BrushCells, CameraReadout, FrameStats, ViewportState } from './viewport'
+export type { BrushCells, CameraReadout, FrameStats, MovePreview, ViewportState } from './viewport'
 export { SETTINGS_SECTIONS } from './view'
 export type { Selection, SettingsSection, ViewContext, ViewSettings } from './view'
 

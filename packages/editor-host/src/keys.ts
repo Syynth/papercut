@@ -59,6 +59,9 @@ const CORE_BINDINGS: readonly KeyBinding[] = [
   { chord: 'escape', command: 'tools.set', args: { tool: 'select' }, when: toolKeys.tool.is('select').not() },
   // Already in Select, Escape lets go of what is selected: the stage's selection pill says so beside it.
   { chord: 'escape', command: 'selection.select', args: { selection: null }, when: and(toolKeys.tool.is('select'), viewKeys.hasSelection.is(true)) },
+  // Mid-drag, Escape lets go of the drag and nothing else (decision of 2026-10-09). Declared after the two above, so the
+  // resolver, which scans in reverse, reaches it first; it is available only while a stroke is open.
+  { chord: 'escape', command: 'stroke.cancel' },
   { chord: 't', command: 'tools.set', args: { tool: 'terrain' } },
   { chord: 'o', command: 'tools.set', args: { tool: 'object' } },
 
